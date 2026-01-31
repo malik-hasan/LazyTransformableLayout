@@ -14,11 +14,11 @@ internal class LazyPannableLayoutLayerContent(
     val _layers = MutableIntervalList<LazyPannableLayoutLayer>()
     override val intervals: IntervalList<LazyPannableLayoutLayer> = _layers
 
-    override fun item(bounds: DpRect, z: Float, content: @Composable (Positionable) -> Unit) =
+    override fun item(bounds: DpRect, zIndex: Float, content: @Composable (Positionable) -> Unit) =
         item(
             item = object : Positionable {
                 override val bounds = bounds
-                override val z = z
+                override val zIndex = zIndex
             },
             content = content
         )

@@ -138,7 +138,7 @@ fun LazyPannableLayout(
                     placeable.placeWithLayer(
                         x = itemPosition.x.roundToPx(),
                         y = itemPosition.y.roundToPx(),
-                        zIndex = item.z
+                        zIndex = item.zIndex
                     ) {
                         transformOrigin = TransformOrigin(0f, 0f)
                         translationX = offsetX.toPx()
