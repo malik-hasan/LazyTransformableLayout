@@ -5,10 +5,12 @@ android-targetSdk = "36"
 android = "8.13.0" # https://kotlinlang.org/docs/multiplatform-compatibility-guide.html#version-compatibility
 kotlin = "2.3.0"
 
+compose = "1.10.0"
+
 [plugins]
 android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "android" }
 
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
-kotlin-plugin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 
 [libraries]
+compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose" }
