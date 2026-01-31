@@ -1,4 +1,4 @@
-package oats.mobile.lazypannablelayout
+package oats.mobile.lazypannablelayout.utility
 
 import kotlin.math.PI
 

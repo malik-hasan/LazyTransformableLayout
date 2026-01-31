@@ -1,4 +1,4 @@
-package oats.mobile.lazypannablelayout
+package oats.mobile.lazypannablelayout.utility
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.Density

@@ -1,4 +1,4 @@
-package oats.mobile.lazypannablelayout
+package oats.mobile.lazypannablelayout.utility
 
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown

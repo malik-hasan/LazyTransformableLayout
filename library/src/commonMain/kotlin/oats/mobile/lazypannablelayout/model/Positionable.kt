@@ -1,4 +1,4 @@
-package oats.mobile.lazypannablelayout
+package oats.mobile.lazypannablelayout.model
 
 import androidx.compose.ui.unit.DpRect
 

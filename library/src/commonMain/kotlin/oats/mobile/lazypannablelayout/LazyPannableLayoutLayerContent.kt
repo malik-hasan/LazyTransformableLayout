@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.layout.LazyLayoutIntervalContent
 import androidx.compose.foundation.lazy.layout.MutableIntervalList
 import androidx.compose.foundation.lazy.layout.IntervalList
 import androidx.compose.ui.unit.DpRect
+import oats.mobile.lazypannablelayout.model.Positionable
 
 internal class LazyPannableLayoutLayerContent(
     buildContent: LazyPannableLayoutScope.() -> Unit

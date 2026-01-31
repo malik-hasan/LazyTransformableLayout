@@ -20,6 +20,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Job
+import oats.mobile.lazypannablelayout.model.Positionable
+import oats.mobile.lazypannablelayout.utility.rotateBy
+import oats.mobile.lazypannablelayout.utility.times
+import oats.mobile.lazypannablelayout.utility.toDpOffset
 
 @Composable
 fun LazyPannableLayout(

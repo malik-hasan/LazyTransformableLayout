@@ -21,6 +21,10 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
 import androidx.compose.ui.util.fastCoerceIn
+import oats.mobile.lazypannablelayout.utility.coerceInBounds
+import oats.mobile.lazypannablelayout.utility.rotateBy
+import oats.mobile.lazypannablelayout.utility.times
+import oats.mobile.lazypannablelayout.utility.unaryMinus
 
 /**
  * The state of the lazy pannable layout
