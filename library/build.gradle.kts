@@ -5,6 +5,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.kotlin.multiplatform.library)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.maven.publish)
 }
@@ -28,9 +29,12 @@ kotlin {
         browser()
     }
 
-    sourceSets.commonMain {
-        languageSettings.enableLanguageFeature("ContextParameters")
-        dependencies {
+    sourceSets {
+        all {
+            languageSettings.enableLanguageFeature("ContextParameters")
+        }
+
+        commonMain.dependencies {
             implementation(libs.jetbrains.compose.foundation)
         }
     }
