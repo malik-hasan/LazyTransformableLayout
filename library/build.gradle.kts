@@ -6,11 +6,15 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.maven.publish)
 }
+
+val libraryName = "lazypannablelayout"
+val packageName = "oats.mobile.$libraryName"
 
 kotlin {
     androidLibrary {
-        namespace = "oats.mobile.lazypannablelayout"
+        namespace = packageName
         compileSdk = libs.versions.android.targetSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
         compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
@@ -30,4 +34,12 @@ kotlin {
             implementation(libs.compose.foundation)
         }
     }
+}
+
+mavenPublishing {
+    coordinates(
+        groupId = packageName,
+        artifactId = libraryName,
+        version = "1.0.0"
+    )
 }
