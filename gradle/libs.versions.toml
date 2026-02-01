@@ -23,6 +23,7 @@ maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "maven-publ
 [libraries]
 activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
 
-compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose" }
+jetbrains-compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose" }
 
-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
+androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
+androidx-compose-material3 = { module = "androidx.compose.material3:material3" }

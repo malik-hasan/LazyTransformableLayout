@@ -31,7 +31,7 @@ kotlin {
     sourceSets.commonMain {
         languageSettings.enableLanguageFeature("ContextParameters")
         dependencies {
-            implementation(libs.compose.foundation)
+            implementation(libs.jetbrains.compose.foundation)
         }
     }
 }
