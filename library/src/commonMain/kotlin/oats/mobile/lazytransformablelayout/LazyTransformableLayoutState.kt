@@ -1,4 +1,4 @@
-package oats.mobile.lazypannablelayout
+package oats.mobile.lazytransformablelayout
 
 import androidx.annotation.FloatRange
 import androidx.compose.animation.core.Animatable
@@ -21,13 +21,13 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
 import androidx.compose.ui.util.fastCoerceIn
-import oats.mobile.lazypannablelayout.utility.coerceInBounds
-import oats.mobile.lazypannablelayout.utility.rotateBy
-import oats.mobile.lazypannablelayout.utility.times
-import oats.mobile.lazypannablelayout.utility.unaryMinus
+import oats.mobile.lazytransformablelayout.utility.coerceInBounds
+import oats.mobile.lazytransformablelayout.utility.rotateBy
+import oats.mobile.lazytransformablelayout.utility.times
+import oats.mobile.lazytransformablelayout.utility.unaryMinus
 
 /**
- * The state of the lazy pannable layout
+ * The state of the LazyTransformableLayout
  *
  * @param layoutBounds The bounds of the layout which can be panned into view, in which all the items should be placed (and constrained)
  * @property density pixel density is necessary to convert between Px and Dp values for internal calculations
@@ -39,7 +39,7 @@ import oats.mobile.lazypannablelayout.utility.unaryMinus
  * @param flingAnimationSpec decay animation spec for panning fling velocity
  */
 @Stable
-class LazyPannableLayoutState(
+class LazyTransformableLayoutState(
     val layoutBounds: DpRect,
     private val density: Density,
     initialViewportOffset: DpOffset = DpOffset.Zero,

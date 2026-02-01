@@ -1,10 +1,10 @@
-package oats.mobile.lazypannablelayout
+package oats.mobile.lazytransformablelayout
 
 import androidx.compose.foundation.lazy.layout.LazyLayoutItemProvider
 import androidx.compose.runtime.Composable
 
-internal class LazyPannableLayoutItemProvider(
-    private val content: LazyPannableLayoutLayerContent
+internal class LazyTransformableLayoutItemProvider(
+    private val content: LazyTransformableLayoutLayerContent
 ) : LazyLayoutItemProvider {
 
     override val itemCount

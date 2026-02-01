@@ -1,9 +1,9 @@
-package oats.mobile.lazypannablelayout.model
+package oats.mobile.lazytransformablelayout.model
 
 import androidx.compose.ui.unit.DpRect
 
 /**
- * A Positionable item in a LazyPannableLayout
+ * A Positionable item in a LazyTransformableLayout
  *
  * @property bounds A DpRect specifying the position and maximum bounds for this item.
  *

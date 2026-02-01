@@ -1,4 +1,4 @@
-package oats.mobile.lazypannablelayout
+package oats.mobile.lazytransformablelayout
 
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -20,16 +20,16 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Job
-import oats.mobile.lazypannablelayout.model.Positionable
-import oats.mobile.lazypannablelayout.utility.rotateBy
-import oats.mobile.lazypannablelayout.utility.times
-import oats.mobile.lazypannablelayout.utility.toDpOffset
+import oats.mobile.lazytransformablelayout.model.Positionable
+import oats.mobile.lazytransformablelayout.utility.rotateBy
+import oats.mobile.lazytransformablelayout.utility.times
+import oats.mobile.lazytransformablelayout.utility.toDpOffset
 
 @Composable
-fun LazyPannableLayout(
-    state: LazyPannableLayoutState,
+fun LazyTransformableLayout(
+    state: LazyTransformableLayoutState,
     modifier: Modifier = Modifier,
-    contentBuilder: LazyPannableLayoutScope.() -> Unit
+    contentBuilder: LazyTransformableLayoutScope.() -> Unit
 ) {
     val overscrollEffect = rememberOverscrollEffect()
 
@@ -37,7 +37,7 @@ fun LazyPannableLayout(
 
     val layerContent by remember {
         derivedStateOf(referentialEqualityPolicy()) {
-            LazyPannableLayoutLayerContent(latestContentBuilder)
+            LazyTransformableLayoutLayerContent(latestContentBuilder)
         }
     }
 
@@ -46,7 +46,7 @@ fun LazyPannableLayout(
     LazyLayout(
         itemProvider = remember {
             derivedStateOf(referentialEqualityPolicy()) {
-                LazyPannableLayoutItemProvider(layerContent)
+                LazyTransformableLayoutItemProvider(layerContent)
             }::value
         },
         modifier = modifier

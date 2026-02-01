@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "LazyPannableLayout"
+rootProject.name = "LazyTransformableLayout"
 include(":library")

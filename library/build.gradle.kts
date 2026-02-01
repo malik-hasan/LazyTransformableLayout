@@ -9,7 +9,7 @@ plugins {
     alias(libs.plugins.maven.publish)
 }
 
-val libraryName = "lazypannablelayout"
+val libraryName = "lazytransformablelayout"
 val packageName = "oats.mobile.$libraryName"
 
 kotlin {
