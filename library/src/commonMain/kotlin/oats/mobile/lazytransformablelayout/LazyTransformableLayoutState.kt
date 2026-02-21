@@ -60,16 +60,20 @@ class LazyTransformableLayoutState(
             "zoomBounds must be positive. Got: $zoomBounds"
         }
 
-        require(zoomBounds.endInclusive >= zoomBounds.start) {
-            "max zoom bound (${zoomBounds.endInclusive}) must be greater than or equal to min zoom bounds (${zoomBounds.start})."
+        zoomBounds.run {
+            require(endInclusive >= start) {
+                "max zoom bound ($endInclusive) must be greater than or equal to min zoom bounds ($start)."
+            }
         }
 
         require(initialScale in zoomBounds) {
             "initialScale ($initialScale) must be within zoomBounds ($zoomBounds)."
         }
 
-        require(rotationBounds.endInclusive >= rotationBounds.start) {
-            "max rotation bound (${rotationBounds.endInclusive}) must be greater than or equal to min zoom bounds (${rotationBounds.start})."
+        rotationBounds.run {
+            require(endInclusive >= start) {
+                "max rotation bound ($endInclusive) must be greater than or equal to min zoom bounds ($start)."
+            }
         }
 
         require(initialAngle in rotationBounds) {
