@@ -15,15 +15,13 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.DpOffset
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Job
 import oats.mobile.lazytransformablelayout.model.Positionable
-import oats.mobile.lazytransformablelayout.utility.rotateBy
-import oats.mobile.lazytransformablelayout.utility.times
-import oats.mobile.lazytransformablelayout.utility.toDpOffset
+import oats.mobile.lazytransformablelayout.utility.rotate
+import kotlin.math.roundToInt
 
 @Composable
 fun LazyTransformableLayout(
@@ -71,7 +69,6 @@ fun LazyTransformableLayout(
 //                    }
                 //) { zoomFactor, rotationDelta, panDelta, centroid ->
                     val scaledPanDelta = panDelta / zoomFactor
-                    val dpCentroid = centroid.toDpOffset()
                     // TODO
 //                    overscrollEffect?.applyToScroll(scaledPanDelta, NestedScrollSource.UserInput) { panDelta ->
 //                        state.transform(
@@ -84,8 +81,8 @@ fun LazyTransformableLayout(
                     state.transform(
                         zoomFactor = zoomFactor,
                         rotationDelta = rotationDelta,
-                        panDelta = scaledPanDelta.toDpOffset(),
-                        centroid = dpCentroid
+                        panDelta = scaledPanDelta,
+                        centroid = centroid
                     )
                 }
             }.pointerInput(Unit) {
@@ -108,10 +105,10 @@ fun LazyTransformableLayout(
         layerContent.intervals.forEach { layer ->
             layer.value.items.forEachIndexed { localIndex, item ->
                 val itemBounds = item.bounds
-                if (true || itemBounds.right + offsetX >= 0.dp // TODO
-                    && itemBounds.bottom + offsetY >= 0.dp
-                    && itemBounds.left + offsetX <= (constraintWidth / scale).toDp()
-                    && itemBounds.top + offsetY <= (constraintHeight / scale).toDp()
+                if (true || itemBounds.right.toPx() + offsetX >= 0 // TODO
+                    && itemBounds.bottom.toPx() + offsetY >= 0
+                    && itemBounds.left.toPx() + offsetX <= constraintWidth / scale
+                    && itemBounds.top.toPx() + offsetY <= constraintHeight / scale
                 ) indexedItemsToMeasure += IndexedValue(layer.startIndex + localIndex, item)
             }
         }
@@ -129,23 +126,23 @@ fun LazyTransformableLayout(
                     val rotation = state.angle
 
                     val itemPosition = (
-                        DpOffset(
-                        itemBounds.left,
-                        itemBounds.top
+                        Offset(
+                        itemBounds.left.toPx(),
+                        itemBounds.top.toPx()
                         ) * scale
-                    ).rotateBy(rotation)
+                    ).rotate(rotation)
 
                     placeable.placeWithLayer(
-                        x = itemPosition.x.roundToPx(),
-                        y = itemPosition.y.roundToPx(),
+                        x = itemPosition.x.roundToInt(),
+                        y = itemPosition.y.roundToInt(),
                         zIndex = item.zIndex
                     ) {
                         transformOrigin = TransformOrigin(0f, 0f)
-                        translationX = offsetX.toPx()
-                        translationY = offsetY.toPx()
                         scaleX = scale
                         scaleY = scale
                         rotationZ = rotation
+                        translationX = offsetX
+                        translationY = offsetY
                     }
                 }
             }

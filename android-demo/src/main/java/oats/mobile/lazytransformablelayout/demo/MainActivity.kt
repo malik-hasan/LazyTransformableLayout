@@ -12,6 +12,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.DpOffset
@@ -58,11 +61,10 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.padding(scaffoldPadding),
                     state = remember {
                         LazyTransformableLayoutState(
-                            layoutBounds = DpRect(
-                                origin = DpOffset(0.dp, 0.dp),
-                                size = DpSize(layoutSize.dp, layoutSize.dp)
+                            layoutBounds = Rect(
+                                offset = Offset(0f, 0f),
+                                size = Size(layoutSize.toFloat(), layoutSize.toFloat())
                             ),
-                            density = density
                         )
                     }
                 ) {
