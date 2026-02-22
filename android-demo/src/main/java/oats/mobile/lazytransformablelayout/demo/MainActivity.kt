@@ -32,9 +32,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val density = LocalDensity.current
-
-            val layoutSize = 10000
+            val layoutSize = 10000 // dp
 
             val boxes = remember {
                 mutableStateListOf(
@@ -57,13 +55,16 @@ class MainActivity : ComponentActivity() {
             }
 
             Scaffold { scaffoldPadding ->
+                val density = LocalDensity.current
                 LazyTransformableLayout(
                     modifier = Modifier.padding(scaffoldPadding),
                     state = remember {
                         LazyTransformableLayoutState(
                             layoutBounds = Rect(
                                 offset = Offset(0f, 0f),
-                                size = Size(layoutSize.toFloat(), layoutSize.toFloat())
+                                size = with(density) {
+                                    Size(layoutSize.dp.toPx(), layoutSize.dp.toPx())
+                                }
                             ),
                         )
                     }

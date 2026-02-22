@@ -36,6 +36,7 @@ kotlin {
 
         commonMain.dependencies {
             implementation(libs.jetbrains.compose.foundation)
+            implementation(libs.kermit)
         }
     }
 }
