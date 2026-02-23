@@ -13,15 +13,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
+import co.touchlab.kermit.Logger
 import oats.mobile.lazytransformablelayout.utility.rotate
-import kotlin.math.cos
-import kotlin.math.sin
 
 /**
  * The state of the LazyTransformableLayout
  *
  * @param layoutBounds The bounds of the layout which can be panned into view, in which all the items should be placed (and constrained)
- * @param initialViewportOffset offset of the point within the layout bounds which should be the top left corner of the viewport on first composition
+ * @param initialOffset offset of the point within the layout bounds which should be the top left corner of the viewport on first composition
  * @param initialScale initial zoom scale (greater than zero)
  * @param zoomBounds min and max scale bounds
  * @param initialAngle initial rotation angle
@@ -30,8 +29,8 @@ import kotlin.math.sin
  */
 @Stable
 class LazyTransformableLayoutState(
-    layoutBounds: Rect,
-    initialViewportOffset: Offset = Offset.Zero,
+    val layoutBounds: Rect,
+    initialOffset: Offset = Offset.Zero,
     @FloatRange(from = 0.0, fromInclusive = false) initialScale: Float = 1f,
     val zoomBounds: ClosedFloatingPointRange<Float> = Float.MIN_VALUE..Float.MAX_VALUE,
     initialAngle: Float = 0f,
@@ -39,11 +38,11 @@ class LazyTransformableLayoutState(
     private val flingAnimationSpec: DecayAnimationSpec<Float> = exponentialDecay(1.5f)
 ) {
     init {
-        require(initialViewportOffset.x >= layoutBounds.left
-            && initialViewportOffset.x <= layoutBounds.right
-            && initialViewportOffset.y >= layoutBounds.top
-            && initialViewportOffset.y <= layoutBounds.bottom
-        ) { "initialViewportOffset ($initialViewportOffset) must be within layoutBounds: ($layoutBounds)" }
+        require(initialOffset.x >= layoutBounds.left
+            && initialOffset.x <= layoutBounds.right
+            && initialOffset.y >= layoutBounds.top
+            && initialOffset.y <= layoutBounds.bottom
+        ) { "initialViewportOffset ($initialOffset) must be within layoutBounds: ($layoutBounds)" }
 
         require(zoomBounds.start > 0f) {
             "zoomBounds must be positive. Got: $zoomBounds"
@@ -90,13 +89,13 @@ class LazyTransformableLayoutState(
     var angle by mutableFloatStateOf(initialAngle)
         private set
 
-    private val panningBounds by derivedStateOf {
-        val rotatedLayoutBounds = layoutBounds.vertices.map { (it * scale).rotate(angle) }
-        val startIndex = rotatedLayoutBounds.withIndex().minWith(
+    private fun getPanningBounds(): List<Offset> {
+        val transformedLayoutBounds = layoutBounds.vertices.map { (it * scale).rotate(angle) }
+        val startIndex = transformedLayoutBounds.withIndex().minWith(
             compareBy({ it.value.y }, { it.value.x })
         ).index
 
-        fun v(i: Int) = rotatedLayoutBounds[(startIndex + i) % 4]
+        fun v(i: Int) = transformedLayoutBounds[(startIndex + i) % 4]
 
         val v1 = v(0)
         val v2 = v(1)
@@ -108,15 +107,15 @@ class LazyTransformableLayoutState(
         val bottom = v3.y
         val left = v4.x
 
-        listOf(
+        return listOf(
             Offset((v1.x - constraints.width / 2).coerceIn(left, right - constraints.width), v1.y),
             Offset(v2.x - constraints.width, (v2.y - constraints.height / 2).coerceIn(top, bottom - constraints.height)),
             Offset((v3.x - constraints.width / 2).coerceIn(left, right - constraints.width), v3.y - constraints.height),
             Offset(v4.x, (v4.y - constraints.height / 2).coerceIn(top, bottom - constraints.height)),
-        )
+        ).also { Logger.d("BOUNDS: $it") }
     }
 
-    internal var offset by mutableStateOf((-initialViewportOffset).coerceInPanningBounds())
+    internal var offset by mutableStateOf((-initialOffset).coerceInPanningBounds())
         private set
 
     internal fun transform(zoomFactor: Float, rotationDelta: Float, panDelta: Offset, centroid: Offset): Offset {
@@ -124,29 +123,29 @@ class LazyTransformableLayoutState(
         angle = (angle + rotationDelta).coerceIn(rotationBounds)
 
         val previousOffset = offset
-        val layoutCentroid = centroid - offset
-        offset = (offset + panDelta + layoutCentroid - (layoutCentroid * zoomFactor).rotate(rotationDelta)).coerceInPanningBounds()
+        val offsetCentroid = centroid + offset
+        offset = (offset - panDelta - offsetCentroid + (offsetCentroid * zoomFactor).rotate(rotationDelta))//.coerceInPanningBounds()
         return offset - previousOffset
     }
 
     fun Offset.coerceInPanningBounds(): Offset {
-        // transform into scaled+rotated space
         val transformed = (this * scale).rotate(angle)
 
-        // axes of the rotated rect are just the rotation angle's unit vectors
-        val axisX = Offset(cos(angle), sin(angle))
-        val axisY = Offset(-sin(angle), cos(angle))
+        val bounds = getPanningBounds()
 
-        // project bounds onto axes to find extents
-        val projsX = panningBounds.map { it.dot(axisX) }
-        val projsY = panningBounds.map { it.dot(axisY) }
+        // Get the two edge directions of the parallelogram
+        val axisX = (bounds[1] - bounds[0]).let { it / it.getDistance() }
+        val axisY = (bounds[3] - bounds[0]).let { it / it.getDistance() }
 
-        // clamp projection of transformed point
-        val clampedX = transformed.dot(axisX).coerceIn(projsX.min(), projsX.max())
-        val clampedY = transformed.dot(axisY).coerceIn(projsY.min(), projsY.max())
+        val origin = bounds[0]
+        val projsX = bounds.map { (it - origin).dot(axisX) }
+        val projsY = bounds.map { (it - origin).dot(axisY) }
 
-        // reconstruct and transform back
-        val clamped = axisX * clampedX + axisY * clampedY
+        val relative = transformed - origin
+        val clampedX = relative.dot(axisX).coerceIn(projsX.min(), projsX.max())
+        val clampedY = relative.dot(axisY).coerceIn(projsY.min(), projsY.max())
+
+        val clamped = origin + axisX * clampedX + axisY * clampedY
         return clamped.rotate(-angle) / scale
     }
 

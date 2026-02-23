@@ -15,7 +15,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.Job
@@ -126,10 +125,7 @@ fun LazyTransformableLayout(
                     val rotation = state.angle
 
                     val itemPosition = (
-                        Offset(
-                        itemBounds.left.toPx(),
-                        itemBounds.top.toPx()
-                        ) * scale
+                        itemBounds.toRect().topLeft * scale
                     ).rotate(rotation)
 
                     placeable.placeWithLayer(
@@ -141,8 +137,8 @@ fun LazyTransformableLayout(
                         scaleX = scale
                         scaleY = scale
                         rotationZ = rotation
-                        translationX = offsetX
-                        translationY = offsetY
+                        translationX = -offsetX
+                        translationY = -offsetY
                     }
                 }
             }
