@@ -128,28 +128,33 @@ class LazyTransformableLayoutState(
         val previousOffset = offset
         val offsetCentroid = centroid + offset
         val bounds = getPanningBounds(scale, angle, constraints)
-        offset = (offset - panDelta - offsetCentroid + (offsetCentroid * zoomFactor).rotate(rotationDelta)).coerceInPanningBounds(bounds)
+        offset = (offset - panDelta - offsetCentroid + (offsetCentroid * zoomFactor).rotate(rotationDelta)).coerceInBounds(bounds)
         return offset - previousOffset
     }
 
-    fun Offset.coerceInPanningBounds(bounds: List<Offset>): Offset {
-        val axisX = (bounds[1] - bounds[0]).let { it / it.getDistance() }
-        val axisY = (bounds[3] - bounds[0]).let { it / it.getDistance() }
+    fun Offset.coerceInBounds(corners: List<Offset>): Offset {
+        require(corners.size == 4) { "corners must contain exactly 4 offsets" }
 
-        val origin = bounds[0]
-        val projsX = bounds.map { (it - origin).dot(axisX) }
-        val projsY = bounds.map { (it - origin).dot(axisY) }
+        val a = corners[0]
+        val b = corners[1]
+        val d = corners[3]
 
-        val relative = this - origin
-        val clampedX = relative.dot(axisX).coerceIn(projsX.min(), projsX.max())
-        val clampedY = relative.dot(axisY).coerceIn(projsY.min(), projsY.max())
+        val ux = b.x - a.x; val uy = b.y - a.y
+        val vx = d.x - a.x; val vy = d.y - a.y
 
-        return (origin + axisX * clampedX + axisY * clampedY)
-            .also { Logger.d("OFFSET: $this ; CLAMPED: $it") }
+        val ex = x - a.x; val ey = y - a.y
+
+        val det = ux * vy - uy * vx
+        require(det != 0f) { "Degenerate parallelogram (edges are collinear)" }
+
+        val s = ((ex * vy - ey * vx) / det).coerceIn(0f, 1f)
+        val t = ((ux * ey - uy * ex) / det).coerceIn(0f, 1f)
+
+        return Offset(
+            x = a.x + s * ux + t * vx,
+            y = a.y + s * uy + t * vy
+        ).also { Logger.d("OFFSET: $this ; CLAMPED: $it") }
     }
-
-    fun Offset.dot(other: Offset) = x * other.x + y * other.y
-
 
 
 
