@@ -89,8 +89,11 @@ class LazyTransformableLayoutState(
     var angle by mutableFloatStateOf(initialAngle)
         private set
 
-    private fun getPanningBounds(): List<Offset> {
-        val transformedLayoutBounds = layoutBounds.vertices.map { (it * scale).rotate(angle) }
+    private fun getPanningBounds(scale: Float, angle: Float, constraints: IntSize): List<Offset> {
+
+        val transformedLayoutBounds = layoutBounds
+            .run { listOf(topLeft, topRight, bottomRight, bottomLeft) }
+            .map { (it * scale).rotate(angle) }
         val startIndex = transformedLayoutBounds.withIndex().minWith(
             compareBy({ it.value.y }, { it.value.x })
         ).index
@@ -112,10 +115,10 @@ class LazyTransformableLayoutState(
             Offset(v2.x - constraints.width, (v2.y - constraints.height / 2).coerceIn(top, bottom - constraints.height)),
             Offset((v3.x - constraints.width / 2).coerceIn(left, right - constraints.width), v3.y - constraints.height),
             Offset(v4.x, (v4.y - constraints.height / 2).coerceIn(top, bottom - constraints.height)),
-        ).also { Logger.d("BOUNDS: $it") }
+        ).also { Logger.d("BOUNDS: $it ; Angle: $angle; scale: $scale") }
     }
 
-    internal var offset by mutableStateOf((-initialOffset).coerceInPanningBounds())
+    internal var offset by mutableStateOf((-initialOffset))//.coerceInPanningBounds())
         private set
 
     internal fun transform(zoomFactor: Float, rotationDelta: Float, panDelta: Offset, centroid: Offset): Offset {
@@ -124,16 +127,12 @@ class LazyTransformableLayoutState(
 
         val previousOffset = offset
         val offsetCentroid = centroid + offset
-        offset = (offset - panDelta - offsetCentroid + (offsetCentroid * zoomFactor).rotate(rotationDelta))//.coerceInPanningBounds()
+        val bounds = getPanningBounds(scale, angle, constraints)
+        offset = (offset - panDelta - offsetCentroid + (offsetCentroid * zoomFactor).rotate(rotationDelta)).coerceInPanningBounds(bounds)
         return offset - previousOffset
     }
 
-    fun Offset.coerceInPanningBounds(): Offset {
-        val transformed = (this * scale).rotate(angle)
-
-        val bounds = getPanningBounds()
-
-        // Get the two edge directions of the parallelogram
+    fun Offset.coerceInPanningBounds(bounds: List<Offset>): Offset {
         val axisX = (bounds[1] - bounds[0]).let { it / it.getDistance() }
         val axisY = (bounds[3] - bounds[0]).let { it / it.getDistance() }
 
@@ -141,12 +140,12 @@ class LazyTransformableLayoutState(
         val projsX = bounds.map { (it - origin).dot(axisX) }
         val projsY = bounds.map { (it - origin).dot(axisY) }
 
-        val relative = transformed - origin
+        val relative = this - origin
         val clampedX = relative.dot(axisX).coerceIn(projsX.min(), projsX.max())
         val clampedY = relative.dot(axisY).coerceIn(projsY.min(), projsY.max())
 
-        val clamped = origin + axisX * clampedX + axisY * clampedY
-        return clamped.rotate(-angle) / scale
+        return (origin + axisX * clampedX + axisY * clampedY)
+            .also { Logger.d("OFFSET: $this ; CLAMPED: $it") }
     }
 
     fun Offset.dot(other: Offset) = x * other.x + y * other.y
@@ -216,5 +215,3 @@ class LazyTransformableLayoutState(
 //        }.endState.velocity
 //    }
 }
-
-val Rect.vertices get() = listOf(topLeft, topRight, bottomRight, bottomLeft)
