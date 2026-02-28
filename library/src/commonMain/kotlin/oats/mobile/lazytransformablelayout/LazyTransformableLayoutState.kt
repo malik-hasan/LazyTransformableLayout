@@ -14,6 +14,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.util.fastMap
+import oats.mobile.lazytransformablelayout.model.Parallelogram
 import oats.mobile.lazytransformablelayout.utility.clampToBounds
 import oats.mobile.lazytransformablelayout.utility.rotate
 
@@ -93,6 +94,11 @@ class LazyTransformableLayoutState(
     private val minScaleBound by derivedStateOf {
         val lowerZoomBound = zoomBounds.start
         constraints?.run {
+//            val angleRadians = angle.radians
+//            val cos = cos(angleRadians)
+//            val sin = sin(angleRadians)
+//            val rotatedWidth = layoutBounds.run { width * cos + height * sin }
+//            val rotatedHeight = layoutBounds.run { width * sin + height * cos }
             maxOf(
                 lowerZoomBound,
                 width / layoutBounds.width,
@@ -112,21 +118,19 @@ class LazyTransformableLayoutState(
             ).index
 
             fun v(i: Int) = transformedLayoutBounds[(startIndex + i) % 4]
-            val v1 = transformedLayoutBounds[startIndex]
-            val v2 = v(1)
-            val v3 = v(2)
-            val v4 = v(3)
+            val v0 = transformedLayoutBounds[startIndex]
+            val v1 = v(1)
+            val v3 = v(3)
 
-            val left = v1.x
-            val top = v2.y
-            val right = v3.x - width
-            val bottom = v4.y - height
+            val left = v0.x
+            val top = v1.y
+            val right = v(2).x - width
+            val bottom = v3.y - height
 
-            listOf(
-                Offset(left, (v1.y - height / 2).coerceIn(top, bottom)),
-                Offset((v2.x - width / 2).coerceIn(left, right), top),
-                Offset(right, (v3.y - height / 2).coerceIn(top, bottom)),
-                Offset((v4.x - width / 2).coerceIn(left, right), bottom)
+            Parallelogram(
+                a = Offset(left, (v0.y - height / 2).coerceIn(top, bottom)),
+                b = Offset((v1.x - width / 2).coerceIn(left, right), top),
+                d = Offset((v3.x - width / 2).coerceIn(left, right), bottom)
             )
         }
     }
