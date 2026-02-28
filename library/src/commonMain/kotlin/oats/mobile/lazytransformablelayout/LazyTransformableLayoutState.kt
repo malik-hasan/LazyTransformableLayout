@@ -13,18 +13,19 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
-import co.touchlab.kermit.Logger
+import androidx.compose.ui.util.fastMap
+import oats.mobile.lazytransformablelayout.utility.clampToBounds
 import oats.mobile.lazytransformablelayout.utility.rotate
 
 /**
  * The state of the LazyTransformableLayout
  *
- * @param layoutBounds The bounds of the layout which can be panned into view, in which all the items should be placed (and constrained)
- * @param initialOffset offset of the point within the layout bounds which should be the top left corner of the viewport on first composition
+ * @param layoutBounds The bounds of the layout which can be panned into view
+ * @param initialOffset initial offset of the top left corner of the viewport relative to the layoutBounds
  * @param initialScale initial zoom scale (greater than zero)
  * @param zoomBounds min and max scale bounds
- * @param initialAngle initial rotation angle
- * @param rotationBounds min and max angle bounds
+ * @param initialAngle initial rotation angle in degrees
+ * @param rotationBounds min and max angle bounds in degrees
  * @param flingAnimationSpec decay animation spec for panning fling velocity
  */
 @Stable
@@ -69,57 +70,66 @@ class LazyTransformableLayoutState(
         }
     }
 
-    internal fun passConstraints(incomingConstraints: Constraints) {
-        constraints = incomingConstraints.run { IntSize(maxWidth, maxHeight) }
-    }
-
-    private var constraints by mutableStateOf(IntSize.Zero)
-
-    private val minScaleBound by derivedStateOf {
-        maxOf(
-            zoomBounds.start,
-            constraints.width / layoutBounds.width,
-            constraints.height / layoutBounds.height
-        )
-    }
-
-    var scale by mutableFloatStateOf(initialScale.coerceAtLeast(minScaleBound))
+    var scale by mutableFloatStateOf(initialScale)
         private set
 
     var angle by mutableFloatStateOf(initialAngle)
         private set
 
-    private fun getPanningBounds(scale: Float, angle: Float, constraints: IntSize): List<Offset> {
+    var offset by mutableStateOf(initialOffset)
+        private set
 
-        val transformedLayoutBounds = layoutBounds
-            .run { listOf(topLeft, topRight, bottomRight, bottomLeft) }
-            .map { (it * scale).rotate(angle) }
-        val startIndex = transformedLayoutBounds.withIndex().minWith(
-            compareBy({ it.value.y }, { it.value.x })
-        ).index
+    private var constraints by mutableStateOf<IntSize?>(null)
 
-        fun v(i: Int) = transformedLayoutBounds[(startIndex + i) % 4]
-
-        val v1 = v(0)
-        val v2 = v(1)
-        val v3 = v(2)
-        val v4 = v(3)
-
-        val top = v1.y
-        val right = v2.x
-        val bottom = v3.y
-        val left = v4.x
-
-        return listOf(
-            Offset((v1.x - constraints.width / 2).coerceIn(left, right - constraints.width), v1.y),
-            Offset(v2.x - constraints.width, (v2.y - constraints.height / 2).coerceIn(top, bottom - constraints.height)),
-            Offset((v3.x - constraints.width / 2).coerceIn(left, right - constraints.width), v3.y - constraints.height),
-            Offset(v4.x, (v4.y - constraints.height / 2).coerceIn(top, bottom - constraints.height)),
-        ).also { Logger.d("BOUNDS: $it ; Angle: $angle; scale: $scale") }
+    internal fun passConstraints(incomingConstraints: Constraints) {
+        val previousConstraints = constraints
+        constraints = incomingConstraints.run { IntSize(maxWidth, maxHeight) }
+        if (previousConstraints == null) {
+            offset = offset.clampToBounds(panningBounds)
+            scale = scale.coerceAtLeast(minScaleBound)
+        }
     }
 
-    internal var offset by mutableStateOf((-initialOffset))//.coerceInPanningBounds())
-        private set
+    private val minScaleBound by derivedStateOf {
+        val lowerZoomBound = zoomBounds.start
+        constraints?.run {
+            maxOf(
+                lowerZoomBound,
+                width / layoutBounds.width,
+                height / layoutBounds.height
+            )
+        } ?: lowerZoomBound
+    }
+
+    private val panningBounds by derivedStateOf {
+        constraints?.run {
+            val transformedLayoutBounds = layoutBounds
+                .run { listOf(topLeft, topRight, bottomRight, bottomLeft) }
+                .fastMap { (it * scale).rotate(angle) }
+
+            val startIndex = transformedLayoutBounds.withIndex().minWith(
+                compareBy({ it.value.x }, { it.value.y })
+            ).index
+
+            fun v(i: Int) = transformedLayoutBounds[(startIndex + i) % 4]
+            val v1 = transformedLayoutBounds[startIndex]
+            val v2 = v(1)
+            val v3 = v(2)
+            val v4 = v(3)
+
+            val left = v1.x
+            val top = v2.y
+            val right = v3.x - width
+            val bottom = v4.y - height
+
+            listOf(
+                Offset(left, (v1.y - height / 2).coerceIn(top, bottom)),
+                Offset((v2.x - width / 2).coerceIn(left, right), top),
+                Offset(right, (v3.y - height / 2).coerceIn(top, bottom)),
+                Offset((v4.x - width / 2).coerceIn(left, right), bottom)
+            )
+        }
+    }
 
     internal fun transform(zoomFactor: Float, rotationDelta: Float, panDelta: Offset, centroid: Offset): Offset {
         scale = (scale * zoomFactor).coerceIn(minScaleBound, zoomBounds.endInclusive)
@@ -127,38 +137,11 @@ class LazyTransformableLayoutState(
 
         val previousOffset = offset
         val offsetCentroid = centroid + offset
-        val bounds = getPanningBounds(scale, angle, constraints)
-        offset = (offset - panDelta - offsetCentroid + (offsetCentroid * zoomFactor).rotate(rotationDelta)).coerceInBounds(bounds)
+        offset = (offset - panDelta - offsetCentroid + (offsetCentroid * zoomFactor).rotate(rotationDelta))
+            .clampToBounds(panningBounds)
         return offset - previousOffset
     }
 
-    fun Offset.coerceInBounds(corners: List<Offset>): Offset {
-        require(corners.size == 4) { "corners must contain exactly 4 offsets" }
-
-        val a = corners[0]
-        val b = corners[1]
-        val d = corners[3]
-
-        val ux = b.x - a.x; val uy = b.y - a.y
-        val vx = d.x - a.x; val vy = d.y - a.y
-
-        val ex = x - a.x; val ey = y - a.y
-
-        val det = ux * vy - uy * vx
-        require(det != 0f) { "Degenerate parallelogram (edges are collinear)" }
-
-        val s = ((ex * vy - ey * vx) / det).coerceIn(0f, 1f)
-        val t = ((ux * ey - uy * ex) / det).coerceIn(0f, 1f)
-
-        return Offset(
-            x = a.x + s * ux + t * vx,
-            y = a.y + s * uy + t * vy
-        ).also { Logger.d("OFFSET: $this ; CLAMPED: $it") }
-    }
-
-
-
-//    val viewportOffset get() = -offset
 //
 //    fun panToOffset(newOffset: DpOffset) {
 //        offset = (-newOffset).coerceInBounds(topLeftPanningBounds)
