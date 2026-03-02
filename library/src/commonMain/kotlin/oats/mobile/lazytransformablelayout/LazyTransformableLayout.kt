@@ -96,7 +96,7 @@ fun LazyTransformableLayout(
 
         val constraintWidth = constraints.maxWidth
         val constraintHeight = constraints.maxHeight
-        state.passConstraints(constraints)
+        state.acceptConstraints(constraints)
 
         val scale = state.scale
 

@@ -82,7 +82,7 @@ class LazyTransformableLayoutState(
 
     private var constraints by mutableStateOf<IntSize?>(null)
 
-    internal fun passConstraints(incomingConstraints: Constraints) {
+    internal fun acceptConstraints(incomingConstraints: Constraints) {
         val previousConstraints = constraints
         constraints = incomingConstraints.run { IntSize(maxWidth, maxHeight) }
         if (previousConstraints == null) {
