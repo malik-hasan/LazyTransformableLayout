@@ -2,6 +2,7 @@ package oats.mobile.lazytransformablelayout.utility
 
 import androidx.compose.ui.geometry.Offset
 import oats.mobile.lazytransformablelayout.model.Parallelogram
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -16,21 +17,23 @@ fun Offset.rotate(angle: Float): Offset {
 }
 
 internal fun Offset.clampToBounds(bounds: Parallelogram?) = bounds?.run {
-    val ux = b.x - a.x
-    val uy = b.y - a.y
-    val vx = d.x - a.x
-    val vy = d.y - a.y
+    val u = b - a
+    val v = d - a
+    val w = this@clampToBounds - a
 
-    val ex = x - a.x
-    val ey = y - a.y
+    val determinant = u cross v
+    if (abs(determinant) < 1e-4f) {
+        val end = maxOf(u, v, compareBy { it.getDistanceSquared() })
+        val lenSq = end.getDistanceSquared()
+        if (lenSq == 0f) {
+            a
+        } else a + end * ((w.x * end.x + w.y * end.y) / lenSq).coerceIn(0f, 1f)
+    } else {
+        val s = ((w cross v) / determinant).coerceIn(0f, 1f)
+        val t = ((u cross w) / determinant).coerceIn(0f, 1f)
 
-    val det = ux * vy - uy * vx
-
-    val s = ((ex * vy - ey * vx) / det).coerceIn(0f, 1f)
-    val t = ((ux * ey - uy * ex) / det).coerceIn(0f, 1f)
-
-    Offset(
-        x = a.x + s * ux + t * vx,
-        y = a.y + s * uy + t * vy
-    )
+        a + u * s + v * t
+    }
 } ?: this
+
+infix fun Offset.cross(other: Offset) = x * other.y - y * other.x
