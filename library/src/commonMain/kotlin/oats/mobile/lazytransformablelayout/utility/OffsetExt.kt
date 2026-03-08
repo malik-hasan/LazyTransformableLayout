@@ -39,9 +39,9 @@ internal fun Offset.clampToBounds(bounds: Parallelogram?) = bounds?.run {
             val inverseT = 1 - t
             buildList {
                 if (t < 0f || t <= s && t <= inverseS) add(nearestPointOnSegment(left, top))
-                if (t > 1f || t >= s && t >= inverseS) add(nearestPointOnSegment(right, bottom))
-                if (s < 0f || s <= t && s <= inverseT) add(nearestPointOnSegment(left, bottom))
                 if (s > 1f || s >= t && s >= inverseT) add(nearestPointOnSegment(top, right))
+                if (t > 1f || t >= s && t >= inverseS) add(nearestPointOnSegment(right, bottom))
+                if (s < 0f || s <= t && s <= inverseT) add(nearestPointOnSegment(bottom, left))
             }.minBy { (it - this@clampToBounds).getDistanceSquared() }
         }
     }
