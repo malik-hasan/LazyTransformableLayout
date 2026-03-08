@@ -1,7 +1,6 @@
 package oats.mobile.lazytransformablelayout
 
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.lazy.layout.LazyLayout
 import androidx.compose.foundation.overscroll
 import androidx.compose.foundation.rememberOverscrollEffect
@@ -11,14 +10,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.referentialEqualityPolicy
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import oats.mobile.lazytransformablelayout.model.Positionable
+import oats.mobile.lazytransformablelayout.utility.detectTransformGestures
 import oats.mobile.lazytransformablelayout.utility.rotate
 import kotlin.math.roundToInt
 
@@ -28,6 +31,7 @@ fun LazyTransformableLayout(
     modifier: Modifier = Modifier,
     contentBuilder: LazyTransformableLayoutScope.() -> Unit
 ) {
+    val scope = rememberCoroutineScope()
     val overscrollEffect = rememberOverscrollEffect()
 
     val latestContentBuilder by rememberUpdatedState(contentBuilder)
@@ -50,34 +54,32 @@ fun LazyTransformableLayout(
             .clipToBounds()
             .overscroll(overscrollEffect)
             .pointerInput(Unit) {
-                detectTransformGestures { centroid, panDelta, zoomFactor, rotationDelta ->//( TODO
-//                    onTransformStopped = { logZoomVelocity, rotationVelocity, panVelocity ->
-//                        Log.d("MALIK", "$logZoomVelocity $rotationVelocity $panVelocity")
-//                        fling = scope.launch {
-//                            launch {
-//                                overscrollEffect?.applyToFling(panVelocity.copy(y = 0f)) { velocity ->
-//                                    state.flingX(velocity)
-//                                } ?: state.flingX(panVelocity)
-//                            }
-//                            launch {
-//                                overscrollEffect?.applyToFling(panVelocity.copy(x = 0f)) { velocity ->
-//                                    state.flingY(velocity)
-//                                } ?: state.flingY(panVelocity)
-//                            }
-//                        }
-//                    }
-                //) { zoomFactor, rotationDelta, panDelta, centroid ->
+                detectTransformGestures(
+                    onTransformStopped = { logZoomVelocity, rotationVelocity, negativeVelocity ->
+                        val panVelocity = -negativeVelocity
+                        fling = scope.launch {
+                            launch {
+                                overscrollEffect?.applyToFling(panVelocity.copy(y = 0f)) { velocity ->
+                                    state.flingX(velocity)
+                                } ?: state.flingX(panVelocity)
+                            }
+                            launch {
+                                overscrollEffect?.applyToFling(panVelocity.copy(x = 0f)) { velocity ->
+                                    state.flingY(velocity)
+                                } ?: state.flingY(panVelocity)
+                            }
+                        }
+                    }
+                ) { zoomFactor, rotationDelta, panDelta, centroid ->
                     val scaledPanDelta = panDelta / zoomFactor
-                    // TODO
-//                    overscrollEffect?.applyToScroll(scaledPanDelta, NestedScrollSource.UserInput) { panDelta ->
-//                        state.transform(
-//                            zoomFactor = zoomFactor,
-//                            rotationDelta = rotationDelta,
-//                            panDelta = panDelta.toDpOffset(),
-//                            centroid = dpCentroid
-//                        ).toOffset()
-//                    } ?:
-                    state.transform(
+                    overscrollEffect?.applyToScroll(scaledPanDelta, NestedScrollSource.UserInput) { panDelta ->
+                        state.transform(
+                            zoomFactor = zoomFactor,
+                            rotationDelta = rotationDelta,
+                            panDelta = panDelta,
+                            centroid = centroid
+                        )
+                    } ?: state.transform(
                         zoomFactor = zoomFactor,
                         rotationDelta = rotationDelta,
                         panDelta = scaledPanDelta,

@@ -1,7 +1,9 @@
 package oats.mobile.lazytransformablelayout
 
 import androidx.annotation.FloatRange
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.DecayAnimationSpec
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
@@ -13,6 +15,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.util.fastMap
 import oats.mobile.lazytransformablelayout.model.Parallelogram
 import oats.mobile.lazytransformablelayout.utility.clampToBounds
@@ -165,47 +168,39 @@ class LazyTransformableLayoutState(
 //        }
 //    }
 //
-//    private fun coerceScaleInBounds(scale: Float) = scale.fastCoerceIn(minScaleBound, zoomBounds.endInclusive)
-//
-//    private fun constrainUpperPanningBound(constraint: Dp, upperBound: Dp, lowerBound: Dp) = with(density) {
-//        (constraint / scale - upperBound).coerceAtMost(lowerBound)
-//    }
-//
-//    internal suspend fun flingX(velocity: Velocity) =
-//        Velocity(
-//            x = fling(
-//                initialVelocity = velocity.x,
-//                initialValue = offset.x,
-//                minBound = topLeftPanningBounds.left,
-//                maxBound = topLeftPanningBounds.right,
-//            ) { offset.copy(x = it) },
-//            y = 0f
-//        )
-//
-//    internal suspend fun flingY(velocity: Velocity) =
-//        Velocity(
-//            x = 0f,
-//            y = fling(
-//                initialVelocity = velocity.y,
-//                initialValue = offset.y,
-//                minBound = topLeftPanningBounds.top,
-//                maxBound = topLeftPanningBounds.bottom,
-//            ) { offset.copy(y = it) }
-//        )
-//
-//    // must use separate float animations instead of DpOffset animation, so that the horizontal fling continues even if it hits the vertical boundary and vice versa
-//    private suspend fun fling(
-//        initialVelocity: Float,
-//        initialValue: Dp,
-//        minBound: Dp,
-//        maxBound: Dp,
-//        updatedOffset: (Dp) -> DpOffset
-//    ) = with(density) {
-//        initialVelocity - Animatable(initialValue.toPx(), Float.VectorConverter).run {
-//            updateBounds(minBound.toPx(), maxBound.toPx())
-//            animateDecay(initialVelocity, flingAnimationSpec) {
-//                offset = updatedOffset(value.toDp())
-//            }
-//        }.endState.velocity
-//    }
+    internal suspend fun flingX(velocity: Velocity) =
+        Velocity(
+            x = fling(
+                initialVelocity = velocity.x,
+                initialValue = offset.x,
+                minBound = panningBounds?.a?.x,
+                maxBound = panningBounds?.c?.x,
+            ) { offset.copy(x = it) },
+            y = 0f
+        )
+
+    internal suspend fun flingY(velocity: Velocity) =
+        Velocity(
+            x = 0f,
+            y = fling(
+                initialVelocity = velocity.y,
+                initialValue = offset.y,
+                minBound = panningBounds?.b?.y,
+                maxBound = panningBounds?.d?.y,
+            ) { offset.copy(y = it) }
+        )
+
+    // must use separate float animations instead of DpOffset animation, so that the horizontal fling continues even if it hits the vertical boundary and vice versa
+    private suspend fun fling(
+        initialVelocity: Float,
+        initialValue: Float,
+        minBound: Float?,
+        maxBound: Float?,
+        updatedOffset: (Float) -> Offset
+    ) = initialVelocity - Animatable(initialValue, Float.VectorConverter).run {
+            updateBounds(minBound, maxBound)
+            animateDecay(initialVelocity, flingAnimationSpec) {
+                offset = updatedOffset(value)
+            }
+        }.endState.velocity
 }
