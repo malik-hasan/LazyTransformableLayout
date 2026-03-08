@@ -135,6 +135,7 @@ class LazyTransformableLayoutState(
             Parallelogram(
                 a = Offset(left, (v0.y - height / 2).coerceIn(top, bottom)),
                 b = Offset((v1.x - width / 2).coerceIn(left, right), top),
+                c = Offset((v(2).x - width  / 2).coerceIn(left, right),  (v(2).y - height / 2).coerceIn(top, bottom)),
                 d = Offset((v3.x - width / 2).coerceIn(left, right), bottom)
             ).also { Logger.d("MALIK: panningBounds: $it; angle: $angle") }
         }

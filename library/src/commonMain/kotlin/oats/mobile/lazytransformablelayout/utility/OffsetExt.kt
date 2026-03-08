@@ -47,15 +47,14 @@ private fun nearestPointOnSegment(p: Offset, p1: Offset, p2: Offset): Offset {
 internal fun Offset.clampToBounds(bounds: Parallelogram?) = bounds?.run {
     val u = b - a
     val v = d - a
-    val c = b + d - a  // 4th corner
     val w = this@clampToBounds - a
     val determinant = u cross v
 
     if (abs(determinant) < 1e-4f) {
-        val end = maxOf(u, v, compareBy { it.getDistanceSquared() })
-        val lenSq = end.getDistanceSquared()
+        val ac = c - a
+        val lenSq = ac.getDistanceSquared()
         if (lenSq == 0f) a
-        else a + end * ((w.x * end.x + w.y * end.y) / lenSq).coerceIn(0f, 1f)
+        else a + ac * ((w.x * ac.x + w.y * ac.y) / lenSq).coerceIn(0f, 1f)
     } else {
         val s = (w cross v) / determinant
         val t = (u cross w) / determinant
