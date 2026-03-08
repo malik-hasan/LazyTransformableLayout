@@ -30,10 +30,10 @@ import kotlin.math.sin
  *
  * @param layoutBounds The bounds of the layout which can be panned into view
  * @param initialOffset initial offset of the top left corner of the viewport relative to the layoutBounds
- * @param initialScale initial zoom scale (greater than zero)
  * @param zoomBounds min and max scale bounds
- * @param initialAngle initial rotation angle in degrees
+ * @param initialScale initial zoom scale (greater than zero)
  * @param rotationBounds min and max angle bounds in degrees
+ * @param initialAngle initial rotation angle in degrees
  * @param flingAnimationSpec decay animation spec for panning fling velocity
  */
 @Stable
