@@ -40,10 +40,10 @@ import kotlin.math.sin
 class LazyTransformableLayoutState(
     val layoutBounds: Rect,
     initialOffset: Offset = Offset.Zero,
-    @FloatRange(from = 0.0, fromInclusive = false) initialScale: Float = 1f,
     val zoomBounds: ClosedFloatingPointRange<Float> = Float.MIN_VALUE..Float.MAX_VALUE,
-    initialAngle: Float = 0f,
+    @FloatRange(from = 0.0, fromInclusive = false) initialScale: Float = 1f,
     val rotationBounds: ClosedFloatingPointRange<Float> = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY,
+    initialAngle: Float = 0f,
     private val flingAnimationSpec: DecayAnimationSpec<Float> = exponentialDecay(1.5f)
 ) {
     init {
@@ -151,23 +151,6 @@ class LazyTransformableLayoutState(
         return offset - previousOffset
     }
 
-//
-//    fun panToOffset(newOffset: DpOffset) {
-//        offset = (-newOffset).coerceInBounds(topLeftPanningBounds)
-//    }
-//
-//    suspend fun animatePanToOffset(newOffset: DpOffset) {
-//        Animatable(offset, DpOffset.VectorConverter).run {
-//            with(topLeftPanningBounds) {
-//                updateBounds(
-//                    lowerBound = DpOffset(left, top),
-//                    upperBound = DpOffset(right, bottom)
-//                )
-//            }
-//            animateTo(-newOffset) { offset = value }
-//        }
-//    }
-//
     internal suspend fun flingX(velocity: Velocity) =
         Velocity(
             x = fling(
