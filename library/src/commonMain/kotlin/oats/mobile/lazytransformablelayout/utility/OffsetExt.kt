@@ -17,17 +17,17 @@ fun Offset.rotate(angle: Float): Offset {
 }
 
 internal fun Offset.clampToBounds(bounds: Parallelogram?) = bounds?.run {
-    val u = b - a
-    val v = d - a
-    val w = this@clampToBounds - a
+    val u = top - left
+    val v = bottom - left
+    val w = this@clampToBounds - left
     val determinant = u cross v
 
     if (abs(determinant) < 1e-4f) {
-        val ac = c - a
+        val ac = right - left
         val lenSq = ac.getDistanceSquared()
         if (lenSq == 0f) {
-            a
-        } else a + ac * ((w dot ac) / lenSq).coerceIn(0f, 1f)
+            left
+        } else left + ac * ((w dot ac) / lenSq).coerceIn(0f, 1f)
     } else {
         val s = (w cross v) / determinant
         val t = (u cross w) / determinant
@@ -38,10 +38,10 @@ internal fun Offset.clampToBounds(bounds: Parallelogram?) = bounds?.run {
             val inverseS = 1 - s
             val inverseT = 1 - t
             buildList {
-                if (t < 0f || t <= s && t <= inverseS) add(nearestPointOnSegment(a, b))
-                if (t > 1f || t >= s && t >= inverseS) add(nearestPointOnSegment(c, d))
-                if (s < 0f || s <= t && s <= inverseT) add(nearestPointOnSegment(a, d))
-                if (s > 1f || s >= t && s >= inverseT) add(nearestPointOnSegment(b, c))
+                if (t < 0f || t <= s && t <= inverseS) add(nearestPointOnSegment(left, top))
+                if (t > 1f || t >= s && t >= inverseS) add(nearestPointOnSegment(right, bottom))
+                if (s < 0f || s <= t && s <= inverseT) add(nearestPointOnSegment(left, bottom))
+                if (s > 1f || s >= t && s >= inverseT) add(nearestPointOnSegment(top, right))
             }.minBy { (it - this@clampToBounds).getDistanceSquared() }
         }
     }

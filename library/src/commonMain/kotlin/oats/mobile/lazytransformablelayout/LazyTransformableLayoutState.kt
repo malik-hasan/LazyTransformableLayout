@@ -132,10 +132,10 @@ class LazyTransformableLayoutState(
             val bottom = (v3.y - height).coerceAtLeast(top)
 
             Parallelogram(
-                a = Offset(left, (v0.y - height / 2).coerceIn(top, bottom)),
-                b = Offset((v1.x - width / 2).coerceIn(left, right), top),
-                c = Offset(right, (v2.y - height / 2).coerceIn(top, bottom)),
-                d = Offset((v3.x - width / 2).coerceIn(left, right), bottom)
+                left = Offset(left, (v0.y - height / 2).coerceIn(top, bottom)),
+                top = Offset((v1.x - width / 2).coerceIn(left, right), top),
+                right = Offset(right, (v2.y - height / 2).coerceIn(top, bottom)),
+                bottom = Offset((v3.x - width / 2).coerceIn(left, right), bottom)
             )
         }
     }
@@ -156,8 +156,8 @@ class LazyTransformableLayoutState(
             x = fling(
                 initialVelocity = velocity.x,
                 initialValue = offset.x,
-                minBound = panningBounds?.a?.x,
-                maxBound = panningBounds?.c?.x,
+                minBound = panningBounds?.left?.x,
+                maxBound = panningBounds?.right?.x,
             ) { offset.copy(x = it) },
             y = 0f
         )
@@ -168,8 +168,8 @@ class LazyTransformableLayoutState(
             y = fling(
                 initialVelocity = velocity.y,
                 initialValue = offset.y,
-                minBound = panningBounds?.b?.y,
-                maxBound = panningBounds?.d?.y,
+                minBound = panningBounds?.top?.y,
+                maxBound = panningBounds?.bottom?.y,
             ) { offset.copy(y = it) }
         )
 
