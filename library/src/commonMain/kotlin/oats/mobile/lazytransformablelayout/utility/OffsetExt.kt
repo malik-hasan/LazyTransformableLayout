@@ -16,34 +16,6 @@ fun Offset.rotate(angle: Float): Offset {
     )
 }
 
-//internal fun Offset.clampToBounds(bounds: Parallelogram?) = bounds?.run {
-//    val u = b - a
-//    val v = d - a
-//    val w = this@clampToBounds - a
-//
-//    val determinant = u cross v
-//    if (abs(determinant) < 1e-4f) {
-//        val end = maxOf(u, v, compareBy { it.getDistanceSquared() })
-//        val lenSq = end.getDistanceSquared()
-//        if (lenSq == 0f) {
-//            a
-//        } else a + end * ((w.x * end.x + w.y * end.y) / lenSq).coerceIn(0f, 1f)
-//    } else {
-//        val s = ((w cross v) / determinant).coerceIn(0f, 1f)
-//        val t = ((u cross w) / determinant).coerceIn(0f, 1f)
-//
-//        a + u * s + v * t
-//    }
-//} ?: this
-
-private fun nearestPointOnSegment(p: Offset, p1: Offset, p2: Offset): Offset {
-    val seg = p2 - p1
-    val lenSq = seg.getDistanceSquared()
-    if (lenSq == 0f) return p1
-    val t = ((p - p1).x * seg.x + (p - p1).y * seg.y) / lenSq
-    return p1 + seg * t.coerceIn(0f, 1f)
-}
-
 internal fun Offset.clampToBounds(bounds: Parallelogram?) = bounds?.run {
     val u = b - a
     val v = d - a
@@ -53,23 +25,36 @@ internal fun Offset.clampToBounds(bounds: Parallelogram?) = bounds?.run {
     if (abs(determinant) < 1e-4f) {
         val ac = c - a
         val lenSq = ac.getDistanceSquared()
-        if (lenSq == 0f) a
-        else a + ac * ((w.x * ac.x + w.y * ac.y) / lenSq).coerceIn(0f, 1f)
+        if (lenSq == 0f) {
+            a
+        } else a + ac * ((w dot ac) / lenSq).coerceIn(0f, 1f)
     } else {
         val s = (w cross v) / determinant
         val t = (u cross w) / determinant
 
         if (s in 0f..1f && t in 0f..1f) {
-            this@clampToBounds  // already inside
+            this@clampToBounds
         } else {
-            listOf(
-                nearestPointOnSegment(this@clampToBounds, a, b),
-                nearestPointOnSegment(this@clampToBounds, b, c),
-                nearestPointOnSegment(this@clampToBounds, d, c),
-                nearestPointOnSegment(this@clampToBounds, a, d)
-            ).minBy { (it - this@clampToBounds).getDistanceSquared() }
+            val inverseS = 1 - s
+            val inverseT = 1 - t
+            buildList {
+                if (t < 0f || t <= s && t <= inverseS) add(nearestPointOnSegment(a, b))
+                if (t > 1f || t >= s && t >= inverseS) add(nearestPointOnSegment(c, d))
+                if (s < 0f || s <= t && s <= inverseT) add(nearestPointOnSegment(a, d))
+                if (s > 1f || s >= t && s >= inverseT) add(nearestPointOnSegment(b, c))
+            }.minBy { (it - this@clampToBounds).getDistanceSquared() }
         }
     }
 } ?: this
 
+fun Offset.nearestPointOnSegment(p: Offset, q: Offset): Offset {
+    val segment = q - p
+    val lenSq = segment.getDistanceSquared()
+    return if (lenSq == 0f) {
+        p
+    } else p + segment * (((this - p) dot segment) / lenSq).coerceIn(0f, 1f)
+}
+
 infix fun Offset.cross(other: Offset) = x * other.y - y * other.x
+
+infix fun Offset.dot(other: Offset) = x * other.x + y * other.y

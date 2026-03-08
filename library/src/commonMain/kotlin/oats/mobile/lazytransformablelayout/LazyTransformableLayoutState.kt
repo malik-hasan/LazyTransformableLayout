@@ -14,7 +14,6 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.util.fastMap
-import co.touchlab.kermit.Logger
 import oats.mobile.lazytransformablelayout.model.Parallelogram
 import oats.mobile.lazytransformablelayout.utility.clampToBounds
 import oats.mobile.lazytransformablelayout.utility.radians
@@ -106,7 +105,7 @@ class LazyTransformableLayoutState(
                 lowerZoomBound,
                 width / layoutBounds.run { width * cos + height * sin },
                 height / layoutBounds.run { width * sin + height * cos }
-            ).also { Logger.d("MALIK: minScaleBound: $it") }
+            )
         } ?: lowerZoomBound
     }
 
@@ -120,37 +119,32 @@ class LazyTransformableLayoutState(
                 compareBy({ it.value.x }, { it.value.y })
             ).index
 
-            Logger.d("MALIK: transformedLayoutBounds: $transformedLayoutBounds; startIndex: $startIndex")
-
-            fun v(i: Int) = transformedLayoutBounds[(startIndex + i) % 4]
-            val v0 = transformedLayoutBounds[startIndex]
-            val v1 = v(1)
-            val v3 = v(3)
+            val (v0, v1, v2, v3) = transformedLayoutBounds.run {
+                drop(startIndex) + take(startIndex)
+            }
 
             val left = v0.x
             val top = v1.y
-            val right = (v(2).x - width).coerceAtLeast(left)
+            val right = (v2.x - width).coerceAtLeast(left)
             val bottom = (v3.y - height).coerceAtLeast(top)
 
             Parallelogram(
                 a = Offset(left, (v0.y - height / 2).coerceIn(top, bottom)),
                 b = Offset((v1.x - width / 2).coerceIn(left, right), top),
-                c = Offset((v(2).x - width  / 2).coerceIn(left, right),  (v(2).y - height / 2).coerceIn(top, bottom)),
+                c = Offset(right, (v2.y - height / 2).coerceIn(top, bottom)),
                 d = Offset((v3.x - width / 2).coerceIn(left, right), bottom)
-            ).also { Logger.d("MALIK: panningBounds: $it; angle: $angle") }
+            )
         }
     }
 
     internal fun transform(zoomFactor: Float, rotationDelta: Float, panDelta: Offset, centroid: Offset): Offset {
-        scale = (scale * zoomFactor).coerceIn(minScaleBound, zoomBounds.endInclusive).also { Logger.d("MALIK: scale $it") }
+        scale = (scale * zoomFactor).coerceIn(minScaleBound, zoomBounds.endInclusive)
         angle = (angle + rotationDelta).coerceIn(rotationBounds)
 
         val previousOffset = offset
         val offsetCentroid = centroid + offset
         offset = (offset - panDelta - offsetCentroid + (offsetCentroid * zoomFactor).rotate(rotationDelta))
-            .also { Logger.d("MALIK: offset before clamp $it") }
             .clampToBounds(panningBounds)
-            .also { Logger.d("MALIK: offset after clamp $it") }
         return offset - previousOffset
     }
 
