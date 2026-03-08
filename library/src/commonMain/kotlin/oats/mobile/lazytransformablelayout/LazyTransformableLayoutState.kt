@@ -14,9 +14,14 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.util.fastMap
+import co.touchlab.kermit.Logger
 import oats.mobile.lazytransformablelayout.model.Parallelogram
 import oats.mobile.lazytransformablelayout.utility.clampToBounds
+import oats.mobile.lazytransformablelayout.utility.radians
 import oats.mobile.lazytransformablelayout.utility.rotate
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * The state of the LazyTransformableLayout
@@ -94,16 +99,14 @@ class LazyTransformableLayoutState(
     private val minScaleBound by derivedStateOf {
         val lowerZoomBound = zoomBounds.start
         constraints?.run {
-//            val angleRadians = angle.radians
-//            val cos = cos(angleRadians)
-//            val sin = sin(angleRadians)
-//            val rotatedWidth = layoutBounds.run { width * cos + height * sin }
-//            val rotatedHeight = layoutBounds.run { width * sin + height * cos }
+            val angleRadians = angle.radians
+            val cos = abs(cos(angleRadians))
+            val sin = abs(sin(angleRadians))
             maxOf(
                 lowerZoomBound,
-                width / layoutBounds.width,
-                height / layoutBounds.height
-            )
+                width / layoutBounds.run { width * cos + height * sin },
+                height / layoutBounds.run { width * sin + height * cos }
+            ).also { Logger.d("MALIK: minScaleBound: $it") }
         } ?: lowerZoomBound
     }
 
@@ -117,6 +120,8 @@ class LazyTransformableLayoutState(
                 compareBy({ it.value.x }, { it.value.y })
             ).index
 
+            Logger.d("MALIK: transformedLayoutBounds: $transformedLayoutBounds; startIndex: $startIndex")
+
             fun v(i: Int) = transformedLayoutBounds[(startIndex + i) % 4]
             val v0 = transformedLayoutBounds[startIndex]
             val v1 = v(1)
@@ -124,25 +129,27 @@ class LazyTransformableLayoutState(
 
             val left = v0.x
             val top = v1.y
-            val right = v(2).x - width
-            val bottom = v3.y - height
+            val right = (v(2).x - width).coerceAtLeast(left)
+            val bottom = (v3.y - height).coerceAtLeast(top)
 
             Parallelogram(
                 a = Offset(left, (v0.y - height / 2).coerceIn(top, bottom)),
                 b = Offset((v1.x - width / 2).coerceIn(left, right), top),
                 d = Offset((v3.x - width / 2).coerceIn(left, right), bottom)
-            )
+            ).also { Logger.d("MALIK: panningBounds: $it; angle: $angle") }
         }
     }
 
     internal fun transform(zoomFactor: Float, rotationDelta: Float, panDelta: Offset, centroid: Offset): Offset {
-        scale = (scale * zoomFactor).coerceIn(minScaleBound, zoomBounds.endInclusive)
+        scale = (scale * zoomFactor).coerceIn(minScaleBound, zoomBounds.endInclusive).also { Logger.d("MALIK: scale $it") }
         angle = (angle + rotationDelta).coerceIn(rotationBounds)
 
         val previousOffset = offset
         val offsetCentroid = centroid + offset
         offset = (offset - panDelta - offsetCentroid + (offsetCentroid * zoomFactor).rotate(rotationDelta))
+            .also { Logger.d("MALIK: offset before clamp $it") }
             .clampToBounds(panningBounds)
+            .also { Logger.d("MALIK: offset after clamp $it") }
         return offset - previousOffset
     }
 
