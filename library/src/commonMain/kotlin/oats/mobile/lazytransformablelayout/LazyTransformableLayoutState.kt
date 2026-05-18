@@ -173,7 +173,8 @@ class LazyTransformableLayoutState(
             ) { offset.copy(y = it) }
         )
 
-    // must use separate float animations instead of DpOffset animation, so that the horizontal fling continues even if it hits the vertical boundary and vice versa
+    // must use separate float animations instead of Offset animation
+    // so that the horizontal fling continues even if it hits the vertical boundary and vice versa
     private suspend fun fling(
         initialVelocity: Float,
         initialValue: Float,
@@ -181,9 +182,9 @@ class LazyTransformableLayoutState(
         maxBound: Float?,
         updatedOffset: (Float) -> Offset
     ) = initialVelocity - Animatable(initialValue, Float.VectorConverter).run {
-            updateBounds(minBound, maxBound)
-            animateDecay(initialVelocity, flingAnimationSpec) {
-                offset = updatedOffset(value)
-            }
-        }.endState.velocity
+        updateBounds(minBound, maxBound)
+        animateDecay(initialVelocity, flingAnimationSpec) {
+            offset = updatedOffset(value)
+        }
+    }.endState.velocity
 }
