@@ -15,15 +15,18 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.round
+import androidx.compose.ui.util.fastForEach
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import oats.mobile.lazytransformablelayout.model.Positionable
 import oats.mobile.lazytransformablelayout.utility.detectTransformGestures
-import oats.mobile.lazytransformablelayout.utility.rotate
-import kotlin.math.roundToInt
+import oats.mobile.lazytransformablelayout.utility.transform
+import oats.mobile.lazytransformablelayout.utility.vertices
 
 @Composable
 fun LazyTransformableLayout(
@@ -92,55 +95,72 @@ fun LazyTransformableLayout(
                 )
             }
     ) { constraints ->
-        val offset = state.offset
-        val offsetX = offset.x
-        val offsetY = offset.y
-
-        val constraintWidth = constraints.maxWidth
-        val constraintHeight = constraints.maxHeight
         state.acceptConstraints(constraints)
 
         val scale = state.scale
+        val angle = state.angle
+        val offset = state.offset
+
+        val constraintWidth = constraints.maxWidth
+        val constraintHeight = constraints.maxHeight
+        val buffer = 256f
 
         val indexedItemsToMeasure = mutableListOf<IndexedValue<Positionable>>()
         layerContent.intervals.forEach { layer ->
             layer.value.items.forEachIndexed { localIndex, item ->
-                val itemBounds = item.bounds
-                if (true || itemBounds.right.toPx() + offsetX >= 0 // TODO
-                    && itemBounds.bottom.toPx() + offsetY >= 0
-                    && itemBounds.left.toPx() + offsetX <= constraintWidth / scale
-                    && itemBounds.top.toPx() + offsetY <= constraintHeight / scale
+                var left = Float.MAX_VALUE
+                var top = Float.MAX_VALUE
+                var right = Float.NEGATIVE_INFINITY
+                var bottom = Float.NEGATIVE_INFINITY
+                item.bounds.toRect().vertices.forEach {
+                    Offset(it).transform(scale, angle, offset).run {
+                        if (x < left) left = x
+                        if (y < top) top = y
+                        if (x > right) right = x
+                        if (y > bottom) bottom = y
+                    }
+                }
+
+                if (left <= constraintWidth + buffer
+                    && top <= constraintHeight + buffer
+                    && right >= -buffer
+                    && bottom >= -buffer
                 ) indexedItemsToMeasure += IndexedValue(layer.startIndex + localIndex, item)
             }
         }
 
+        val offsetX = offset.x
+        val offsetY = offset.y
+
         layout(constraintWidth, constraintHeight) {
-            indexedItemsToMeasure.forEach { (index, item) ->
-                compose(index).forEach { measurable ->
+            indexedItemsToMeasure.fastForEach { (index, item) ->
+                compose(index).fastForEach { measurable ->
                     val placeable = measurable.measure(constraints)
 
-                    val itemBounds = item.bounds
-                    // TODO: Check the actual width/height again after measurement
-//                    if (offsetLeftBound + placeable.width.toDp() >= 0.dp
-//                        && offsetTopBound + placeable.height.toDp() >= 0.dp
+                    var left = Float.MAX_VALUE
+                    var top = Float.MAX_VALUE
+                    val itemBounds = item.bounds.toRect()
+                    itemBounds.vertices.forEach {
+                        Offset(it).transform(scale, angle, offset).run {
+                            if (x < left) left = x
+                            if (y < top) top = y
+                        }
+                    }
 
-                    val rotation = state.angle
-
-                    val itemPosition = (
-                        itemBounds.toRect().topLeft * scale
-                    ).rotate(rotation)
-
-                    placeable.placeWithLayer(
-                        x = itemPosition.x.roundToInt(),
-                        y = itemPosition.y.roundToInt(),
-                        zIndex = item.zIndex
+                    if (left + placeable.width >= -buffer
+                        && top + placeable.height >= -buffer
                     ) {
-                        transformOrigin = TransformOrigin(0f, 0f)
-                        scaleX = scale
-                        scaleY = scale
-                        rotationZ = rotation
-                        translationX = -offsetX
-                        translationY = -offsetY
+                        placeable.placeWithLayer(
+                            position = itemBounds.topLeft.transform(scale, angle).round(),
+                            zIndex = item.zIndex
+                        ) {
+                            transformOrigin = TransformOrigin(0f, 0f)
+                            scaleX = scale
+                            scaleY = scale
+                            rotationZ = angle
+                            translationX = -offsetX
+                            translationY = -offsetY
+                        }
                     }
                 }
             }

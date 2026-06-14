@@ -16,11 +16,12 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Velocity
-import androidx.compose.ui.util.fastMap
 import oats.mobile.lazytransformablelayout.model.Parallelogram
 import oats.mobile.lazytransformablelayout.utility.clampToBounds
 import oats.mobile.lazytransformablelayout.utility.radians
 import oats.mobile.lazytransformablelayout.utility.rotate
+import oats.mobile.lazytransformablelayout.utility.transform
+import oats.mobile.lazytransformablelayout.utility.vertices
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
@@ -112,19 +113,31 @@ class LazyTransformableLayoutState(
         } ?: lowerZoomBound
     }
 
+    private val layoutBoundVertices = layoutBounds.vertices
+
+    private val transformedLayoutBounds = LongArray(4)
+
     private val panningBounds by derivedStateOf {
         constraints?.run {
-            val transformedLayoutBounds = layoutBounds
-                .run { listOf(topLeft, topRight, bottomRight, bottomLeft) }
-                .fastMap { (it * scale).rotate(angle) }
-
-            val startIndex = transformedLayoutBounds.withIndex().minWith(
-                compareBy({ it.value.x }, { it.value.y })
-            ).index
-
-            val (v0, v1, v2, v3) = transformedLayoutBounds.run {
-                drop(startIndex) + take(startIndex)
+            for (i in 0 until 4) {
+                transformedLayoutBounds[i] = Offset(layoutBoundVertices[i])
+                    .transform(scale, angle).packedValue
             }
+
+            var startIndex = 0
+            var best = Offset(transformedLayoutBounds[0])
+            for (i in 1..3) {
+                val candidate = Offset(transformedLayoutBounds[i])
+                if (candidate.x < best.x || (candidate.x == best.x && candidate.y < best.y)) {
+                    best = candidate
+                    startIndex = i
+                }
+            }
+
+            val v0 = Offset(transformedLayoutBounds[startIndex])
+            val v1 = Offset(transformedLayoutBounds[(startIndex + 1) % 4])
+            val v2 = Offset(transformedLayoutBounds[(startIndex + 2) % 4])
+            val v3 = Offset(transformedLayoutBounds[(startIndex + 3) % 4])
 
             val left = v0.x
             val top = v1.y
