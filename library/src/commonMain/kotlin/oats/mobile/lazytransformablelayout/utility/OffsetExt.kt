@@ -39,12 +39,8 @@ internal fun Offset.clampToBounds(bounds: Parallelogram?) = bounds?.run {
             var clampedPointDistSq = Float.MAX_VALUE
 
             if (t < 0f || t <= s && t <= inverseS) {
-                val nearestPoint = nearestPointOnSegment(left, top)
-                val nearestPointDistSq = distanceSquared(nearestPoint)
-                if (nearestPointDistSq < clampedPointDistSq) {
-                    clampedPoint = nearestPoint
-                    clampedPointDistSq = nearestPointDistSq
-                }
+                clampedPoint = nearestPointOnSegment(left, top)
+                clampedPointDistSq = distanceSquared(clampedPoint)
             }
 
             if (s > 1f || s >= t && s >= inverseT) {
