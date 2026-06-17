@@ -7,6 +7,8 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 fun Offset.rotate(angle: Float): Offset {
+    if (angle == 0f) return this
+
     val angleRadians = angle.radians
     val cos = cos(angleRadians)
     val sin = sin(angleRadians)
@@ -23,11 +25,7 @@ internal fun Offset.clampToBounds(bounds: Parallelogram?) = bounds?.run {
     val determinant = u cross v
 
     if (abs(determinant) < 1e-4f) {
-        val ac = right - left
-        val lenSq = ac.getDistanceSquared()
-        if (lenSq == 0f) {
-            left
-        } else left + ac * ((w dot ac) / lenSq).coerceIn(0f, 1f)
+        nearestPointOnSegment(left, right)
     } else {
         val s = (w cross v) / determinant
         val t = (u cross w) / determinant
