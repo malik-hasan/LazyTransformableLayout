@@ -121,23 +121,23 @@ class LazyTransformableLayoutState(
         constraints?.run {
             for (i in 0 until 4) {
                 transformedLayoutBounds[i] = Offset(layoutBoundVertices[i])
-                    .transform(scale, angle).packedValue
+                    .transform(scale, angle)
+                    .packedValue
             }
 
             var startIndex = 0
-            var best = Offset(transformedLayoutBounds[0])
+            var v0 = Offset(transformedLayoutBounds[0])
             for (i in 1..3) {
-                val candidate = Offset(transformedLayoutBounds[i])
-                if (candidate.x < best.x || (candidate.x == best.x && candidate.y < best.y)) {
-                    best = candidate
+                val v = Offset(transformedLayoutBounds[i])
+                if (v.x < v0.x || (v.x == v0.x && v.y < v0.y)) {
+                    v0 = v
                     startIndex = i
                 }
             }
 
-            val v0 = Offset(transformedLayoutBounds[startIndex])
-            val v1 = Offset(transformedLayoutBounds[(startIndex + 1) % 4])
-            val v2 = Offset(transformedLayoutBounds[(startIndex + 2) % 4])
-            val v3 = Offset(transformedLayoutBounds[(startIndex + 3) % 4])
+            val v1 = v(startIndex, 1)
+            val v2 = v(startIndex, 2)
+            val v3 = v(startIndex, 3)
 
             val left = v0.x
             val top = v1.y
@@ -152,6 +152,9 @@ class LazyTransformableLayoutState(
             )
         }
     }
+
+    private fun v(startIndex: Int, index: Int) =
+        Offset(transformedLayoutBounds[(startIndex + index) % 4])
 
     internal fun transform(zoomFactor: Float, rotationDelta: Float, panDelta: Offset, centroid: Offset): Offset {
         scale = (scale * zoomFactor).coerceIn(minScaleBound, zoomBounds.endInclusive)
