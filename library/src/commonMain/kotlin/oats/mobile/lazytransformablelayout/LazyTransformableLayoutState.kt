@@ -222,7 +222,7 @@ class LazyTransformableLayoutState(
         return currentVelocity
     }
 
-    suspend fun flingRotation(initialVelocity: Float) {
+    internal suspend fun flingRotation(initialVelocity: Float) {
         Animatable(angle)
             .animateDecay(initialVelocity, rotationAnimationSpec) {
                 angle = value.coerceIn(rotationBounds)
@@ -231,7 +231,7 @@ class LazyTransformableLayoutState(
             }
     }
 
-    suspend fun flingZoom(initialLogVelocity: Float) {
+    internal suspend fun flingZoom(initialLogVelocity: Float) {
         Animatable(ln(scale))
             .animateDecay(initialLogVelocity, zoomAnimationSpec) {
                 scale = exp(value).coerceIn(minScaleBound, zoomBounds.endInclusive)
