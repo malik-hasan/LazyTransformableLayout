@@ -2,28 +2,34 @@ package oats.mobile.lazytransformablelayout
 
 import androidx.annotation.FloatRange
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.DecayAnimation
 import androidx.compose.animation.core.DecayAnimationSpec
-import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.FloatDecayAnimationSpec
+import androidx.compose.animation.core.FloatExponentialDecaySpec
 import androidx.compose.animation.core.exponentialDecay
+import androidx.compose.animation.core.getVelocityFromNanos
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Velocity
 import oats.mobile.lazytransformablelayout.model.Parallelogram
-import oats.mobile.lazytransformablelayout.utility.clampToBounds
+import oats.mobile.lazytransformablelayout.utility.clamp
 import oats.mobile.lazytransformablelayout.utility.radians
 import oats.mobile.lazytransformablelayout.utility.rotate
 import oats.mobile.lazytransformablelayout.utility.transform
 import oats.mobile.lazytransformablelayout.utility.vertices
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.sin
 
 /**
@@ -45,7 +51,9 @@ class LazyTransformableLayoutState(
     @FloatRange(from = 0.0, fromInclusive = false) initialScale: Float = 1f,
     val rotationBounds: ClosedFloatingPointRange<Float> = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY,
     initialAngle: Float = 0f,
-    private val flingAnimationSpec: DecayAnimationSpec<Float> = exponentialDecay(1.5f)
+    private val flingAnimationSpec: FloatDecayAnimationSpec = FloatExponentialDecaySpec(1.5f),
+    private val rotationAnimationSpec: DecayAnimationSpec<Float> = exponentialDecay(1.5f),
+    private val zoomAnimationSpec: DecayAnimationSpec<Float> = exponentialDecay(1.5f)
 ) {
     init {
         require(initialOffset.x >= layoutBounds.left
@@ -94,7 +102,7 @@ class LazyTransformableLayoutState(
         val previousConstraints = constraints
         constraints = incomingConstraints.run { IntSize(maxWidth, maxHeight) }
         if (previousConstraints == null) {
-            offset = offset.clampToBounds(panningBounds)
+            offset = offset.clamp(panningBounds)
             scale = scale.coerceAtLeast(minScaleBound)
         }
     }
@@ -157,50 +165,77 @@ class LazyTransformableLayoutState(
         Offset(transformedLayoutBounds[(startIndex + index) % 4])
 
     internal fun transform(zoomFactor: Float, rotationDelta: Float, panDelta: Offset, centroid: Offset): Offset {
-        scale = (scale * zoomFactor).coerceIn(minScaleBound, zoomBounds.endInclusive)
         angle = (angle + rotationDelta).coerceIn(rotationBounds)
+        scale = (scale * zoomFactor).coerceIn(minScaleBound, zoomBounds.endInclusive)
 
         val previousOffset = offset
         val offsetCentroid = centroid + offset
         offset = (offset - panDelta - offsetCentroid + (offsetCentroid * zoomFactor).rotate(rotationDelta))
-            .clampToBounds(panningBounds)
+            .clamp(panningBounds)
         return offset - previousOffset
     }
 
-    internal suspend fun flingX(velocity: Velocity) =
-        Velocity(
-            x = fling(
-                initialVelocity = velocity.x,
-                initialValue = offset.x,
-                minBound = panningBounds?.left?.x,
-                maxBound = panningBounds?.right?.x,
-            ) { offset.copy(x = it) },
-            y = 0f
-        )
+    internal suspend fun flingX(velocity: Velocity) = Velocity(
+        x = fling(
+            initialVelocity = velocity.x,
+            initialValue = offset.x
+        ) { offset.copy(x = it) },
+        y = 0f
+    )
 
-    internal suspend fun flingY(velocity: Velocity) =
-        Velocity(
-            x = 0f,
-            y = fling(
-                initialVelocity = velocity.y,
-                initialValue = offset.y,
-                minBound = panningBounds?.top?.y,
-                maxBound = panningBounds?.bottom?.y,
-            ) { offset.copy(y = it) }
-        )
+    internal suspend fun flingY(velocity: Velocity) = Velocity(
+        x = 0f,
+        y = fling(
+            initialVelocity = velocity.y,
+            initialValue = offset.y
+        ) { offset.copy(y = it) }
+    )
 
-    // must use separate float animations instead of Offset animation
-    // so that the horizontal fling continues even if it hits the vertical boundary and vice versa
     private suspend fun fling(
         initialVelocity: Float,
         initialValue: Float,
-        minBound: Float?,
-        maxBound: Float?,
         updatedOffset: (Float) -> Offset
-    ) = initialVelocity - Animatable(initialValue, Float.VectorConverter).run {
-        updateBounds(minBound, maxBound)
-        animateDecay(initialVelocity, flingAnimationSpec) {
-            offset = updatedOffset(value)
+    ): Float {
+        val animation = DecayAnimation(
+            animationSpec = flingAnimationSpec,
+            initialValue = initialValue,
+            initialVelocity = initialVelocity
+        )
+
+        val startTimeNanos = withFrameNanos { it }
+        var currentVelocity: Float
+
+        animation.run {
+            do {
+                val frameTimeNanos = withFrameNanos { it }
+                val playTimeNanos = frameTimeNanos - startTimeNanos
+
+                val currentValue = getValueFromNanos(playTimeNanos)
+                currentVelocity = getVelocityFromNanos(playTimeNanos)
+
+                val unclamped = updatedOffset(currentValue)
+                val clamped = unclamped.clamp(panningBounds)
+                offset = clamped
+            } while (clamped == unclamped && !isFinishedFromNanos(playTimeNanos))
         }
-    }.endState.velocity
+
+        return currentVelocity
+    }
+
+    suspend fun flingRotation(initialVelocity: Float) {
+        Animatable(angle)
+            .animateDecay(initialVelocity, rotationAnimationSpec) {
+                angle = value.coerceIn(rotationBounds)
+                scale = scale.coerceIn(minScaleBound, zoomBounds.endInclusive)
+                offset = offset.clamp(panningBounds)
+            }
+    }
+
+    suspend fun flingZoom(initialLogVelocity: Float) {
+        Animatable(ln(scale))
+            .animateDecay(initialLogVelocity, zoomAnimationSpec) {
+                scale = exp(value).coerceIn(minScaleBound, zoomBounds.endInclusive)
+                offset = offset.clamp(panningBounds)
+            }
+    }
 }

@@ -71,6 +71,8 @@ fun LazyTransformableLayout(
                                     state.flingY(velocity)
                                 } ?: state.flingY(panVelocity)
                             }
+                            launch { state.flingZoom(logZoomVelocity) }
+                            launch { state.flingRotation(rotationVelocity) }
                         }
                     }
                 ) { zoomFactor, rotationDelta, panDelta, centroid ->

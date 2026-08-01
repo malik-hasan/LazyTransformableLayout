@@ -18,10 +18,10 @@ fun Offset.rotate(angle: Float): Offset {
     )
 }
 
-internal fun Offset.clampToBounds(bounds: Parallelogram?) = bounds?.run {
+internal fun Offset.clamp(bounds: Parallelogram?) = bounds?.run {
     val u = top - left
     val v = bottom - left
-    val w = this@clampToBounds - left
+    val w = this@clamp - left
     val determinant = u cross v
 
     if (abs(determinant) < 1e-4f) {
@@ -30,7 +30,7 @@ internal fun Offset.clampToBounds(bounds: Parallelogram?) = bounds?.run {
         val s = (w cross v) / determinant
         val t = (u cross w) / determinant
 
-        var clampedPoint = this@clampToBounds
+        var clampedPoint = this@clamp
 
         if (s !in 0f..1f || t !in 0f..1f) {
             val inverseS = 1 - s
