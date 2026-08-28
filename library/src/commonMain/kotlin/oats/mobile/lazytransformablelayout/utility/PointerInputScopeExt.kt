@@ -18,6 +18,7 @@ import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.math.ln
 
 // A pointer-count change this close to release is treated as "everyone let
@@ -30,6 +31,17 @@ private const val PointerChangeDebounceMillis = 64L
 suspend fun PointerInputScope.detectTransformGestures(
     onTransformStopped: (logZoomVelocity: Float, rotationVelocity: Float, panVelocity: Velocity, centroid: Offset) -> Unit,
     panZoomLock: Boolean = false,
+    // Even correctly measured (no artifacts), a rotate or zoom gesture
+    // leaves some real pan velocity from incidental hand drift — not an
+    // intentional pan fling. That drift scales with how fast/aggressive
+    // the gesture is (a fast zoom moves your whole hand faster, so any
+    // pinch asymmetry produces proportionally more drift), so the noise
+    // floor is a fixed baseline PLUS a fraction of the zoom/rotation
+    // velocity, rather than a single constant. Tune both against your own
+    // device: rotate/zoom-only gestures — slow AND fast — should land
+    // under this; a deliberate pan-then-release should land well over it.
+    minimumPanFlingVelocity: Float = 1000f,
+    panNoiseFraction: Float = 0.5f,
     onTransform: (zoomFactor: Float, rotationDelta: Float, panDelta: Offset, centroid: Offset) -> Unit
 ) = awaitEachGesture {
     val touchSlop = viewConfiguration.touchSlop
@@ -40,6 +52,12 @@ suspend fun PointerInputScope.detectTransformGestures(
 
     var previousPointerCount = 0
     var lastEventUptimeMillis = 0L
+    // Largest centroid size (finger spacing) seen this gesture — used to
+    // convert zoom/rotation velocity into pixel-equivalent units so they
+    // can inform the pan noise floor below. Using the max rather than the
+    // last frame avoids the conversion shrinking just because fingers
+    // happened to drift closer together right before release.
+    var maxCentroidSize = 0f
     // The centroid as of the last live onTransform call, handed to
     // onTransformStopped so the fling can keep anchoring zoom/rotation to
     // the same point the live gesture was using.
@@ -74,6 +92,7 @@ suspend fun PointerInputScope.detectTransformGestures(
             val zoomFactor = event.calculateZoom()
             var rotationDelta = if (lockedToPanZoom) 0f else event.calculateRotation()
             val panDelta = event.calculatePan()
+            val centroidSize = event.calculateCentroidSize(useCurrent = false)
             val pointerCount = changes.count { it.pressed }
             val uptimeMillis = changes.first().uptimeMillis
             lastEventUptimeMillis = uptimeMillis
@@ -92,7 +111,6 @@ suspend fun PointerInputScope.detectTransformGestures(
                 totalRotationBeforeTouchSlop += rotationDelta
                 totalPanBeforeTouchSlop += panDelta
 
-                val centroidSize = event.calculateCentroidSize(useCurrent = false)
                 val zoomMotionBeforeTouchSlop = abs(1 - totalZoomBeforeTouchSlop) * centroidSize
                 val rotationMotionBeforeTouchSlop = abs(totalRotationBeforeTouchSlop * PI.toFloat() * centroidSize / 180f)
                 val panMotionBeforeTouchSlop = totalPanBeforeTouchSlop.getDistance()
@@ -110,6 +128,7 @@ suspend fun PointerInputScope.detectTransformGestures(
             if (pastTouchSlop) {
                 val centroid = event.calculateCentroid(useCurrent = false)
                 if (centroid.isSpecified) lastCentroid = centroid
+                maxCentroidSize = maxOf(maxCentroidSize, centroidSize)
                 if (zoomFactor != 1f || rotationDelta != 0f || panDelta != Offset.Zero) {
                     onTransform(zoomFactor, rotationDelta, panDelta, centroid)
                 }
@@ -133,10 +152,24 @@ suspend fun PointerInputScope.detectTransformGestures(
     val finalPhaseDurationMillis = if (lastPointerCountChangeMillis >= 0) {
         lastEventUptimeMillis - lastPointerCountChangeMillis
     } else -1L
-    val panVelocity = if (lastPointerCountChangeMillis >= 0 && finalPhaseDurationMillis < PointerChangeDebounceMillis) {
+    val panVelocityRaw = if (lastPointerCountChangeMillis >= 0 && finalPhaseDurationMillis < PointerChangeDebounceMillis) {
         panVelocityBeforeLastReset
     } else {
         panVelocityTracker.calculateVelocity()
+    }
+
+    // Scale the noise floor up when the zoom/rotation signal is strong,
+    // since a faster/more aggressive gesture produces proportionally more
+    // incidental pan drift, not a fixed amount of it.
+    val zoomVelocityPixels = abs(logZoomVelocity) * maxCentroidSize
+    val rotationVelocityPixels = abs(rotationVelocity) * (PI.toFloat() / 180f) * maxCentroidSize
+    val gestureIntensityPixels = maxOf(zoomVelocityPixels, rotationVelocityPixels)
+    val effectiveMinimumPanVelocity = maxOf(minimumPanFlingVelocity, gestureIntensityPixels * panNoiseFraction)
+
+    val panVelocity = if (hypot(panVelocityRaw.x, panVelocityRaw.y) < effectiveMinimumPanVelocity) {
+        Velocity.Zero
+    } else {
+        panVelocityRaw
     }
 
     if (logZoomVelocity != 0f
