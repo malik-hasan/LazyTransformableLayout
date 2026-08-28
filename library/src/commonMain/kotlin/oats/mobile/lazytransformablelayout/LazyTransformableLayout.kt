@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.pointer.pointerInput
@@ -139,21 +140,27 @@ fun LazyTransformableLayout(
                 compose(index).fastForEach { measurable ->
                     val placeable = measurable.measure(constraints)
 
-                    var left = Float.MAX_VALUE
-                    var top = Float.MAX_VALUE
-                    val itemBounds = item.bounds.toRect()
-                    itemBounds.vertices.forEach {
+                    val position = item.bounds.toRect().topLeft
+
+                    var right = Float.NEGATIVE_INFINITY
+                    var bottom = Float.NEGATIVE_INFINITY
+                    position.run {
+                        Rect(
+                            left = x,
+                            top = y,
+                            right = x + placeable.width,
+                            bottom = y + placeable.height
+                        )
+                    }.vertices.forEach {
                         Offset(it).transform(scale, angle, offset).run {
-                            if (x < left) left = x
-                            if (y < top) top = y
+                            if (x > right) right = x
+                            if (y > bottom) bottom = y
                         }
                     }
 
-                    if (left + placeable.width >= -buffer
-                        && top + placeable.height >= -buffer
-                    ) {
+                    if (right >= -buffer && bottom >= -buffer) {
                         placeable.placeWithLayer(
-                            position = itemBounds.topLeft.transform(scale, angle).round(),
+                            position = position.transform(scale, angle).round(),
                             zIndex = item.zIndex
                         ) {
                             transformOrigin = TransformOrigin(0f, 0f)
