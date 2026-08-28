@@ -1,12 +1,9 @@
 package oats.mobile.lazytransformablelayout
 
 import androidx.annotation.FloatRange
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.DecayAnimation
-import androidx.compose.animation.core.DecayAnimationSpec
 import androidx.compose.animation.core.FloatDecayAnimationSpec
 import androidx.compose.animation.core.FloatExponentialDecaySpec
-import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.getVelocityFromNanos
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
@@ -52,14 +49,18 @@ class LazyTransformableLayoutState(
     val rotationBounds: ClosedFloatingPointRange<Float> = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY,
     initialAngle: Float = 0f,
     private val flingAnimationSpec: FloatDecayAnimationSpec = FloatExponentialDecaySpec(1.5f),
-    private val rotationAnimationSpec: DecayAnimationSpec<Float> = exponentialDecay(1.5f),
-    private val zoomAnimationSpec: DecayAnimationSpec<Float> = exponentialDecay(1.5f)
+    // Changed from DecayAnimationSpec<Float> to FloatDecayAnimationSpec: zoom
+    // and rotation fling now run in one manual frame loop (like pan already
+    // does) instead of two independent Animatable.animateDecay calls, so we
+    // need the raw spec rather than the Animatable-flavored wrapper.
+    private val rotationAnimationSpec: FloatDecayAnimationSpec = FloatExponentialDecaySpec(1.5f),
+    private val zoomAnimationSpec: FloatDecayAnimationSpec = FloatExponentialDecaySpec(1.5f)
 ) {
     init {
         require(initialOffset.x >= layoutBounds.left
-            && initialOffset.x <= layoutBounds.right
-            && initialOffset.y >= layoutBounds.top
-            && initialOffset.y <= layoutBounds.bottom
+                && initialOffset.x <= layoutBounds.right
+                && initialOffset.y >= layoutBounds.top
+                && initialOffset.y <= layoutBounds.bottom
         ) { "initialViewportOffset ($initialOffset) must be within layoutBounds: ($layoutBounds)" }
 
         require(zoomBounds.start > 0f) {
@@ -222,20 +223,69 @@ class LazyTransformableLayoutState(
         return currentVelocity
     }
 
-    internal suspend fun flingRotation(initialVelocity: Float) {
-        Animatable(angle)
-            .animateDecay(initialVelocity, rotationAnimationSpec) {
-                angle = value.coerceIn(rotationBounds)
-                scale = scale.coerceIn(minScaleBound, zoomBounds.endInclusive)
-                offset = offset.clamp(panningBounds)
-            }
-    }
+    /**
+     * Runs zoom and rotation fling decay together in a single frame loop so
+     * their combined effect on offset can be anchored to the same point
+     * that was under the fingers when the gesture ended — mirroring what
+     * transform() does for the live gesture. This can't be two independent
+     * decays (as it was before): anchoring a simultaneous scale+rotation
+     * change is one combined step ((point * zoomFactor).rotate(delta)),
+     * not two steps that can be corrected separately. `centroid` is a
+     * screen-space point; re-deriving offsetCentroid from it each frame
+     * (rather than freezing a content-space point up front) matches how
+     * transform() already behaves during the live gesture, so this stays
+     * correct even if flingX/flingY are panning concurrently.
+     */
+    internal suspend fun flingZoomAndRotation(
+        centroid: Offset,
+        initialLogZoomVelocity: Float,
+        initialRotationVelocity: Float
+    ) {
+        val zoomAnimation = DecayAnimation(
+            animationSpec = zoomAnimationSpec,
+            initialValue = ln(scale),
+            initialVelocity = initialLogZoomVelocity
+        )
+        val rotationAnimation = DecayAnimation(
+            animationSpec = rotationAnimationSpec,
+            initialValue = angle,
+            initialVelocity = initialRotationVelocity
+        )
 
-    internal suspend fun flingZoom(initialLogVelocity: Float) {
-        Animatable(ln(scale))
-            .animateDecay(initialLogVelocity, zoomAnimationSpec) {
-                scale = exp(value).coerceIn(minScaleBound, zoomBounds.endInclusive)
-                offset = offset.clamp(panningBounds)
-            }
+        val startTimeNanos = withFrameNanos { it }
+        var previousLogScale = ln(scale)
+        var previousAngle = angle
+
+        do {
+            val frameTimeNanos = withFrameNanos { it }
+            val playTimeNanos = frameTimeNanos - startTimeNanos
+
+            val targetLogScale = zoomAnimation.getValueFromNanos(playTimeNanos)
+            val targetAngle = rotationAnimation.getValueFromNanos(playTimeNanos)
+
+            // Clamp to the actual bounds BEFORE computing deltas, so the
+            // anchor correction below always reflects what really gets
+            // applied to scale/angle — not the decay's raw, unclamped
+            // trajectory. minScaleBound in particular is a real, moderate
+            // value even with default zoomBounds (it enforces "fits the
+            // viewport"), so this triggers on an ordinary zoom-out fling,
+            // not just an edge case.
+            val clampedAngle = targetAngle.coerceIn(rotationBounds)
+            val clampedScale = exp(targetLogScale).coerceIn(minScaleBound, zoomBounds.endInclusive)
+            val clampedLogScale = ln(clampedScale)
+
+            val zoomFactor = exp(clampedLogScale - previousLogScale)
+            val rotationDelta = clampedAngle - previousAngle
+
+            val offsetCentroid = centroid + offset
+            val unclamped = offset - offsetCentroid + (offsetCentroid * zoomFactor).rotate(rotationDelta)
+
+            angle = clampedAngle
+            scale = clampedScale
+            offset = unclamped.clamp(panningBounds)
+
+            previousLogScale = clampedLogScale
+            previousAngle = clampedAngle
+        } while (!zoomAnimation.isFinishedFromNanos(playTimeNanos) || !rotationAnimation.isFinishedFromNanos(playTimeNanos))
     }
 }
