@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Velocity
@@ -167,7 +168,35 @@ class LazyTransformableLayoutState(
     private fun v(startIndex: Int, index: Int) =
         Offset(transformedLayoutBounds[(startIndex + index) % 4])
 
-    internal fun transform(zoomFactor: Float, rotationDelta: Float, panDelta: Offset, centroid: Offset): Offset {
+    internal fun transform(
+        zoomFactor: Float,
+        rotationDelta: Float,
+        panDelta: Offset,
+        centroid: Offset,
+        overscrollEffect: OverscrollEffect? = null
+    ) {
+        val scaledPanDelta = panDelta / zoomFactor
+        overscrollEffect?.applyToScroll(scaledPanDelta, NestedScrollSource.UserInput) { scrollDelta ->
+            transform(
+                zoomFactor = zoomFactor,
+                rotationDelta = rotationDelta,
+                panDelta = scrollDelta,
+                centroid = centroid
+            )
+        } ?: transform(
+            zoomFactor = zoomFactor,
+            rotationDelta = rotationDelta,
+            panDelta = scaledPanDelta,
+            centroid = centroid
+        )
+    }
+
+    private fun transform(
+        zoomFactor: Float,
+        rotationDelta: Float,
+        panDelta: Offset,
+        centroid: Offset
+    ): Offset {
         angle = (angle + rotationDelta).coerceIn(rotationBounds)
         scale = (scale * zoomFactor).coerceIn(minScaleBound, zoomBounds.endInclusive)
 
@@ -188,11 +217,11 @@ class LazyTransformableLayoutState(
     }
 
     internal suspend fun fling(
-        overscrollEffect: OverscrollEffect?,
         initialLogZoomVelocity: Float,
         initialRotationVelocity: Float,
         initialPanVelocity: Velocity,
-        centroid: Offset
+        centroid: Offset,
+        overscrollEffect: OverscrollEffect? = null
     ) = coroutineScope {
         launch {
             overscrollEffect?.applyToFling(initialPanVelocity.copy(y = 0f)) { velocity ->

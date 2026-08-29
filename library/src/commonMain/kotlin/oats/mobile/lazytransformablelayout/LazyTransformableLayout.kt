@@ -18,7 +18,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.util.fastForEach
@@ -62,28 +61,21 @@ fun LazyTransformableLayout(
                     onTransformStopped = { logZoomVelocity, rotationVelocity, panVelocity, centroid ->
                         fling = scope.launch {
                             state.fling(
-                                overscrollEffect = overscrollEffect,
                                 initialLogZoomVelocity = logZoomVelocity,
                                 initialRotationVelocity = rotationVelocity,
                                 initialPanVelocity = -panVelocity,
-                                centroid = centroid
+                                centroid = centroid,
+                                overscrollEffect = overscrollEffect
                             )
                         }
                     }
                 ) { zoomFactor, rotationDelta, panDelta, centroid ->
-                    val scaledPanDelta = panDelta / zoomFactor
-                    overscrollEffect?.applyToScroll(scaledPanDelta, NestedScrollSource.UserInput) { panDelta ->
-                        state.transform(
-                            zoomFactor = zoomFactor,
-                            rotationDelta = rotationDelta,
-                            panDelta = panDelta,
-                            centroid = centroid
-                        )
-                    } ?: state.transform(
+                    state.transform(
                         zoomFactor = zoomFactor,
                         rotationDelta = rotationDelta,
-                        panDelta = scaledPanDelta,
-                        centroid = centroid
+                        panDelta = panDelta,
+                        centroid = centroid,
+                        overscrollEffect = overscrollEffect
                     )
                 }
             }.pointerInput(Unit) {
