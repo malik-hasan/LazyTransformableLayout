@@ -28,6 +28,8 @@ import oats.mobile.lazytransformablelayout.utility.detectTransformGestures
 import oats.mobile.lazytransformablelayout.utility.transform
 import oats.mobile.lazytransformablelayout.utility.vertices
 
+private const val LazyCompositionBuffer = 256f
+
 @Composable
 fun LazyTransformableLayout(
     state: LazyTransformableLayoutState,
@@ -92,7 +94,6 @@ fun LazyTransformableLayout(
 
         val constraintWidth = constraints.maxWidth
         val constraintHeight = constraints.maxHeight
-        val buffer = 256f
 
         val indexedItemsToMeasure = mutableListOf<IndexedValue<Positionable>>()
         layerContent.intervals.forEach { layer ->
@@ -110,10 +111,10 @@ fun LazyTransformableLayout(
                     }
                 }
 
-                if (left <= constraintWidth + buffer
-                    && top <= constraintHeight + buffer
-                    && right >= -buffer
-                    && bottom >= -buffer
+                if (left <= constraintWidth + LazyCompositionBuffer
+                    && top <= constraintHeight + LazyCompositionBuffer
+                    && right >= -LazyCompositionBuffer
+                    && bottom >= -LazyCompositionBuffer
                 ) indexedItemsToMeasure += IndexedValue(layer.startIndex + localIndex, item)
             }
         }
@@ -144,7 +145,7 @@ fun LazyTransformableLayout(
                         }
                     }
 
-                    if (right >= -buffer && bottom >= -buffer) {
+                    if (right >= -LazyCompositionBuffer && bottom >= -LazyCompositionBuffer) {
                         placeable.placeWithLayer(
                             position = position.transform(scale, angle).round(),
                             zIndex = item.zIndex
