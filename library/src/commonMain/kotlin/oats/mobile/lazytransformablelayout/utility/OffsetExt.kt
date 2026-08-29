@@ -6,10 +6,10 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
-fun Offset.rotate(angle: Float): Offset {
-    if (angle == 0f) return this
+fun Offset.rotate(angleDegrees: Float): Offset {
+    if (angleDegrees == 0f) return this
 
-    val angleRadians = angle.radians
+    val angleRadians = angleDegrees.radians
     val cos = cos(angleRadians)
     val sin = sin(angleRadians)
     return Offset(

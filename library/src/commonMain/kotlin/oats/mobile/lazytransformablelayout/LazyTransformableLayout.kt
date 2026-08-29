@@ -59,20 +59,15 @@ fun LazyTransformableLayout(
             .overscroll(overscrollEffect)
             .pointerInput(Unit) {
                 detectTransformGestures(
-                    onTransformStopped = { logZoomVelocity, rotationVelocity, negativeVelocity, centroid ->
-                        val panVelocity = -negativeVelocity
+                    onTransformStopped = { logZoomVelocity, rotationVelocity, panVelocity, centroid ->
                         fling = scope.launch {
-                            launch {
-                                overscrollEffect?.applyToFling(panVelocity.copy(y = 0f)) { velocity ->
-                                    state.flingX(velocity)
-                                } ?: state.flingX(panVelocity)
-                            }
-                            launch {
-                                overscrollEffect?.applyToFling(panVelocity.copy(x = 0f)) { velocity ->
-                                    state.flingY(velocity)
-                                } ?: state.flingY(panVelocity)
-                            }
-                            launch { state.flingZoomAndRotation(centroid, logZoomVelocity, rotationVelocity) }
+                            state.fling(
+                                overscrollEffect = overscrollEffect,
+                                initialLogZoomVelocity = logZoomVelocity,
+                                initialRotationVelocity = rotationVelocity,
+                                initialPanVelocity = -panVelocity,
+                                centroid = centroid
+                            )
                         }
                     }
                 ) { zoomFactor, rotationDelta, panDelta, centroid ->
