@@ -225,14 +225,14 @@ class LazyTransformableLayoutState(
     ) = coroutineScope {
         launch {
             overscrollEffect?.applyToFling(initialPanVelocity.copy(y = 0f)) { velocity ->
-                flingX(velocity)
-            } ?: flingX(initialPanVelocity)
+                flingX(velocity.x)
+            } ?: flingX(initialPanVelocity.x)
         }
 
         launch {
             overscrollEffect?.applyToFling(initialPanVelocity.copy(x = 0f)) { velocity ->
-                flingY(velocity)
-            } ?: flingY(initialPanVelocity)
+                flingY(velocity.y)
+            } ?: flingY(initialPanVelocity.y)
         }
 
         launch {
@@ -265,35 +265,33 @@ class LazyTransformableLayoutState(
         }
     }
 
-    private suspend fun flingX(velocity: Velocity) = Velocity(
-        x = flingPan(
-            initialVelocity = velocity.x,
-            initialValue = offset.x
-        ) { offset.copy(x = it) },
+    private suspend fun flingX(xVelocity: Float) = Velocity(
+        x = flingPan(xVelocity) { delta ->
+            offset.copy(x = offset.x + delta)
+        },
         y = 0f
     )
 
-    private suspend fun flingY(velocity: Velocity) = Velocity(
+    private suspend fun flingY(yVelocity: Float) = Velocity(
         x = 0f,
-        y = flingPan(
-            initialVelocity = velocity.y,
-            initialValue = offset.y
-        ) { offset.copy(y = it) }
+        y = flingPan(yVelocity) { delta ->
+            offset.copy(y = offset.y + delta)
+        }
     )
 
     private suspend fun flingPan(
         initialVelocity: Float,
-        initialValue: Float,
-        updatedOffset: (Float) -> Offset
+        applyDelta: (Float) -> Offset
     ): Float {
         val animation = DecayAnimation(
             animationSpec = flingAnimationSpec,
-            initialValue = initialValue,
+            initialValue = 0f,
             initialVelocity = initialVelocity
         )
 
         val startTimeNanos = withFrameNanos { it }
         var currentVelocity: Float
+        var previousValue = 0f
 
         animation.run {
             do {
@@ -303,9 +301,11 @@ class LazyTransformableLayoutState(
                 val currentValue = getValueFromNanos(playTimeNanos)
                 currentVelocity = getVelocityFromNanos(playTimeNanos)
 
-                val unclamped = updatedOffset(currentValue)
+                val unclamped = applyDelta(currentValue - previousValue)
                 val clamped = unclamped.clamp(panningBounds)
                 offset = clamped
+
+                previousValue = currentValue
             } while (clamped == unclamped && !isFinishedFromNanos(playTimeNanos))
         }
 

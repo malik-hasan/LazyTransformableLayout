@@ -21,12 +21,7 @@ import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.ln
 
-// A pointer-count change this close to release is treated as "everyone let
-// go together" rather than a deliberate change of gesture — fingers never
-// physically lift in perfect sync. Compose's own VelocityTracker assumes
-// movement stopped after a 40ms gap with no new data; this is the same
-// ballpark with a little headroom for a couple of frames.
-private const val PointerChangeDebounceMillis = 64L
+private const val PointerChangeDebounceMillis = 40
 
 suspend fun PointerInputScope.detectTransformGestures(
     onTransformStopped: (logZoomVelocity: Float, rotationVelocity: Float, panVelocity: Velocity, centroid: Offset) -> Unit,
@@ -41,7 +36,7 @@ suspend fun PointerInputScope.detectTransformGestures(
     // device: rotate/zoom-only gestures — slow AND fast — should land
     // under this; a deliberate pan-then-release should land well over it.
     minimumPanFlingVelocity: Float = 1000f,
-    panNoiseFraction: Float = 0.5f,
+    panNoiseFraction: Float = 0.3f,
     onTransform: (zoomFactor: Float, rotationDelta: Float, panDelta: Offset, centroid: Offset) -> Unit
 ) = awaitEachGesture {
     val touchSlop = viewConfiguration.touchSlop
