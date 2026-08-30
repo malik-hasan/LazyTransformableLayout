@@ -58,13 +58,13 @@ class LazyTransformableLayoutState(
     val rotationBounds: ClosedFloatingPointRange<Float> = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY,
     initialAngle: Float = 0f,
     private val panFlingDecay: FloatDecayAnimationSpec = FloatExponentialDecaySpec(2f),
-    private val zoomRotateFlingDecay: DecayAnimationSpec<Pair<Float, Float>> = exponentialDecay(2f),
+    private val zoomRotateFlingDecay: DecayAnimationSpec<Pair<Float, Float>> = exponentialDecay(2f)
 ) {
     init {
         require(initialOffset.x >= layoutBounds.left
-                && initialOffset.x <= layoutBounds.right
-                && initialOffset.y >= layoutBounds.top
-                && initialOffset.y <= layoutBounds.bottom
+            && initialOffset.x <= layoutBounds.right
+            && initialOffset.y >= layoutBounds.top
+            && initialOffset.y <= layoutBounds.bottom
         ) { "initialViewportOffset ($initialOffset) must be within layoutBounds: ($layoutBounds)" }
 
         require(zoomBounds.start > 0f) {
