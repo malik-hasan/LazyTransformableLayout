@@ -20,6 +20,8 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.ln
 
+private const val PointerChangeDebounceMillis = 40
+
 suspend fun PointerInputScope.detectTransformGestures(
     onTransformStopped: (logZoomVelocity: Float, rotationVelocity: Float, panVelocity: Velocity, centroid: Offset) -> Unit,
     panZoomLock: Boolean = false,
@@ -31,8 +33,12 @@ suspend fun PointerInputScope.detectTransformGestures(
     var totalRotationBeforeTouchSlop = 0f
     var totalPanBeforeTouchSlop = Offset.Zero
 
-    var previousPointerCount = 0
     var lastCentroid = Offset.Zero
+
+    var lastEventUptimeMillis = 0L
+    var previousPointerCount = 0
+    var lastPointerCountChangeMillis = -1L
+    var panVelocityBeforeLastReset = Velocity.Zero
 
     val logZoomVelocityTracker = VelocityTracker1D(true)
     val rotationVelocityTracker = VelocityTracker1D(true)
@@ -84,11 +90,16 @@ suspend fun PointerInputScope.detectTransformGestures(
                 }
 
                 val pointerCount = changes.count { it.pressed }
+                val uptimeMillis = changes.first().uptimeMillis
+                lastEventUptimeMillis = uptimeMillis
                 if (previousPointerCount > 0 && pointerCount != previousPointerCount && pointerCount > 0) {
-                    panVelocityTracker.resetTracking()
+                    lastPointerCountChangeMillis = uptimeMillis
+                    panVelocityTracker.run {
+                        panVelocityBeforeLastReset = calculateVelocity()
+                        resetTracking()
+                    }
                 }
 
-                val uptimeMillis = changes.first().uptimeMillis
                 logZoomVelocityTracker.addDataPoint(uptimeMillis, ln(zoomFactor))
                 rotationVelocityTracker.addDataPoint(uptimeMillis, rotationDelta)
                 event.calculateCentroid().takeIf { it.isSpecified }?.let {
@@ -102,7 +113,12 @@ suspend fun PointerInputScope.detectTransformGestures(
 
     val logZoomVelocity = logZoomVelocityTracker.calculateVelocity()
     val rotationVelocity = if (lockedToPanZoom) 0f else rotationVelocityTracker.calculateVelocity()
-    val panVelocity = panVelocityTracker.calculateVelocity()
+
+    val panVelocity = if (lastPointerCountChangeMillis >= 0
+        && (lastEventUptimeMillis - lastPointerCountChangeMillis) < PointerChangeDebounceMillis
+    ) {
+        panVelocityBeforeLastReset
+    } else panVelocityTracker.calculateVelocity()
 
     if (logZoomVelocity != 0f
         || rotationVelocity != 0f
