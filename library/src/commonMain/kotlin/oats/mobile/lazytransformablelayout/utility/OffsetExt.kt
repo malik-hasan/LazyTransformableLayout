@@ -87,7 +87,7 @@ infix fun Offset.cross(other: Offset) = x * other.y - y * other.x
 
 infix fun Offset.dot(other: Offset) = x * other.x + y * other.y
 
-internal fun Offset.transform(
+fun Offset.transform(
     scale: Float = 1f,
     angle: Float = 0f,
     offset: Offset = Offset.Zero,
