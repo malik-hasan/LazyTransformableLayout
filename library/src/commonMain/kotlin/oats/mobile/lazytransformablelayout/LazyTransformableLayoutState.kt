@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.Velocity
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import oats.mobile.lazytransformablelayout.model.Parallelogram
+import oats.mobile.lazytransformablelayout.utility.FloatPairVectorConverter
 import oats.mobile.lazytransformablelayout.utility.clamp
 import oats.mobile.lazytransformablelayout.utility.radians
 import oats.mobile.lazytransformablelayout.utility.rotate
@@ -45,7 +46,8 @@ import kotlin.math.sin
  * @param initialScale initial zoom scale (greater than zero)
  * @param rotationBounds min and max angle bounds in degrees
  * @param initialAngle initial rotation angle in degrees
- * @param flingAnimationSpec decay animation spec for panning fling velocity
+ * @param panFlingDecay decay animation spec for panning fling velocity
+ * @param zoomRotateFlingDecay decay animation spec for zoom and rotation fling velocity
  */
 @Stable
 class LazyTransformableLayoutState(
@@ -55,9 +57,8 @@ class LazyTransformableLayoutState(
     @FloatRange(from = 0.0, fromInclusive = false) initialScale: Float = 1f,
     val rotationBounds: ClosedFloatingPointRange<Float> = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY,
     initialAngle: Float = 0f,
-    private val flingAnimationSpec: FloatDecayAnimationSpec = FloatExponentialDecaySpec(1.5f),
-    private val rotationAnimationSpec: DecayAnimationSpec<Float> = exponentialDecay(1.5f),
-    private val zoomAnimationSpec: DecayAnimationSpec<Float> = exponentialDecay(1.5f)
+    private val panFlingDecay: FloatDecayAnimationSpec = FloatExponentialDecaySpec(2f),
+    private val zoomRotateFlingDecay: DecayAnimationSpec<Pair<Float, Float>> = exponentialDecay(2f),
 ) {
     init {
         require(initialOffset.x >= layoutBounds.left
@@ -236,30 +237,37 @@ class LazyTransformableLayoutState(
         }
 
         launch {
-            var previousScale = scale
-            Animatable(ln(previousScale)).run {
-                updateBounds(ln(minScaleBound), ln(zoomBounds.endInclusive))
-                animateDecay(initialLogZoomVelocity, zoomAnimationSpec) {
-                    val scaleValue = exp(value)
-                    scale = scaleValue
-                    updateOffset(centroid, zoomFactor = scaleValue / previousScale)
-
-                    previousScale = scaleValue
-                    updateBounds(ln(minScaleBound))
-                }
-            }
-        }
-
-        launch {
             var previousAngle = angle
-            Animatable(previousAngle).run {
-                updateBounds(rotationBounds.start, rotationBounds.endInclusive)
-                animateDecay(initialRotationVelocity, rotationAnimationSpec) {
-                    angle = value
-                    scale = scale.coerceIn(minScaleBound, zoomBounds.endInclusive)
-                    updateOffset(centroid, rotationDelta = value - previousAngle)
+            var previousScale = scale
+            Animatable(
+                initialValue = previousAngle to ln(previousScale),
+                typeConverter = FloatPairVectorConverter
+            ).run {
+                updateBounds(
+                    lowerBound = rotationBounds.start to ln(minScaleBound),
+                    upperBound = rotationBounds.endInclusive to ln(zoomBounds.endInclusive)
+                )
 
-                    previousAngle = value
+                animateDecay(
+                    initialVelocity = initialRotationVelocity to initialLogZoomVelocity,
+                    animationSpec = zoomRotateFlingDecay
+                ) {
+                    val angleValue = value.first
+                    angle = angleValue
+
+                    val scaleValue = exp(value.second)
+                    scale = scaleValue
+
+                    updateOffset(
+                        centroid = centroid,
+                        zoomFactor = scaleValue / previousScale,
+                        rotationDelta = angleValue - previousAngle
+                    )
+
+                    previousAngle = angleValue
+                    previousScale = scaleValue
+
+                    updateBounds(rotationBounds.start to ln(minScaleBound))
                 }
             }
         }
@@ -284,7 +292,7 @@ class LazyTransformableLayoutState(
         applyDelta: (Float) -> Offset
     ): Float {
         val animation = DecayAnimation(
-            animationSpec = flingAnimationSpec,
+            animationSpec = panFlingDecay,
             initialValue = 0f,
             initialVelocity = initialVelocity
         )
