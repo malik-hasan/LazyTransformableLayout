@@ -87,5 +87,14 @@ infix fun Offset.cross(other: Offset) = x * other.y - y * other.x
 
 infix fun Offset.dot(other: Offset) = x * other.x + y * other.y
 
-fun Offset.transform(scale: Float = 1f, angle: Float = 0f, offset: Offset = Offset.Zero) =
-    (this * scale).rotate(angle) - offset
+internal fun Offset.transform(
+    scale: Float = 1f,
+    angle: Float = 0f,
+    offset: Offset = Offset.Zero,
+    centroid: Offset = Offset.Zero,
+    panningBounds: Parallelogram? = null
+): Offset {
+    val offsetCentroid = this + centroid
+    return (this - offsetCentroid + (offsetCentroid * scale).rotate(angle) - offset)
+        .clamp(panningBounds)
+}

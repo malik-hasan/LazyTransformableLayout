@@ -28,7 +28,6 @@ import oats.mobile.lazytransformablelayout.model.Parallelogram
 import oats.mobile.lazytransformablelayout.utility.FloatPairVectorConverter
 import oats.mobile.lazytransformablelayout.utility.clamp
 import oats.mobile.lazytransformablelayout.utility.radians
-import oats.mobile.lazytransformablelayout.utility.rotate
 import oats.mobile.lazytransformablelayout.utility.transform
 import oats.mobile.lazytransformablelayout.utility.vertices
 import kotlin.math.abs
@@ -201,20 +200,20 @@ class LazyTransformableLayoutState(
         angle = (angle + rotationDelta).coerceIn(rotationBounds)
         scale = (scale * zoomFactor).coerceIn(minScaleBound, zoomBounds.endInclusive)
 
-        val previousOffset = offset
-        updateOffset(centroid, panDelta, zoomFactor, rotationDelta)
-        return offset - previousOffset
-    }
+        val prePanOffset = offset.transform(
+            scale = zoomFactor,
+            angle = rotationDelta,
+            centroid = centroid,
+            panningBounds = panningBounds
+        )
 
-    private fun updateOffset(
-        centroid: Offset,
-        panDelta: Offset = Offset.Zero,
-        zoomFactor: Float = 1f,
-        rotationDelta: Float = 0f
-    ) {
-        val offsetCentroid = centroid + offset
-        offset = (offset - panDelta - offsetCentroid + (offsetCentroid * zoomFactor).rotate(rotationDelta))
-            .clamp(panningBounds)
+        val postPanOffset = prePanOffset.transform(
+            offset = panDelta,
+            panningBounds = panningBounds
+        )
+
+        offset = postPanOffset
+        return prePanOffset - postPanOffset
     }
 
     internal suspend fun fling(
@@ -258,10 +257,11 @@ class LazyTransformableLayoutState(
                     val scaleValue = exp(value.second)
                     scale = scaleValue
 
-                    updateOffset(
+                    offset = offset.transform(
+                        scale = scaleValue / previousScale,
+                        angle = angleValue - previousAngle,
                         centroid = centroid,
-                        zoomFactor = scaleValue / previousScale,
-                        rotationDelta = angleValue - previousAngle
+                        panningBounds = panningBounds
                     )
 
                     previousAngle = angleValue
@@ -309,12 +309,12 @@ class LazyTransformableLayoutState(
                 val currentValue = getValueFromNanos(playTimeNanos)
                 currentVelocity = getVelocityFromNanos(playTimeNanos)
 
-                val unclamped = applyDelta(currentValue - previousValue)
-                val clamped = unclamped.clamp(panningBounds)
-                offset = clamped
+                val preClampOffset = applyDelta(currentValue - previousValue)
+                val postClampOffset = preClampOffset.clamp(panningBounds)
+                offset = postClampOffset
 
                 previousValue = currentValue
-            } while (clamped == unclamped && !isFinishedFromNanos(playTimeNanos))
+            } while (postClampOffset == preClampOffset && !isFinishedFromNanos(playTimeNanos))
         }
 
         return currentVelocity
