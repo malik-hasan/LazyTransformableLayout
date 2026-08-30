@@ -2,10 +2,12 @@ package oats.mobile.lazytransformablelayout
 
 import androidx.annotation.FloatRange
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector2D
 import androidx.compose.animation.core.DecayAnimation
 import androidx.compose.animation.core.DecayAnimationSpec
 import androidx.compose.animation.core.FloatDecayAnimationSpec
 import androidx.compose.animation.core.FloatExponentialDecaySpec
+import androidx.compose.animation.core.TwoWayConverter
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.getVelocityFromNanos
 import androidx.compose.foundation.OverscrollEffect
@@ -24,12 +26,11 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Velocity
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import oats.mobile.lazytransformablelayout.extension.clamp
+import oats.mobile.lazytransformablelayout.extension.radians
+import oats.mobile.lazytransformablelayout.extension.transform
+import oats.mobile.lazytransformablelayout.extension.vertices
 import oats.mobile.lazytransformablelayout.model.Parallelogram
-import oats.mobile.lazytransformablelayout.utility.FloatPairVectorConverter
-import oats.mobile.lazytransformablelayout.utility.clamp
-import oats.mobile.lazytransformablelayout.utility.radians
-import oats.mobile.lazytransformablelayout.utility.transform
-import oats.mobile.lazytransformablelayout.utility.vertices
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
@@ -216,6 +217,11 @@ class LazyTransformableLayoutState(
         return prePanOffset - postPanOffset
     }
 
+    private val floatPairVectorConverter = TwoWayConverter<Pair<Float, Float>, AnimationVector2D>(
+        convertToVector = { AnimationVector2D(it.first, it.second) },
+        convertFromVector = { it.v1 to it.v2 }
+    )
+
     internal suspend fun fling(
         initialLogZoomVelocity: Float,
         initialRotationVelocity: Float,
@@ -240,7 +246,7 @@ class LazyTransformableLayoutState(
             var previousScale = scale
             Animatable(
                 initialValue = previousAngle to ln(previousScale),
-                typeConverter = FloatPairVectorConverter
+                typeConverter = floatPairVectorConverter
             ).run {
                 updateBounds(
                     lowerBound = rotationBounds.start to ln(minScaleBound),

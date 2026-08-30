@@ -23,10 +23,10 @@ import androidx.compose.ui.unit.round
 import androidx.compose.ui.util.fastForEach
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
+import oats.mobile.lazytransformablelayout.extension.transform
+import oats.mobile.lazytransformablelayout.extension.vertices
 import oats.mobile.lazytransformablelayout.model.Positionable
-import oats.mobile.lazytransformablelayout.utility.detectTransformGestures
-import oats.mobile.lazytransformablelayout.utility.transform
-import oats.mobile.lazytransformablelayout.utility.vertices
 
 private const val LazyCompositionBuffer = 256f
 
