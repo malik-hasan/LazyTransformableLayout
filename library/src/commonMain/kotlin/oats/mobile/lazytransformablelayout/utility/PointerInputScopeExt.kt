@@ -18,6 +18,7 @@ import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.math.ln
 
 private const val PointerChangeDebounceMillis = 40
@@ -111,14 +112,18 @@ suspend fun PointerInputScope.detectTransformGestures(
         }
     } while (!canceled && changes.fastAny { it.pressed })
 
-    val logZoomVelocity = logZoomVelocityTracker.calculateVelocity()
-    val rotationVelocity = if (lockedToPanZoom) 0f else rotationVelocityTracker.calculateVelocity()
+    var logZoomVelocity = logZoomVelocityTracker.calculateVelocity()
+    var rotationVelocity = if (lockedToPanZoom) 0f else rotationVelocityTracker.calculateVelocity()
 
-    val panVelocity = if (lastPointerCountChangeMillis >= 0
+    var panVelocity = if (lastPointerCountChangeMillis >= 0
         && (lastEventUptimeMillis - lastPointerCountChangeMillis) < PointerChangeDebounceMillis
     ) {
         panVelocityBeforeLastReset
     } else panVelocityTracker.calculateVelocity()
+
+    if (abs(logZoomVelocity) < 0.5f) logZoomVelocity = 0f
+    if (abs(rotationVelocity) < 0.5f) rotationVelocity = 0f
+    if (hypot(panVelocity.x, panVelocity.y) < 200f) panVelocity = Velocity.Zero
 
     if (logZoomVelocity != 0f
         || rotationVelocity != 0f
