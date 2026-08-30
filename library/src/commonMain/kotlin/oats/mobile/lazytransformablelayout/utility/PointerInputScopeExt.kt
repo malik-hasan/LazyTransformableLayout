@@ -16,27 +16,88 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker1D
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
+import co.touchlab.kermit.Logger
+import oats.mobile.lazytransformablelayout.utility.TransformGestureTuning.Companion.CanvasLike
+import oats.mobile.lazytransformablelayout.utility.TransformGestureTuning.Companion.MapLike
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.ln
 
 private const val PointerChangeDebounceMillis = 40
+private const val GestureTuningTag = "GestureTuning"
+
+/**
+ * Tuning for how [detectTransformGestures] classifies gesture axes and
+ * filters incidental cross-axis jitter at release. Two different UX
+ * philosophies are both legitimate depending on what kind of app this is,
+ * and neither is "more correct" in general:
+ *
+ * - Map-like apps (Google/Apple Maps) treat rotation as a rare, deliberate
+ *   mode: a two-finger pan or pinch should never accidentally rotate the
+ *   content, even slightly, because unexpected rotation is disorienting.
+ *   Use [MapLike] — it locks rotation out entirely, for the whole gesture
+ *   (live transform and fling), unless the gesture is clearly rotational
+ *   from the very start.
+ *
+ * - Canvas/photo-editor-like apps treat rotation as fully fluid and
+ *   first-class, on equal footing with pan and zoom, and expect smooth
+ *   transitions between them within one continuous gesture (e.g. rotate,
+ *   then continue by panning, then release — the fling should reflect
+ *   whichever was actually dominant at the end). Use [CanvasLike] (the
+ *   default) — no axis is ever locked out; instead, incidental jitter on
+ *   any axis is filtered using floors that scale with the gesture's own
+ *   measured intensity.
+ *
+ * [MapLike] is deliberately defined as [CanvasLike] plus the rotation
+ * lock, not as an unrelated set of numbers — the noise floors do the same
+ * job in both cases (protecting pan from zoom/rotation jitter and vice
+ * versa), the lock just additionally forecloses rotation entirely when
+ * enabled. Both presets can be further customized via [copy].
+ */
+data class TransformGestureTuning(
+    // Hard, one-time decision made at touch-slop crossing: if the gesture
+    // didn't start out clearly rotational, rotation is zeroed for its
+    // entire remaining duration — live transform and fling both. When
+    // false, rotation is never locked out; the noise floors below are the
+    // only protection against incidental rotation.
+    val panZoomLock: Boolean,
+    // Even correctly measured (no artifacts), a rotate or zoom gesture
+    // leaves some real pan velocity from incidental hand drift, and
+    // symmetrically a fast two-finger pan leaves incidental zoom/rotation
+    // jitter — real fingers don't move in perfect lockstep. Each floor
+    // below is a fixed baseline plus a fraction of whichever OTHER
+    // signal is driving the gesture's intensity, since the amount of
+    // incidental noise scales with how fast/aggressive the gesture is,
+    // not a fixed amount. Tune against your own device: isolated slow AND
+    // fast gestures on each axis should land under the relevant floor; a
+    // deliberate combination should land over it.
+    val minimumPanFlingVelocity: Float,
+    val panNoiseFraction: Float,
+    val minimumZoomFlingVelocity: Float,
+    val zoomNoiseFraction: Float,
+    val minimumRotationFlingVelocity: Float,
+    val rotationNoiseFraction: Float
+) {
+    companion object {
+        val CanvasLike = TransformGestureTuning(
+            panZoomLock = false,
+            minimumPanFlingVelocity = 300f,
+            panNoiseFraction = 0.05f,
+            minimumZoomFlingVelocity = 1000f,
+            zoomNoiseFraction = 0.15f,
+            minimumRotationFlingVelocity = 1000f,
+            rotationNoiseFraction = 0.15f
+        )
+
+        val MapLike = CanvasLike.copy(panZoomLock = true)
+    }
+}
 
 suspend fun PointerInputScope.detectTransformGestures(
     onTransformStopped: (logZoomVelocity: Float, rotationVelocity: Float, panVelocity: Velocity, centroid: Offset) -> Unit,
-    panZoomLock: Boolean = false,
-    // Even correctly measured (no artifacts), a rotate or zoom gesture
-    // leaves some real pan velocity from incidental hand drift — not an
-    // intentional pan fling. That drift scales with how fast/aggressive
-    // the gesture is (a fast zoom moves your whole hand faster, so any
-    // pinch asymmetry produces proportionally more drift), so the noise
-    // floor is a fixed baseline PLUS a fraction of the zoom/rotation
-    // velocity, rather than a single constant. Tune both against your own
-    // device: rotate/zoom-only gestures — slow AND fast — should land
-    // under this; a deliberate pan-then-release should land well over it.
-    minimumPanFlingVelocity: Float = 1000f,
-    panNoiseFraction: Float = 0.3f,
+    tuning: TransformGestureTuning = TransformGestureTuning.CanvasLike,
+    logTuningInfo: Boolean = true,
     onTransform: (zoomFactor: Float, rotationDelta: Float, panDelta: Offset, centroid: Offset) -> Unit
 ) = awaitEachGesture {
     val touchSlop = viewConfiguration.touchSlop
@@ -47,15 +108,12 @@ suspend fun PointerInputScope.detectTransformGestures(
 
     var previousPointerCount = 0
     var lastEventUptimeMillis = 0L
+
     // Largest centroid size (finger spacing) seen this gesture — used to
-    // convert zoom/rotation velocity into pixel-equivalent units so they
-    // can inform the pan noise floor below. Using the max rather than the
-    // last frame avoids the conversion shrinking just because fingers
-    // happened to drift closer together right before release.
+    // convert zoom/rotation velocity into pixel-equivalent units, both for
+    // scaling pan's noise floor and for comparing zoom/rotation against
+    // their own floors on a consistent px/sec scale.
     var maxCentroidSize = 0f
-    // The centroid as of the last live onTransform call, handed to
-    // onTransformStopped so the fling can keep anchoring zoom/rotation to
-    // the same point the live gesture was using.
     var lastCentroid = Offset.Zero
 
     // Pan velocity means a different physical quantity depending on pointer
@@ -64,11 +122,6 @@ suspend fun PointerInputScope.detectTransformGestures(
     // lifts (the average shifts to exclude it) — so pan tracking resets on
     // every pointer-count change rather than blending across it.
     var panVelocityTracker = VelocityTracker()
-    // Snapshot of the tracker right before its most recent reset, and when
-    // that reset happened. If the gesture ends soon after, the fresh
-    // tracker hasn't had time to mean anything — fingers always lift with
-    // a slight stagger — so we fall back to this instead of discarding a
-    // genuine multi-pointer pan's momentum.
     var panVelocityBeforeLastReset = Velocity.Zero
     var lastPointerCountChangeMillis = -1L
 
@@ -115,7 +168,7 @@ suspend fun PointerInputScope.detectTransformGestures(
                     || panMotionBeforeTouchSlop > touchSlop
                 ) {
                     pastTouchSlop = true
-                    lockedToPanZoom = panZoomLock && rotationMotionBeforeTouchSlop < touchSlop
+                    lockedToPanZoom = tuning.panZoomLock && rotationMotionBeforeTouchSlop < touchSlop
                     if (lockedToPanZoom) rotationDelta = 0f
                 }
             }
@@ -141,30 +194,57 @@ suspend fun PointerInputScope.detectTransformGestures(
         }
     } while (!canceled && changes.fastAny { it.pressed })
 
-    val logZoomVelocity = logZoomVelocityTracker.calculateVelocity()
-    val rotationVelocity = if (lockedToPanZoom) 0f else rotationVelocityTracker.calculateVelocity()
+    val logZoomVelocityRaw = logZoomVelocityTracker.calculateVelocity()
+    val rotationVelocityRaw = if (lockedToPanZoom) 0f else rotationVelocityTracker.calculateVelocity()
 
     val finalPhaseDurationMillis = if (lastPointerCountChangeMillis >= 0) {
         lastEventUptimeMillis - lastPointerCountChangeMillis
     } else -1L
-    val panVelocityRaw = if (lastPointerCountChangeMillis >= 0 && finalPhaseDurationMillis < PointerChangeDebounceMillis) {
+    val usedFallbackSnapshot = lastPointerCountChangeMillis >= 0 && finalPhaseDurationMillis < PointerChangeDebounceMillis
+    val panVelocityRaw = if (usedFallbackSnapshot) {
         panVelocityBeforeLastReset
     } else {
         panVelocityTracker.calculateVelocity()
     }
 
-    // Scale the noise floor up when the zoom/rotation signal is strong,
-    // since a faster/more aggressive gesture produces proportionally more
-    // incidental pan drift, not a fixed amount of it.
-    val zoomVelocityPixels = abs(logZoomVelocity) * maxCentroidSize
-    val rotationVelocityPixels = abs(rotationVelocity) * (PI.toFloat() / 180f) * maxCentroidSize
-    val gestureIntensityPixels = maxOf(zoomVelocityPixels, rotationVelocityPixels)
-    val effectiveMinimumPanVelocity = maxOf(minimumPanFlingVelocity, gestureIntensityPixels * panNoiseFraction)
+    val zoomVelocityPixels = abs(logZoomVelocityRaw) * maxCentroidSize
+    val rotationVelocityPixels = abs(rotationVelocityRaw) * (PI.toFloat() / 180f) * maxCentroidSize
+    val panVelocityPixels = hypot(panVelocityRaw.x, panVelocityRaw.y)
 
-    val panVelocity = if (hypot(panVelocityRaw.x, panVelocityRaw.y) < effectiveMinimumPanVelocity) {
-        Velocity.Zero
-    } else {
-        panVelocityRaw
+    // Pan's floor scales with whichever of zoom/rotation is more intense.
+    val panGestureIntensityPixels = maxOf(zoomVelocityPixels, rotationVelocityPixels)
+    val panScaledFloor = panGestureIntensityPixels * tuning.panNoiseFraction
+    val effectiveMinimumPanVelocity = maxOf(tuning.minimumPanFlingVelocity, panScaledFloor)
+    val panSuppressed = panVelocityPixels < effectiveMinimumPanVelocity
+    val panVelocity = if (panSuppressed) Velocity.Zero else panVelocityRaw
+
+    // Zoom and rotation's floors scale with pan's intensity, symmetrically
+    // — a fast two-finger pan produces incidental zoom/rotation jitter the
+    // same way a fast zoom/rotate produces incidental pan drift. When
+    // panZoomLock has already zeroed rotationVelocityRaw, this is a no-op
+    // (0 is trivially below any floor) rather than conflicting with it.
+    val zoomScaledFloor = panVelocityPixels * tuning.zoomNoiseFraction
+    val effectiveMinimumZoomVelocity = maxOf(tuning.minimumZoomFlingVelocity, zoomScaledFloor)
+    val zoomSuppressed = zoomVelocityPixels < effectiveMinimumZoomVelocity
+    val logZoomVelocity = if (zoomSuppressed) 0f else logZoomVelocityRaw
+
+    val rotationScaledFloor = panVelocityPixels * tuning.rotationNoiseFraction
+    val effectiveMinimumRotationVelocity = maxOf(tuning.minimumRotationFlingVelocity, rotationScaledFloor)
+    val rotationSuppressed = rotationVelocityPixels < effectiveMinimumRotationVelocity
+    val rotationVelocity = if (rotationSuppressed) 0f else rotationVelocityRaw
+
+    if (logTuningInfo) {
+        Logger.d(tag = GestureTuningTag) {
+            "panPx=$panVelocityPixels (suppressed=$panSuppressed, floor=$effectiveMinimumPanVelocity " +
+                    "[baseline=${tuning.minimumPanFlingVelocity}, scaled=$panScaledFloor]) | " +
+                    "zoomPx=$zoomVelocityPixels (suppressed=$zoomSuppressed, floor=$effectiveMinimumZoomVelocity " +
+                    "[baseline=${tuning.minimumZoomFlingVelocity}, scaled=$zoomScaledFloor]) | " +
+                    "rotPx=$rotationVelocityPixels (suppressed=$rotationSuppressed, floor=$effectiveMinimumRotationVelocity " +
+                    "[baseline=${tuning.minimumRotationFlingVelocity}, scaled=$rotationScaledFloor]) | " +
+                    "panZoomLock=${tuning.panZoomLock} lockedToPanZoom=$lockedToPanZoom | " +
+                    "fallback=$usedFallbackSnapshot finalPhaseMs=$finalPhaseDurationMillis | " +
+                    "raw: logZoom=$logZoomVelocityRaw rot=$rotationVelocityRaw pan=$panVelocityRaw"
+        }
     }
 
     if (logZoomVelocity != 0f
