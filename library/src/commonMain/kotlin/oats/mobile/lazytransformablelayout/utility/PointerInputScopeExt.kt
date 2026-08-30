@@ -123,7 +123,5 @@ suspend fun PointerInputScope.detectTransformGestures(
     if (logZoomVelocity != 0f
         || rotationVelocity != 0f
         || panVelocity != Velocity.Zero
-    ) {
-        onTransformStopped(logZoomVelocity, rotationVelocity, panVelocity, lastCentroid)
-    }
+    ) onTransformStopped(logZoomVelocity, rotationVelocity, panVelocity, lastCentroid)
 }
