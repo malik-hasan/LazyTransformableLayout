@@ -1,4 +1,4 @@
-package oats.mobile.lazytransformablelayout.utility
+package oats.mobile.lazytransformablelayout.extension
 
 import androidx.compose.ui.geometry.Offset
 import oats.mobile.lazytransformablelayout.model.Parallelogram
@@ -6,10 +6,10 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
-fun Offset.rotate(angle: Float): Offset {
-    if (angle == 0f) return this
+fun Offset.rotate(angleDegrees: Float): Offset {
+    if (angleDegrees == 0f) return this
 
-    val angleRadians = angle.radians
+    val angleRadians = angleDegrees.radians
     val cos = cos(angleRadians)
     val sin = sin(angleRadians)
     return Offset(
@@ -87,5 +87,14 @@ infix fun Offset.cross(other: Offset) = x * other.y - y * other.x
 
 infix fun Offset.dot(other: Offset) = x * other.x + y * other.y
 
-fun Offset.transform(scale: Float = 1f, angle: Float = 0f, offset: Offset = Offset.Zero) =
-    (this * scale).rotate(angle) - offset
+fun Offset.transform(
+    scale: Float = 1f,
+    angle: Float = 0f,
+    offset: Offset = Offset.Zero,
+    centroid: Offset = Offset.Zero,
+    panningBounds: Parallelogram? = null
+): Offset {
+    val offsetCentroid = this + centroid
+    return (this - offsetCentroid + (offsetCentroid * scale).rotate(angle) - offset)
+        .clamp(panningBounds)
+}

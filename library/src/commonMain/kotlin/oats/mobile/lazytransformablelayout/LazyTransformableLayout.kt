@@ -18,16 +18,17 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.util.fastForEach
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
+import oats.mobile.lazytransformablelayout.extension.transform
+import oats.mobile.lazytransformablelayout.extension.vertices
 import oats.mobile.lazytransformablelayout.model.Positionable
-import oats.mobile.lazytransformablelayout.utility.detectTransformGestures
-import oats.mobile.lazytransformablelayout.utility.transform
-import oats.mobile.lazytransformablelayout.utility.vertices
+
+private const val LazyCompositionBuffer = 256f
 
 @Composable
 fun LazyTransformableLayout(
@@ -59,37 +60,24 @@ fun LazyTransformableLayout(
             .overscroll(overscrollEffect)
             .pointerInput(Unit) {
                 detectTransformGestures(
-                    onTransformStopped = { logZoomVelocity, rotationVelocity, negativeVelocity ->
-                        val panVelocity = -negativeVelocity
+                    onTransformStopped = { logZoomVelocity, rotationVelocity, panVelocity, centroid ->
                         fling = scope.launch {
-                            launch {
-                                overscrollEffect?.applyToFling(panVelocity.copy(y = 0f)) { velocity ->
-                                    state.flingX(velocity)
-                                } ?: state.flingX(panVelocity)
-                            }
-                            launch {
-                                overscrollEffect?.applyToFling(panVelocity.copy(x = 0f)) { velocity ->
-                                    state.flingY(velocity)
-                                } ?: state.flingY(panVelocity)
-                            }
-                            launch { state.flingZoom(logZoomVelocity) }
-                            launch { state.flingRotation(rotationVelocity) }
+                            state.fling(
+                                initialLogZoomVelocity = logZoomVelocity,
+                                initialRotationVelocity = rotationVelocity,
+                                initialPanVelocity = -panVelocity,
+                                centroid = centroid,
+                                overscrollEffect = overscrollEffect
+                            )
                         }
                     }
                 ) { zoomFactor, rotationDelta, panDelta, centroid ->
-                    val scaledPanDelta = panDelta / zoomFactor
-                    overscrollEffect?.applyToScroll(scaledPanDelta, NestedScrollSource.UserInput) { panDelta ->
-                        state.transform(
-                            zoomFactor = zoomFactor,
-                            rotationDelta = rotationDelta,
-                            panDelta = panDelta,
-                            centroid = centroid
-                        )
-                    } ?: state.transform(
+                    state.transform(
                         zoomFactor = zoomFactor,
                         rotationDelta = rotationDelta,
-                        panDelta = scaledPanDelta,
-                        centroid = centroid
+                        panDelta = panDelta,
+                        centroid = centroid,
+                        overscrollEffect = overscrollEffect
                     )
                 }
             }.pointerInput(Unit) {
@@ -106,7 +94,6 @@ fun LazyTransformableLayout(
 
         val constraintWidth = constraints.maxWidth
         val constraintHeight = constraints.maxHeight
-        val buffer = 256f
 
         val indexedItemsToMeasure = mutableListOf<IndexedValue<Positionable>>()
         layerContent.intervals.forEach { layer ->
@@ -124,10 +111,10 @@ fun LazyTransformableLayout(
                     }
                 }
 
-                if (left <= constraintWidth + buffer
-                    && top <= constraintHeight + buffer
-                    && right >= -buffer
-                    && bottom >= -buffer
+                if (left <= constraintWidth + LazyCompositionBuffer
+                    && top <= constraintHeight + LazyCompositionBuffer
+                    && right >= -LazyCompositionBuffer
+                    && bottom >= -LazyCompositionBuffer
                 ) indexedItemsToMeasure += IndexedValue(layer.startIndex + localIndex, item)
             }
         }
@@ -158,7 +145,7 @@ fun LazyTransformableLayout(
                         }
                     }
 
-                    if (right >= -buffer && bottom >= -buffer) {
+                    if (right >= -LazyCompositionBuffer && bottom >= -LazyCompositionBuffer) {
                         placeable.placeWithLayer(
                             position = position.transform(scale, angle).round(),
                             zIndex = item.zIndex
