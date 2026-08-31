@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 val packageName = "oats.mobile.lazytransformablelayout.demo"
@@ -36,4 +37,6 @@ dependencies {
     implementation(libs.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.material3)
+    implementation(libs.navigation3.ui)
+    implementation(libs.navigation3.runtime)
 }
