@@ -214,7 +214,7 @@ class LazyTransformableLayoutState(
         )
 
         offset = postPanOffset
-        return postPanOffset - prePanOffset
+        return prePanOffset - postPanOffset
     }
 
     private val floatPairVectorConverter = TwoWayConverter<Pair<Float, Float>, AnimationVector2D>(
