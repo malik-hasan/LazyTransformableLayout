@@ -19,7 +19,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.round
+import androidx.compose.ui.unit.roundToIntRect
 import androidx.compose.ui.util.fastForEach
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -124,14 +126,20 @@ fun LazyTransformableLayout(
 
         layout(constraintWidth, constraintHeight) {
             indexedItemsToMeasure.fastForEach { (index, item) ->
-                compose(index).fastForEach { measurable ->
-                    val placeable = measurable.measure(constraints)
+                val itemBounds = item.bounds.toRect()
 
-                    val position = item.bounds.toRect().topLeft
+                val itemConstraints = itemBounds.roundToIntRect().run {
+                    Constraints.fixed(width, height)
+                }
+
+                val itemPosition = itemBounds.topLeft
+
+                compose(index).fastForEach { measurable ->
+                    val placeable = measurable.measure(itemConstraints)
 
                     var right = Float.NEGATIVE_INFINITY
                     var bottom = Float.NEGATIVE_INFINITY
-                    position.run {
+                    itemPosition.run {
                         Rect(
                             left = x,
                             top = y,
@@ -147,7 +155,7 @@ fun LazyTransformableLayout(
 
                     if (right >= -LazyCompositionBuffer && bottom >= -LazyCompositionBuffer) {
                         placeable.placeWithLayer(
-                            position = position.transform(scale, angle).round(),
+                            position = itemPosition.transform(scale, angle).round(),
                             zIndex = item.zIndex
                         ) {
                             transformOrigin = TransformOrigin(0f, 0f)
