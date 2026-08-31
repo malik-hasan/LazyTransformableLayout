@@ -198,21 +198,27 @@ class LazyTransformableLayoutState(
         panDelta: Offset,
         centroid: Offset
     ): Offset {
-        angle = (angle + rotationDelta).coerceIn(rotationBounds)
-        scale = (scale * zoomFactor).coerceIn(minScaleBound, zoomBounds.endInclusive)
+        val previousScale = scale
+        val newScale = (previousScale * zoomFactor).coerceIn(minScaleBound, zoomBounds.endInclusive)
 
+        val previousAngle = angle
+        val newAngle = (previousAngle + rotationDelta).coerceIn(rotationBounds)
+
+        val bounds = panningBounds
         val prePanOffset = offset.transform(
-            scale = zoomFactor,
-            angle = rotationDelta,
+            scale = newScale / previousScale,
+            angle = newAngle - previousAngle,
             centroid = centroid,
-            panningBounds = panningBounds
+            panningBounds = bounds
         )
 
         val postPanOffset = prePanOffset.transform(
             offset = panDelta,
-            panningBounds = panningBounds
+            panningBounds = bounds
         )
 
+        scale = newScale
+        angle = newAngle
         offset = postPanOffset
         return prePanOffset - postPanOffset
     }
