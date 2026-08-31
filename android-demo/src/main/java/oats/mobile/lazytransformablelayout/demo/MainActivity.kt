@@ -4,17 +4,23 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import kotlinx.serialization.Serializable
+import oats.mobile.lazytransformablelayout.demo.millionboxes.MillionBoxes
+import oats.mobile.lazytransformablelayout.demo.quadrants.Quadrants
 
 @Serializable
 data object Home : NavKey
@@ -31,9 +37,13 @@ class MainActivity : ComponentActivity() {
                 entryProvider = entryProvider {
                     entry<Home> {
                         Scaffold {
-                            Column(Modifier.padding(it)) {
-                                Button({ backstack += TenThousandBoxes }) {
-                                    Text("Ten Thousand Boxes")
+                            Column(
+                                modifier = Modifier.padding(it).fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Button({ backstack += MillionBoxes }) {
+                                    Text("Million Boxes")
                                 }
 
                                 Button({ backstack += Quadrants }) {
@@ -43,7 +53,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    entry<TenThousandBoxes> { TenThousandBoxes() }
+                    entry<MillionBoxes> { MillionBoxes() }
                     entry<Quadrants> { Quadrants() }
                 }
             )

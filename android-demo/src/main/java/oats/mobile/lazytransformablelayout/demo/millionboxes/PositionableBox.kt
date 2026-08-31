@@ -1,10 +1,10 @@
-package oats.mobile.lazytransformablelayout.demo
+package oats.mobile.lazytransformablelayout.demo.millionboxes
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpRect
 import oats.mobile.lazytransformablelayout.model.Positionable
 
-data class TestPositionable(
+data class PositionableBox(
     override val bounds: DpRect,
     val color: Color
 ) : Positionable

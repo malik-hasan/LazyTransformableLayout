@@ -1,9 +1,9 @@
-package oats.mobile.lazytransformablelayout.demo
+package oats.mobile.lazytransformablelayout.demo.millionboxes
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
@@ -18,7 +18,6 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.size
 import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 import oats.mobile.lazytransformablelayout.LazyTransformableLayout
@@ -26,24 +25,24 @@ import oats.mobile.lazytransformablelayout.LazyTransformableLayoutState
 import kotlin.random.Random
 
 @Serializable
-data object TenThousandBoxes : NavKey
+data object MillionBoxes : NavKey
 
 @Composable
-fun TenThousandBoxes() {
-    val layoutSize = 10000 // dp
+fun MillionBoxes() {
+    val layoutSize = 100000 // dp
 
     val boxes = remember {
         mutableStateListOf(
-            *(1..1000).map {
-                TestPositionable(
+            *(1..1000000).map {
+                PositionableBox(
                     bounds = DpRect(
                         origin = DpOffset(
                             x = Random.nextInt(0, layoutSize).dp,
                             y = Random.nextInt(0, layoutSize).dp
                         ),
                         size = DpSize(
-                            width = Random.nextInt(12, 256).dp,
-                            height = Random.nextInt(12, 256).dp
+                            width = Random.nextInt(12, 25600).dp,
+                            height = Random.nextInt(12, 25600).dp
                         )
                     ),
                     color = Color(Random.nextLong())
@@ -69,7 +68,7 @@ fun TenThousandBoxes() {
         ) {
             items(boxes) { box ->
                 Box(Modifier
-                    .size(box.bounds.size)
+                    .fillMaxSize()
                     .background(box.color)
                 )
             }
