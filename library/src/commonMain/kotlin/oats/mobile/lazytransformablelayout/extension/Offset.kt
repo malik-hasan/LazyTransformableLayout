@@ -6,18 +6,6 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
-fun Offset.rotate(angleDegrees: Float): Offset {
-    if (angleDegrees == 0f) return this
-
-    val angleRadians = angleDegrees.radians
-    val cos = cos(angleRadians)
-    val sin = sin(angleRadians)
-    return Offset(
-        x = x * cos - y * sin,
-        y = x * sin + y * cos
-    )
-}
-
 internal fun Offset.clamp(bounds: Parallelogram?) = bounds?.run {
     val u = top - left
     val v = bottom - left
@@ -102,6 +90,22 @@ internal fun Offset.transform(
     panningBounds: Parallelogram? = null
 ): Offset {
     val offsetCentroid = this + centroid
-    return (this - offsetCentroid + (offsetCentroid * scale).rotate(angle) - offset)
-        .clamp(panningBounds)
+    return (
+        this - offset - offsetCentroid + (
+            offsetCentroid * scale
+        ).let { scaledOffsetCentroid ->
+            if (angle == 0f) {
+                scaledOffsetCentroid
+            } else {
+                val (x, y) = scaledOffsetCentroid
+                val angleRadians = angle.radians
+                val cos = cos(angleRadians)
+                val sin = sin(angleRadians)
+                Offset(
+                    x = x * cos - y * sin,
+                    y = x * sin + y * cos
+                )
+            }
+        }
+    ).clamp(panningBounds)
 }
