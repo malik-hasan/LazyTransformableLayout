@@ -47,100 +47,98 @@ suspend fun PointerInputScope.detectTransformGestures(
     val rotationVelocityTracker = VelocityTracker1D(true)
     val panVelocityTracker = VelocityTracker()
 
-    awaitFirstDown(requireUnconsumed = false)
-    do {
-        val event = awaitPointerEvent()
-        val changes = event.changes
+    try {
+        awaitFirstDown(requireUnconsumed = false)
+        do {
+            val event = awaitPointerEvent()
+            val changes = event.changes
+            val canceled = changes.fastAny { it.isConsumed }
+            if (!canceled) {
+                val zoomFactor = event.calculateZoom()
+                var rotationDelta = if (lockedToPanZoom) 0f else event.calculateRotation()
+                val panDelta = event.calculatePan()
+                val centroidSize = event.calculateCentroidSize(useCurrent = false)
 
-        val canceled = changes.fastAny { it.isConsumed }
-        if (!canceled) {
-            val zoomFactor = event.calculateZoom()
-            var rotationDelta = if (lockedToPanZoom) 0f else event.calculateRotation()
-            val panDelta = event.calculatePan()
-            val centroidSize = event.calculateCentroidSize(useCurrent = false)
+                if (!pastTouchSlop) {
+                    totalZoomBeforeTouchSlop *= zoomFactor
+                    totalRotationBeforeTouchSlop += rotationDelta
+                    totalPanBeforeTouchSlop += panDelta
 
-            if (!pastTouchSlop) {
-                totalZoomBeforeTouchSlop *= zoomFactor
-                totalRotationBeforeTouchSlop += rotationDelta
-                totalPanBeforeTouchSlop += panDelta
+                    val zoomMotionBeforeTouchSlop = abs(1 - totalZoomBeforeTouchSlop) * centroidSize
+                    val rotationMotionBeforeTouchSlop = abs(totalRotationBeforeTouchSlop * PI.toFloat() * centroidSize / 180f)
+                    val panMotionBeforeTouchSlop = totalPanBeforeTouchSlop.getDistance()
 
-                val zoomMotionBeforeTouchSlop = abs(1 - totalZoomBeforeTouchSlop) * centroidSize
-                val rotationMotionBeforeTouchSlop = abs(totalRotationBeforeTouchSlop * PI.toFloat() * centroidSize / 180f)
-                val panMotionBeforeTouchSlop = totalPanBeforeTouchSlop.getDistance()
-
-                if (zoomMotionBeforeTouchSlop > touchSlop
-                    || rotationMotionBeforeTouchSlop > touchSlop
-                    || panMotionBeforeTouchSlop > touchSlop
-                ) {
-                    pastTouchSlop = true
-                    lockedToPanZoom = panZoomLock && rotationMotionBeforeTouchSlop < touchSlop
-                    if (lockedToPanZoom) rotationDelta = 0f
-                }
-            }
-
-            if (pastTouchSlop) {
-                val centroid = event.calculateCentroid(useCurrent = false)
-                if (centroid.isSpecified) lastCentroid = centroid
-                maxCentroidSize = maxOf(maxCentroidSize, centroidSize)
-
-                if (zoomFactor != 1f || rotationDelta != 0f || panDelta != Offset.Zero) {
-                    onTransform(zoomFactor, rotationDelta, panDelta, centroid)
-                }
-
-                changes.fastForEach {
-                    if (it.positionChanged()) it.consume()
-                }
-
-                val pointerCount = changes.count { it.pressed }
-                val uptimeMillis = changes.first().uptimeMillis
-                lastEventUptimeMillis = uptimeMillis
-                if (previousPointerCount > 0 && pointerCount != previousPointerCount && pointerCount > 0) {
-                    lastPointerCountChangeMillis = uptimeMillis
-                    panVelocityTracker.run {
-                        panVelocityBeforeLastReset = calculateVelocity()
-                        resetTracking()
+                    if (zoomMotionBeforeTouchSlop > touchSlop
+                        || rotationMotionBeforeTouchSlop > touchSlop
+                        || panMotionBeforeTouchSlop > touchSlop
+                    ) {
+                        pastTouchSlop = true
+                        lockedToPanZoom = panZoomLock && rotationMotionBeforeTouchSlop < touchSlop
+                        if (lockedToPanZoom) rotationDelta = 0f
                     }
                 }
-                previousPointerCount = pointerCount
 
-                logZoomVelocityTracker.addDataPoint(uptimeMillis, ln(zoomFactor))
-                rotationVelocityTracker.addDataPoint(uptimeMillis, rotationDelta)
-                event.calculateCentroid().takeIf { it.isSpecified }?.let {
-                    panVelocityTracker.addPosition(uptimeMillis, it)
+                if (pastTouchSlop) {
+                    val centroid = event.calculateCentroid(useCurrent = false)
+                    if (centroid.isSpecified) lastCentroid = centroid
+                    maxCentroidSize = maxOf(maxCentroidSize, centroidSize)
+
+                    if (zoomFactor != 1f || rotationDelta != 0f || panDelta != Offset.Zero) {
+                        onTransform(zoomFactor, rotationDelta, panDelta, centroid)
+                    }
+
+                    changes.fastForEach {
+                        if (it.positionChanged()) it.consume()
+                    }
+
+                    val pointerCount = changes.count { it.pressed }
+                    val uptimeMillis = changes.first().uptimeMillis
+                    lastEventUptimeMillis = uptimeMillis
+                    if (previousPointerCount > 0 && pointerCount != previousPointerCount && pointerCount > 0) {
+                        lastPointerCountChangeMillis = uptimeMillis
+                        panVelocityTracker.run {
+                            panVelocityBeforeLastReset = calculateVelocity()
+                            resetTracking()
+                        }
+                    }
+                    previousPointerCount = pointerCount
+
+                    logZoomVelocityTracker.addDataPoint(uptimeMillis, ln(zoomFactor))
+                    rotationVelocityTracker.addDataPoint(uptimeMillis, rotationDelta)
+                    event.calculateCentroid().takeIf { it.isSpecified }?.let {
+                        panVelocityTracker.addPosition(uptimeMillis, it)
+                    }
                 }
             }
+        } while (!canceled && changes.fastAny { it.pressed })
+    } finally {
+        var logZoomVelocity = logZoomVelocityTracker.calculateVelocity()
+        var rotationVelocity = if (lockedToPanZoom) 0f else rotationVelocityTracker.calculateVelocity()
+        var panVelocity = if (lastPointerCountChangeMillis >= 0 && lastEventUptimeMillis - lastPointerCountChangeMillis < 40) {
+            panVelocityBeforeLastReset
+        } else {
+            panVelocityTracker.calculateVelocity()
         }
-    } while (!canceled && changes.fastAny { it.pressed })
 
-    var logZoomVelocity = logZoomVelocityTracker.calculateVelocity()
-    var rotationVelocity = if (lockedToPanZoom) 0f else rotationVelocityTracker.calculateVelocity()
-    var panVelocity = if (lastPointerCountChangeMillis >= 0 && lastEventUptimeMillis - lastPointerCountChangeMillis < 40) {
-        panVelocityBeforeLastReset
-    } else {
-        panVelocityTracker.calculateVelocity()
+        val zoomVelocityPixels = abs(logZoomVelocity) * maxCentroidSize
+        val rotationVelocityPixels = abs(rotationVelocity).radians * maxCentroidSize
+        val panVelocityPixels = hypot(panVelocity.x, panVelocity.y)
+
+        val minZoomRotateFlingVelocity = 1000.dp.toPx()
+        val zoomRotateNoiseFraction = 0.2f
+
+        if (zoomVelocityPixels < maxOf(minZoomRotateFlingVelocity, maxOf(panVelocityPixels, rotationVelocityPixels) * zoomRotateNoiseFraction)) {
+            logZoomVelocity = 0f
+        }
+
+        if (rotationVelocityPixels < maxOf(minZoomRotateFlingVelocity, maxOf(panVelocityPixels, zoomVelocityPixels) * zoomRotateNoiseFraction)) {
+            rotationVelocity = 0f
+        }
+
+        if (panVelocityPixels < maxOf(300.dp.toPx(), maxOf(zoomVelocityPixels, rotationVelocityPixels) * 0.35f)) {
+            panVelocity = Velocity.Zero
+        }
+
+        onTransformStopped(logZoomVelocity, rotationVelocity, panVelocity, lastCentroid)
     }
-
-    val zoomVelocityPixels = abs(logZoomVelocity) * maxCentroidSize
-    val rotationVelocityPixels = abs(rotationVelocity).radians * maxCentroidSize
-    val panVelocityPixels = hypot(panVelocity.x, panVelocity.y)
-
-    val minZoomRotateFlingVelocity = 1000.dp.toPx()
-    val zoomRotateNoiseFraction = 0.2f
-
-    if (zoomVelocityPixels < maxOf(minZoomRotateFlingVelocity, maxOf(panVelocityPixels, rotationVelocityPixels) * zoomRotateNoiseFraction)) {
-        logZoomVelocity = 0f
-    }
-
-    if (rotationVelocityPixels < maxOf(minZoomRotateFlingVelocity, maxOf(panVelocityPixels, zoomVelocityPixels) * zoomRotateNoiseFraction)) {
-        rotationVelocity = 0f
-    }
-
-    if (panVelocityPixels < maxOf(300.dp.toPx(), maxOf(zoomVelocityPixels, rotationVelocityPixels) * 0.35f)) {
-        panVelocity = Velocity.Zero
-    }
-
-    if (logZoomVelocity != 0f
-        || rotationVelocity != 0f
-        || panVelocity != Velocity.Zero
-    ) onTransformStopped(logZoomVelocity, rotationVelocity, panVelocity, lastCentroid)
 }
