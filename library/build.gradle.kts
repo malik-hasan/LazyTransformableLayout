@@ -14,7 +14,7 @@ val libraryName = "lazytransformablelayout"
 val packageName = "oats.mobile.$libraryName"
 
 kotlin {
-    androidLibrary {
+    android {
         namespace = packageName
         compileSdk = libs.versions.android.targetSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
@@ -29,10 +29,6 @@ kotlin {
     }
 
     sourceSets {
-        all {
-            languageSettings.enableLanguageFeature("ContextParameters")
-        }
-
         commonMain.dependencies {
             implementation(libs.jetbrains.compose.foundation)
             implementation(libs.kermit)
