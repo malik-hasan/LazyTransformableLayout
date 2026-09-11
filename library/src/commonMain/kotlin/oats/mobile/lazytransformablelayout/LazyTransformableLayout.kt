@@ -31,6 +31,7 @@ import oats.mobile.lazytransformablelayout.extension.vertices
 import oats.mobile.lazytransformablelayout.model.Positionable
 
 private const val LazyCompositionBuffer = 256f
+private const val MaxConstraint = 32000
 
 @Composable
 fun LazyTransformableLayout(
@@ -90,15 +91,13 @@ fun LazyTransformableLayout(
     ) { constraints ->
         state.acceptConstraints(constraints)
 
-        val scale = state.scale
-        val angle = state.angle
-        val offset = state.offset
+        val (scale, angle, offset) = state
 
         val constraintWidth = constraints.maxWidth
         val constraintHeight = constraints.maxHeight
 
         val indexedItemsToMeasure = mutableListOf<IndexedValue<Positionable>>()
-        layerContent.intervals.forEach { layer ->
+        layerContent.intervals.takeIf { it.size > 0 }?.forEach { layer ->
             layer.value.items.forEachIndexed { localIndex, item ->
                 var left = Float.MAX_VALUE
                 var top = Float.MAX_VALUE
@@ -119,17 +118,17 @@ fun LazyTransformableLayout(
                     && bottom >= -LazyCompositionBuffer
                 ) indexedItemsToMeasure += IndexedValue(layer.startIndex + localIndex, item)
             }
-        }
-
-        val offsetX = offset.x
-        val offsetY = offset.y
+        } ?: return@LazyLayout layout(0, 0) {}
 
         layout(constraintWidth, constraintHeight) {
             indexedItemsToMeasure.fastForEach { (index, item) ->
                 val itemBounds = item.bounds.toRect()
 
                 val itemConstraints = itemBounds.roundToIntRect().run {
-                    Constraints.fixed(width, height)
+                    Constraints.fixed(
+                        width.coerceAtMost(MaxConstraint),
+                        height.coerceAtMost(MaxConstraint)
+                    )
                 }
 
                 val itemPosition = itemBounds.topLeft
@@ -162,8 +161,8 @@ fun LazyTransformableLayout(
                             scaleX = scale
                             scaleY = scale
                             rotationZ = angle
-                            translationX = -offsetX
-                            translationY = -offsetY
+                            translationX = -offset.x
+                            translationY = -offset.y
                         }
                     }
                 }

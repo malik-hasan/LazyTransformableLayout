@@ -101,6 +101,10 @@ class LazyTransformableLayoutState(
     var offset by mutableStateOf(initialOffset)
         private set
 
+    operator fun component1() = scale
+    operator fun component2() = angle
+    operator fun component3() = offset
+
     private var constraints by mutableStateOf<IntSize?>(null)
 
     internal fun acceptConstraints(incomingConstraints: Constraints) {

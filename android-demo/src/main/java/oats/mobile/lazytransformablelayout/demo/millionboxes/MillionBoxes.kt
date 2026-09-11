@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -19,6 +21,8 @@ import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import oats.mobile.lazytransformablelayout.LazyTransformableLayout
 import oats.mobile.lazytransformablelayout.LazyTransformableLayoutState
@@ -29,11 +33,13 @@ data object MillionBoxes : NavKey
 
 @Composable
 fun MillionBoxes() {
+
+    val scope = rememberCoroutineScope()
     val layoutSize = 100000 // dp
 
-    val boxes = remember {
-        mutableStateListOf(
-            *(1..1000000).map {
+    val boxes by produceState(emptyList()) {
+        scope.launch(Dispatchers.Default) {
+            value = (1..10000).map {
                 PositionableBox(
                     bounds = DpRect(
                         origin = DpOffset(
@@ -41,14 +47,14 @@ fun MillionBoxes() {
                             y = Random.nextInt(0, layoutSize).dp
                         ),
                         size = DpSize(
-                            width = Random.nextInt(12, 25600).dp,
-                            height = Random.nextInt(12, 25600).dp
+                            width = Random.nextInt(12, 800).dp,
+                            height = Random.nextInt(12, 800).dp
                         )
                     ),
                     color = Color(Random.nextLong())
                 )
-            }.toTypedArray()
-        )
+            }
+        }
     }
 
     Scaffold { scaffoldPadding ->
