@@ -31,7 +31,6 @@ import oats.mobile.lazytransformablelayout.extension.vertices
 import oats.mobile.lazytransformablelayout.model.Positionable
 
 private const val LazyCompositionBuffer = 256f
-private const val MaxConstraint = 32000
 
 @Composable
 fun LazyTransformableLayout(
@@ -125,9 +124,9 @@ fun LazyTransformableLayout(
                 val itemBounds = item.bounds.toRect()
 
                 val itemConstraints = itemBounds.roundToIntRect().run {
-                    Constraints.fixed(
-                        width.coerceAtMost(MaxConstraint),
-                        height.coerceAtMost(MaxConstraint)
+                    Constraints(
+                        maxWidth = width,
+                        maxHeight = height
                     )
                 }
 
