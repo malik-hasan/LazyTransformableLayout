@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.layout.LazyLayout
 import androidx.compose.foundation.overscroll
 import androidx.compose.foundation.rememberOverscrollEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,18 +20,27 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.roundToIntRect
+import androidx.compose.ui.unit.toRect
 import androidx.compose.ui.util.fastForEach
+import androidx.compose.ui.util.fastForEachIndexed
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
+import oats.mobile.lazytransformablelayout.extension.radians
 import oats.mobile.lazytransformablelayout.extension.transform
 import oats.mobile.lazytransformablelayout.extension.vertices
-import oats.mobile.lazytransformablelayout.model.Positionable
+import oats.mobile.lazytransformablelayout.model.BucketQuadtree
+import kotlin.math.cos
+import kotlin.math.sin
 
-private const val LazyCompositionBuffer = 256f
+private const val LazyCompositionBuffer = 256
 
 @Composable
 fun LazyTransformableLayout(
@@ -50,6 +60,23 @@ fun LazyTransformableLayout(
     }
 
     var fling: Job? by remember { mutableStateOf(null) }
+
+    var quadtree by remember { mutableStateOf<BucketQuadtree?>(null) }
+
+    val density = LocalDensity.current
+    LaunchedEffect(layerContent) {
+        val bounds = buildList {
+            layerContent.intervals.takeIf { it.size > 0 }?.forEach { layer ->
+                layer.value.items.fastForEachIndexed { localIndex, item ->
+                    add(IndexedValue(layer.startIndex + localIndex, item))
+                }
+            }
+        }
+
+        quadtree = withContext(Dispatchers.Default) {
+            BucketQuadtree.build(bounds, state.layoutBounds, { with(density) { it.bounds.toRect() } })
+        }
+    }
 
     LazyLayout(
         itemProvider = remember {
@@ -95,29 +122,40 @@ fun LazyTransformableLayout(
         val constraintWidth = constraints.maxWidth
         val constraintHeight = constraints.maxHeight
 
-        val indexedItemsToMeasure = mutableListOf<IndexedValue<Positionable>>()
-        layerContent.intervals.takeIf { it.size > 0 }?.forEach { layer ->
-            layer.value.items.forEachIndexed { localIndex, item ->
-                var left = Float.MAX_VALUE
-                var top = Float.MAX_VALUE
-                var right = Float.NEGATIVE_INFINITY
-                var bottom = Float.NEGATIVE_INFINITY
-                item.bounds.toRect().vertices.forEach {
-                    Offset(it).transform(scale, angle, offset).run {
-                        if (x < left) left = x
-                        if (y < top) top = y
-                        if (x > right) right = x
-                        if (y > bottom) bottom = y
-                    }
-                }
+        val inverseTransformedViewportAABB = IntRect(
+            left = 0,
+            top = 0,
+            right = constraintWidth,
+            bottom = constraintHeight
+        ).inflate(LazyCompositionBuffer).run {
+            val angleRadians = (-angle).radians
+            val cos = cos(angleRadians)
+            val sin = sin(angleRadians)
 
-                if (left <= constraintWidth + LazyCompositionBuffer
-                    && top <= constraintHeight + LazyCompositionBuffer
-                    && right >= -LazyCompositionBuffer
-                    && bottom >= -LazyCompositionBuffer
-                ) indexedItemsToMeasure += IndexedValue(layer.startIndex + localIndex, item)
+            var minX = Float.MAX_VALUE
+            var minY = Float.MAX_VALUE
+            var maxX = Float.NEGATIVE_INFINITY
+            var maxY = Float.NEGATIVE_INFINITY
+
+            toRect().vertices.forEach {
+                val p = Offset(it) + offset
+                val x = (p.x * cos - p.y * sin) / scale
+                val y = (p.x * sin + p.y * cos) / scale
+                if (x < minX) minX = x
+                if (y < minY) minY = y
+                if (x > maxX) maxX = x
+                if (y > maxY) maxY = y
             }
-        } ?: return@LazyLayout layout(0, 0) {}
+
+            Rect(
+                left = minX,
+                top = minY,
+                right = maxX,
+                bottom = maxY
+            )
+        }
+
+        val indexedItemsToMeasure = quadtree?.query(inverseTransformedViewportAABB) ?: emptyList()
 
         layout(constraintWidth, constraintHeight) {
             indexedItemsToMeasure.fastForEach { (index, item) ->

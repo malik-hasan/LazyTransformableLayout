@@ -19,6 +19,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import kotlinx.serialization.Serializable
+import oats.mobile.lazytransformablelayout.demo.tiledwallpaper.TiledWallpaper
 import oats.mobile.lazytransformablelayout.demo.millionboxes.MillionBoxes
 import oats.mobile.lazytransformablelayout.demo.quadrants.Quadrants
 
@@ -49,12 +50,17 @@ class MainActivity : ComponentActivity() {
                                 Button({ backstack += Quadrants }) {
                                     Text("Quadrants")
                                 }
+
+                                Button({ backstack += TiledWallpaper }) {
+                                    Text("HugeItem")
+                                }
                             }
                         }
                     }
 
                     entry<MillionBoxes> { MillionBoxes() }
                     entry<Quadrants> { Quadrants() }
+                    entry<TiledWallpaper> { TiledWallpaper() }
                 }
             )
         }

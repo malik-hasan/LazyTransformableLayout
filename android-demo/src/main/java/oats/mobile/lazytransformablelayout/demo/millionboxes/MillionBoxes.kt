@@ -39,7 +39,7 @@ fun MillionBoxes() {
 
     val boxes by produceState(emptyList()) {
         scope.launch(Dispatchers.Default) {
-            value = (1..10000).map {
+            value = (1..100000).map {
                 PositionableBox(
                     bounds = DpRect(
                         origin = DpOffset(

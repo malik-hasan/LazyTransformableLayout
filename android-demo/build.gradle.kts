@@ -6,9 +6,10 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-val packageName = "oats.mobile.lazytransformablelayout.demo"
+kotlin.compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
 
 android {
+    val packageName = "oats.mobile.lazytransformablelayout.demo"
     namespace = packageName
     compileSdk = libs.versions.android.targetSdk.get().toInt()
 
@@ -24,9 +25,8 @@ android {
         compose = true
     }
 
-    kotlin.compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
-
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
@@ -39,4 +39,6 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.navigation3.ui)
     implementation(libs.navigation3.runtime)
+    implementation("io.github.panpf.zoomimage:zoomimage-compose-glide:1.6.0")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
