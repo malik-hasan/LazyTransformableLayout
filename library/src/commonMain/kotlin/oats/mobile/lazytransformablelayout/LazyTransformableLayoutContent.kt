@@ -1,27 +1,31 @@
 package oats.mobile.lazytransformablelayout
 
+import androidx.compose.foundation.lazy.layout.IntervalList
+import androidx.compose.foundation.lazy.layout.LazyLayoutIntervalContent
 import androidx.compose.foundation.lazy.layout.LazyLayoutItemProvider
+import androidx.compose.foundation.lazy.layout.MutableIntervalList
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.util.fastForEach
+import oats.mobile.lazytransformablelayout.model.LazyTransformableLayoutLayer
 import oats.mobile.lazytransformablelayout.model.Positionable
 
 internal class LazyTransformableLayoutContent(
     density: Density,
     layoutBounds: Rect,
     buildContent: LazyTransformableLayoutScope.() -> Unit,
-) : LazyLayoutItemProvider, LazyTransformableLayoutScope {
+) : LazyLayoutItemProvider, LazyTransformableLayoutScope, LazyLayoutIntervalContent<LazyTransformableLayoutLayer>() {
 
-    private val itemList = mutableListOf<@Composable () -> Unit>()
+    private val layers = MutableIntervalList<LazyTransformableLayoutLayer>()
+    override val intervals: IntervalList<LazyTransformableLayoutLayer> = layers
     private val positionableQuadtree = BucketQuadtreeNode(layoutBounds, density)
 
-    override val itemCount
-        get() = itemList.size
-
     @Composable
-    override fun Item(index: Int, key: Any) = itemList[index]()
+    override fun Item(index: Int, key: Any) = withInterval(index) { localIndex, layer ->
+        layer.content(localIndex)
+    }
 
     fun query(viewport: Rect, out: MutableList<IndexedValue<Positionable>>) = positionableQuadtree.query(viewport, out)
 
@@ -35,21 +39,32 @@ internal class LazyTransformableLayoutContent(
         )
 
     override fun <T : Positionable> item(item: T, content: @Composable (T) -> Unit) {
-        positionableQuadtree.insert(IndexedValue(itemList.size, item))
-        itemList += { content(item) }
+        positionableQuadtree.insert(IndexedValue(itemCount, item))
+        layers.addInterval(
+            size = 1,
+            value = LazyTransformableLayoutLayer(listOf(item)) {
+                content(item)
+            }
+        )
     }
 
     override fun <T : Positionable> items(items: List<T>, content: @Composable (T) -> Unit) =
-        items.forEach { item ->
-            item(item, content)
+        itemsIndexed(items) { _, item ->
+            content(item)
         }
 
     override fun <T : Positionable> itemsIndexed(items: List<T>, content: @Composable (Int, T) -> Unit) {
-        items.forEachIndexed { i, item ->
-            item(item) {
-                content(i, item)
-            }
+        var index = itemCount
+        items.forEach { item ->
+            positionableQuadtree.insert(IndexedValue(index, item))
+            index++
         }
+        layers.addInterval(
+            size = items.size,
+            value = LazyTransformableLayoutLayer(items) { i ->
+                content(i, items[i])
+            }
+        )
     }
 
     init { buildContent() }
