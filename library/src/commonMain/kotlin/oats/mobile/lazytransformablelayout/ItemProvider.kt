@@ -17,7 +17,7 @@ internal class ItemProvider(
         }
     }
 
-    override fun getKey(index: Int): Any = content.getKey(index)
+    override fun getKey(index: Int) = content.getKey(index)
 
-    override fun getContentType(index: Int): Any? = content.getContentType(index)
+    override fun getContentType(index: Int) = content.getContentType(index)
 }
