@@ -44,7 +44,7 @@ class MainActivity : ComponentActivity() {
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Button({ backstack += TenThousandBoxes }) {
-                                    Text("Million Boxes")
+                                    Text("Ten Thousand Boxes")
                                 }
 
                                 Button({ backstack += Quadrants }) {
@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
                                 }
 
                                 Button({ backstack += TiledWallpaper }) {
-                                    Text("HugeItem")
+                                    Text("Tiled Wallpaper")
                                 }
                             }
                         }
