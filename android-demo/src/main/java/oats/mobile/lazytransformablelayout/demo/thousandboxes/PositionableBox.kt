@@ -1,4 +1,4 @@
-package oats.mobile.lazytransformablelayout.demo.tenthousandboxes
+package oats.mobile.lazytransformablelayout.demo.thousandboxes
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpRect

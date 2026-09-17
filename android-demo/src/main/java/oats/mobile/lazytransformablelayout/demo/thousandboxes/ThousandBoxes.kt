@@ -1,4 +1,4 @@
-package oats.mobile.lazytransformablelayout.demo.tenthousandboxes
+package oats.mobile.lazytransformablelayout.demo.thousandboxes
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -29,17 +29,17 @@ import oats.mobile.lazytransformablelayout.LazyTransformableLayoutState
 import kotlin.random.Random
 
 @Serializable
-data object TenThousandBoxes : NavKey
+data object ThousandBoxes : NavKey
 
 @Composable
-fun TenThousandBoxes() {
+fun ThousandBoxes() {
 
     val scope = rememberCoroutineScope()
-    val layoutSize = 100000 // dp
+    val layoutSize = 10000
 
     val boxes by produceState(emptyList()) {
         scope.launch(Dispatchers.Default) {
-            value = (1..10000).map {
+            value = (1..1000).map {
                 PositionableBox(
                     bounds = DpRect(
                         origin = DpOffset(

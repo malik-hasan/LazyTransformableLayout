@@ -20,7 +20,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import kotlinx.serialization.Serializable
 import oats.mobile.lazytransformablelayout.demo.quadrants.Quadrants
-import oats.mobile.lazytransformablelayout.demo.tenthousandboxes.TenThousandBoxes
+import oats.mobile.lazytransformablelayout.demo.thousandboxes.ThousandBoxes
 import oats.mobile.lazytransformablelayout.demo.tiledwallpaper.TiledWallpaper
 
 @Serializable
@@ -43,8 +43,8 @@ class MainActivity : ComponentActivity() {
                                 verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Button({ backstack += TenThousandBoxes }) {
-                                    Text("Ten Thousand Boxes")
+                                Button({ backstack += ThousandBoxes }) {
+                                    Text("Thousand Boxes")
                                 }
 
                                 Button({ backstack += Quadrants }) {
@@ -58,7 +58,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    entry<TenThousandBoxes> { TenThousandBoxes() }
+                    entry<ThousandBoxes> { ThousandBoxes() }
                     entry<Quadrants> { Quadrants() }
                     entry<TiledWallpaper> { TiledWallpaper() }
                 }
