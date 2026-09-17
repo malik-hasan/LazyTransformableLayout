@@ -9,7 +9,7 @@ import androidx.compose.ui.util.fastForEach
 import oats.mobile.lazytransformablelayout.model.Positionable
 
 internal class LazyTransformableLayoutContent(
-    private val density: Density,
+    density: Density,
     layoutBounds: Rect,
     buildContent: LazyTransformableLayoutScope.() -> Unit,
 ) : LazyLayoutItemProvider, LazyTransformableLayoutScope {
@@ -60,7 +60,7 @@ internal class LazyTransformableLayoutContent(
 
         fun insert(item: IndexedValue<Positionable>) {
             children?.let { quadrants ->
-                quadrantFor(bounds, item.value)?.let { quadrant ->
+                quadrantFor(bounds, item)?.let { quadrant ->
                     quadrants[quadrant].insert(item)
                     return
                 }
@@ -92,7 +92,7 @@ internal class LazyTransformableLayoutContent(
 
             val remaining = mutableListOf<IndexedValue<Positionable>>()
             items.fastForEach { item ->
-                quadrantFor(bounds, item.value)?.let { quadrant ->
+                quadrantFor(bounds, item)?.let { quadrant ->
                     quadrants[quadrant].items += item
                 } ?: remaining.add(item)
             }
@@ -108,10 +108,11 @@ internal class LazyTransformableLayoutContent(
             }
         }
 
-        private fun quadrantFor(nodeBounds: Rect, item: Positionable): Int? {
+        private fun quadrantFor(nodeBounds: Rect, item: IndexedValue<Positionable>): Int? {
             val itemBounds = with(density) {
-                item.bounds.toRect()
+                item.value.bounds.toRect()
             }
+
             val midX = nodeBounds.center.x
             val midY = nodeBounds.center.y
             val left = itemBounds.right <= midX
