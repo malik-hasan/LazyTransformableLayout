@@ -46,7 +46,7 @@ fun LazyTransformableLayout(
     val latestContentBuilder by rememberUpdatedState(contentBuilder)
     val content by remember {
         derivedStateOf(referentialEqualityPolicy()) {
-            LazyTransformableLayoutContent(density, state.layoutBounds,latestContentBuilder)
+            Content(density, state.layoutBounds,latestContentBuilder)
         }
     }
 
@@ -55,7 +55,11 @@ fun LazyTransformableLayout(
     val scope = rememberCoroutineScope()
 
     LazyLayout(
-        itemProvider = { content },
+        itemProvider = remember {
+            derivedStateOf(referentialEqualityPolicy()) {
+                ItemProvider(content)
+            }::value
+        },
         modifier = modifier
             .clipToBounds()
             .overscroll(overscrollEffect)

@@ -2,7 +2,6 @@ package oats.mobile.lazytransformablelayout
 
 import androidx.compose.foundation.lazy.layout.IntervalList
 import androidx.compose.foundation.lazy.layout.LazyLayoutIntervalContent
-import androidx.compose.foundation.lazy.layout.LazyLayoutItemProvider
 import androidx.compose.foundation.lazy.layout.MutableIntervalList
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.geometry.Rect
@@ -12,20 +11,15 @@ import androidx.compose.ui.util.fastForEach
 import oats.mobile.lazytransformablelayout.model.LazyTransformableLayoutLayer
 import oats.mobile.lazytransformablelayout.model.Positionable
 
-internal class LazyTransformableLayoutContent(
+internal class Content(
     density: Density,
     layoutBounds: Rect,
     buildContent: LazyTransformableLayoutScope.() -> Unit,
-) : LazyLayoutItemProvider, LazyTransformableLayoutScope, LazyLayoutIntervalContent<LazyTransformableLayoutLayer>() {
+) : LazyLayoutIntervalContent<LazyTransformableLayoutLayer>(), LazyTransformableLayoutScope {
 
     private val layers = MutableIntervalList<LazyTransformableLayoutLayer>()
     override val intervals: IntervalList<LazyTransformableLayoutLayer> = layers
     private val positionableQuadtree = BucketQuadtreeNode(layoutBounds, density)
-
-    @Composable
-    override fun Item(index: Int, key: Any) = withInterval(index) { localIndex, layer ->
-        layer.content(localIndex)
-    }
 
     fun query(viewport: Rect, out: MutableList<IndexedValue<Positionable>>) = positionableQuadtree.query(viewport, out)
 
