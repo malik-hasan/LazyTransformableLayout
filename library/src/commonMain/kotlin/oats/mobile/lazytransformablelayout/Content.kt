@@ -23,31 +23,62 @@ internal class Content(
 
     fun query(viewport: Rect, out: MutableList<IndexedValue<Positionable>>) = positionableQuadtree.query(viewport, out)
 
-    override fun item(bounds: DpRect, zIndex: Float, content: @Composable (Positionable) -> Unit) =
-        item(
-            item = object : Positionable {
-                override val bounds = bounds
-                override val zIndex = zIndex
-            },
-            content = content
-        )
+    override fun item(
+        bounds: DpRect,
+        zIndex: Float,
+        key: Any?,
+        contentType: Any?,
+        content: @Composable (Positionable) -> Unit
+    ) = item(
+        item = object : Positionable {
+            override val bounds = bounds
+            override val zIndex = zIndex
+        },
+        key = key,
+        contentType = contentType,
+        content = content
+    )
 
-    override fun <T : Positionable> item(item: T, content: @Composable (T) -> Unit) {
+    override fun <T : Positionable> item(
+        item: T,
+        key: Any?,
+        contentType: Any?,
+        content: @Composable (T) -> Unit
+    ) {
         positionableQuadtree.insert(IndexedValue(itemCount, item))
         layers.addInterval(
             size = 1,
-            value = LazyTransformableLayoutLayer(listOf(item)) {
+            value = LazyTransformableLayoutLayer(
+                items = listOf(item),
+                key = key?.let {
+                    { key }
+                },
+                type = { contentType }
+            ) {
                 content(item)
             }
         )
     }
 
-    override fun <T : Positionable> items(items: List<T>, content: @Composable (T) -> Unit) =
-        itemsIndexed(items) { _, item ->
-            content(item)
-        }
+    override fun <T : Positionable> items(
+        items: List<T>,
+        key: ((T) -> Any)?,
+        contentType: (T) -> Any?,
+        content: @Composable (T) -> Unit
+    ) = itemsIndexed(
+        items = items,
+        key = key?.let {
+            { _, item -> key(item) }
+        },
+        contentType = { _, item -> contentType(item) }
+    ) { _, item -> content(item) }
 
-    override fun <T : Positionable> itemsIndexed(items: List<T>, content: @Composable (Int, T) -> Unit) {
+    override fun <T : Positionable> itemsIndexed(
+        items: List<T>,
+        key: ((Int, T) -> Any)?,
+        contentType: (Int, T) -> Any?,
+        content: @Composable (Int, T) -> Unit
+    ) {
         var index = itemCount
         items.forEach { item ->
             positionableQuadtree.insert(IndexedValue(index, item))
@@ -55,13 +86,25 @@ internal class Content(
         }
         layers.addInterval(
             size = items.size,
-            value = LazyTransformableLayoutLayer(items) { i ->
-                content(i, items[i])
-            }
+            value = LazyTransformableLayoutLayer(
+                items = items,
+                key = key?.let {
+                    { i -> key(i, items[i]) }
+                },
+                type = { i -> contentType(i, items[i]) }
+            ) { i -> content(i, items[i]) }
         )
     }
 
-    init { buildContent() }
+    init {
+        buildContent()
+        val seen = HashSet<Any>(itemCount)
+        for (i in 0 until itemCount) {
+            require(seen.add(getKey(i))) {
+                "Duplicate key ${getKey(i)} at index $i in LazyTransformableLayout content"
+            }
+        }
+    }
 
     private class BucketQuadtreeNode(private val bounds: Rect, private val density: Density) {
         private var items = mutableListOf<IndexedValue<Positionable>>()

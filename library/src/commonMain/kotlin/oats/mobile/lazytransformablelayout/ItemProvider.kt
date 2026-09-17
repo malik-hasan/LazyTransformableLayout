@@ -16,4 +16,8 @@ internal class ItemProvider(
             layer.content(localIndex)
         }
     }
+
+    override fun getKey(index: Int): Any = content.getKey(index)
+
+    override fun getContentType(index: Int): Any? = content.getContentType(index)
 }
