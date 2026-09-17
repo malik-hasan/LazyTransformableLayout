@@ -128,7 +128,8 @@ fun LazyTransformableLayout(
                     right = maxX,
                     bottom = maxY
                 )
-            }, indexedItemsToMeasure
+            },
+            out = indexedItemsToMeasure
         )
 
         layout(constraintWidth, constraintHeight) {
