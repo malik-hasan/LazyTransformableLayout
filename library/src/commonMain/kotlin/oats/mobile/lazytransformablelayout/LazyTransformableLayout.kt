@@ -147,7 +147,7 @@ fun LazyTransformableLayout(
         val indexedItemsToMeasure = mutableListOf<IndexedValue<Positionable>>()
         quadtree
             ?.query(viewport, indexedItemsToMeasure)
-            ?: content.intervals.forEach { layer ->
+            ?: content.intervals.takeIf { it.size > 0 }?.forEach { layer ->
                 layer.value.items.forEachIndexed { localIndex, positionable ->
                     if (positionable.bounds.toRect().overlaps(viewport))
                         indexedItemsToMeasure += IndexedValue(layer.startIndex + localIndex, positionable)
