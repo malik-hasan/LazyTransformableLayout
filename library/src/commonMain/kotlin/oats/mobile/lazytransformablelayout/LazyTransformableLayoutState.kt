@@ -57,8 +57,8 @@ class LazyTransformableLayoutState(
     @FloatRange(from = 0.0, fromInclusive = false) initialScale: Float = 1f,
     val rotationBounds: ClosedFloatingPointRange<Float> = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY,
     initialAngle: Float = 0f,
-    private val panFlingDecay: FloatDecayAnimationSpec = FloatExponentialDecaySpec(2f),
-    private val zoomRotateFlingDecay: DecayAnimationSpec<Pair<Float, Float>> = exponentialDecay(2f)
+    private val panFlingDecay: FloatDecayAnimationSpec = FloatExponentialDecaySpec(),
+    private val zoomRotateFlingDecay: DecayAnimationSpec<Pair<Float, Float>> = exponentialDecay()
 ) {
     init {
         require(initialOffset.x >= layoutBounds.left
