@@ -95,14 +95,40 @@ class LazyTransformableLayoutState(
     var scale by mutableFloatStateOf(initialScale)
         private set
 
+    fun setScale(value: Float): Boolean {
+        val clamped = clampScale(value)
+        scale = clamped
+        return clamped == value
+    }
+
+    private fun clampScale(scale: Float) = scale.coerceIn(minScaleBound, zoomBounds.endInclusive)
+
+    operator fun component1() = scale
+
     var angle by mutableFloatStateOf(initialAngle)
         private set
+
+    fun setAngle(value: Float): Boolean {
+        val clamped = clampAngle(value)
+        angle = clamped
+        return clamped == value
+    }
+
+    private fun clampAngle(angle: Float) = angle.coerceIn(rotationBounds)
+
+    operator fun component2() = angle
 
     var offset by mutableStateOf(initialOffset)
         private set
 
-    operator fun component1() = scale
-    operator fun component2() = angle
+    fun setOffset(value: Offset): Boolean {
+        val clamped = clampOffset(value)
+        offset = clamped
+        return clamped == value
+    }
+
+    private fun clampOffset(offset: Offset) = offset.clamp(panningBounds)
+
     operator fun component3() = offset
 
     private var constraints by mutableStateOf<IntSize?>(null)
@@ -111,7 +137,7 @@ class LazyTransformableLayoutState(
         val previousConstraints = constraints
         constraints = incomingConstraints.run { IntSize(maxWidth, maxHeight) }
         if (previousConstraints == null) {
-            offset = offset.clamp(panningBounds)
+            offset = clampOffset(offset)
             scale = scale.coerceAtLeast(minScaleBound)
         }
     }
@@ -173,7 +199,7 @@ class LazyTransformableLayoutState(
     private fun v(startIndex: Int, index: Int) =
         Offset(transformedLayoutBounds[(startIndex + index) % 4])
 
-    internal fun transform(
+    fun transform(
         zoomFactor: Float,
         rotationDelta: Float,
         panDelta: Offset,
@@ -203,22 +229,22 @@ class LazyTransformableLayoutState(
         centroid: Offset
     ): Offset {
         val previousScale = scale
-        val newScale = (previousScale * zoomFactor).coerceIn(minScaleBound, zoomBounds.endInclusive)
+        val newScale = clampScale(previousScale * zoomFactor)
 
         val previousAngle = angle
-        val newAngle = (previousAngle + rotationDelta).coerceIn(rotationBounds)
+        val newAngle = clampAngle(previousAngle + rotationDelta)
 
         val bounds = panningBounds
-        val prePanOffset = offset.transform(
-            scale = newScale / previousScale,
-            angle = newAngle - previousAngle,
-            centroid = centroid,
-            panningBounds = bounds
+        val prePanOffset = clampOffset(
+                offset.transform(
+                scale = newScale / previousScale,
+                angle = newAngle - previousAngle,
+                centroid = centroid,
+            )
         )
 
-        val postPanOffset = prePanOffset.transform(
-            offset = panDelta,
-            panningBounds = bounds
+        val postPanOffset = clampOffset(
+            prePanOffset.transform(offset = panDelta)
         )
 
         scale = newScale
@@ -273,11 +299,12 @@ class LazyTransformableLayoutState(
                     val scaleValue = exp(value.second)
                     scale = scaleValue
 
-                    offset = offset.transform(
-                        scale = scaleValue / previousScale,
-                        angle = angleValue - previousAngle,
-                        centroid = centroid,
-                        panningBounds = panningBounds
+                    offset = clampOffset(
+                        offset.transform(
+                            scale = scaleValue / previousScale,
+                            angle = angleValue - previousAngle,
+                            centroid = centroid
+                        )
                     )
 
                     previousAngle = angleValue
@@ -326,7 +353,7 @@ class LazyTransformableLayoutState(
                 currentVelocity = getVelocityFromNanos(playTimeNanos)
 
                 val preClampOffset = applyDelta(currentValue - previousValue)
-                val postClampOffset = preClampOffset.clamp(panningBounds)
+                val postClampOffset = clampOffset(preClampOffset)
                 offset = postClampOffset
 
                 previousValue = currentValue

@@ -80,14 +80,6 @@ fun Offset.transform(
     angle: Float = 0f,
     offset: Offset = Offset.Zero,
     centroid: Offset = Offset.Zero
-) = transform(scale, angle, offset, centroid, null)
-
-internal fun Offset.transform(
-    scale: Float = 1f,
-    angle: Float = 0f,
-    offset: Offset = Offset.Zero,
-    centroid: Offset = Offset.Zero,
-    panningBounds: Parallelogram? = null
 ): Offset {
     val offsetCentroid = this + centroid
     return (
@@ -107,5 +99,5 @@ internal fun Offset.transform(
                 )
             }
         }
-    ).clamp(panningBounds)
+    )
 }

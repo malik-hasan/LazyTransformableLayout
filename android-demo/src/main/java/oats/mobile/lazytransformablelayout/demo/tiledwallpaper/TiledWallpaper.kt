@@ -3,6 +3,8 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,7 +22,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpRect
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import com.github.panpf.zoomimage.subsampling.ImageSource
@@ -126,6 +130,10 @@ fun TiledWallpaper() {
         state = layoutState,
         modifier = Modifier.fillMaxSize()
     ) {
+        item(DpRect(DpOffset(0.dp, 0.dp), DpSize(50.dp, 50.dp)), 2f) {
+            Button({ layoutState.setAngle(0f) } , Modifier.size(50.dp)) { Text("Reset") }
+        }
+
         itemsIndexed(tiles) { _, tile ->
             TileContent(masterDecoder = decoder, tile = tile)
         }
@@ -141,14 +149,12 @@ private fun TileContent(masterDecoder: AndroidRegionDecoder, tile: ImageTile) {
     LaunchedEffect(tile) {
         withContext(Dispatchers.IO) {
             val tileDecoder = masterDecoder.copy() as AndroidRegionDecoder
-            try {
+            tileDecoder.use { tileDecoder ->
                 // Fixed sampleSize for now — swap for scale-driven sizing once this checks out.
                 bitmap = tileDecoder.decodeRegion(
                     region = tile.sourceRegion,
                     sampleSize = 2
                 )
-            } finally {
-                tileDecoder.close()
             }
         }
     }
