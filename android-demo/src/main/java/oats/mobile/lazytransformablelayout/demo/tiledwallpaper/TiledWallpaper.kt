@@ -42,6 +42,7 @@ import oats.mobile.lazytransformablelayout.model.Positionable
 data object TiledWallpaper : NavKey
 
 private const val TILE_GRID = 4 // 4x4 = 16 tiles
+private const val BLEED_PX = 8 // Must be larger than your max sampleSize
 
 private data class ImageTile(
     override val bounds: DpRect,
@@ -115,10 +116,27 @@ fun TiledWallpaper() {
                     val top = row * tileHeightPx
                     val right = if (col == TILE_GRID - 1) info.width else left + tileWidthPx
                     val bottom = if (row == TILE_GRID - 1) info.height else top + tileHeightPx
+
+                    // Only bleed on internal edges (don't exceed image boundaries)
+                    val bleedRight = if (col == TILE_GRID - 1) 0 else BLEED_PX
+                    val bleedBottom = if (row == TILE_GRID - 1) 0 else BLEED_PX
+
                     add(
                         ImageTile(
-                            bounds = DpRect(left.dp, top.dp, right.dp, bottom.dp),
-                            sourceRegion = IntRectCompat(left, top, right, bottom)
+                            // 1 source px = 1 dp, so bleed 8.dp in layout space
+                            bounds = DpRect(
+                                left = left.dp,
+                                top = top.dp,
+                                right = (right + bleedRight).dp,
+                                bottom = (bottom + bleedBottom).dp
+                            ),
+                            // Bleed 8 source pixels in region space
+                            sourceRegion = IntRectCompat(
+                                left = left,
+                                top = top,
+                                right = right + bleedRight,
+                                bottom = bottom + bleedBottom
+                            )
                         )
                     )
                 }
@@ -130,8 +148,8 @@ fun TiledWallpaper() {
         state = layoutState,
         modifier = Modifier.fillMaxSize()
     ) {
-        item(DpRect(DpOffset(0.dp, 0.dp), DpSize(50.dp, 50.dp)), 2f) {
-            Button({ layoutState.setAngle(0f) } , Modifier.size(50.dp)) { Text("Reset") }
+        item(DpRect(DpOffset(500.dp, 500.dp), DpSize(150.dp, 50.dp)), 2f) {
+            Button({ layoutState.setAngle(0f) } , Modifier.size(150.dp, 50.dp)) { Text("Reset") }
         }
 
         itemsIndexed(tiles) { _, tile ->
