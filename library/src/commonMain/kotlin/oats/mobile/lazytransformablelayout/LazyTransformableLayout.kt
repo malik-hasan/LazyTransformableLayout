@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.layout.LazyLayout
 import androidx.compose.foundation.overscroll
 import androidx.compose.foundation.rememberOverscrollEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +32,7 @@ import oats.mobile.lazytransformablelayout.extension.radians
 import oats.mobile.lazytransformablelayout.extension.transform
 import oats.mobile.lazytransformablelayout.extension.vertices
 import oats.mobile.lazytransformablelayout.model.Positionable
+import oats.mobile.lazytransformablelayout.model.SpatialBucketQuadtree
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -46,8 +48,17 @@ fun LazyTransformableLayout(
     val latestContentBuilder by rememberUpdatedState(contentBuilder)
     val content by remember {
         derivedStateOf(referentialEqualityPolicy()) {
-            Content(density, state.layoutBounds,latestContentBuilder)
+            Content(latestContentBuilder)
         }
+    }
+
+    var quadtree by remember { mutableStateOf<SpatialBucketQuadtree?>(null) }
+    LaunchedEffect(content) {
+        quadtree = SpatialBucketQuadtree.build(
+            items = content.intervals,
+            pxBounds = { with(density) { bounds.toRect() } },
+            layoutBounds = state.layoutBounds
+        )
     }
 
     val overscrollEffect = rememberOverscrollEffect()
