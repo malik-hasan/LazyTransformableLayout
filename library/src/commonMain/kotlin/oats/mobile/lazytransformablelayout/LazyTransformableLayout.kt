@@ -44,7 +44,6 @@ fun LazyTransformableLayout(
     modifier: Modifier = Modifier,
     contentBuilder: LazyTransformableLayoutScope.() -> Unit
 ) {
-    val density = LocalDensity.current
     val latestContentBuilder by rememberUpdatedState(contentBuilder)
     val content by remember {
         derivedStateOf(referentialEqualityPolicy()) {
@@ -53,11 +52,14 @@ fun LazyTransformableLayout(
     }
 
     var quadtree by remember { mutableStateOf<SpatialBucketQuadtree?>(null) }
+    val density = LocalDensity.current
     LaunchedEffect(content) {
         quadtree = SpatialBucketQuadtree.build(
+            layoutBounds = state.layoutBounds,
             items = content.intervals,
-            pxBounds = { with(density) { bounds.toRect() } },
-            layoutBounds = state.layoutBounds
+            pxBounds = {
+                with(density) { bounds.toRect() }
+            }
         )
     }
 
@@ -109,43 +111,48 @@ fun LazyTransformableLayout(
         val constraintWidth = constraints.maxWidth
         val constraintHeight = constraints.maxHeight
 
+        val viewport = Rect(
+            left = 0f,
+            top = 0f,
+            right = constraintWidth.toFloat(),
+            bottom = constraintHeight.toFloat()
+        ).inflate(LazyCompositionBuffer).run {
+            val angleRadians = (-angle).radians
+            val cos = cos(angleRadians)
+            val sin = sin(angleRadians)
+
+            var minX = Float.MAX_VALUE
+            var minY = Float.MAX_VALUE
+            var maxX = Float.NEGATIVE_INFINITY
+            var maxY = Float.NEGATIVE_INFINITY
+
+            vertices.forEach {
+                val p = Offset(it) + offset
+                val x = (p.x * cos - p.y * sin) / scale
+                val y = (p.x * sin + p.y * cos) / scale
+                if (x < minX) minX = x
+                if (y < minY) minY = y
+                if (x > maxX) maxX = x
+                if (y > maxY) maxY = y
+            }
+
+            Rect(
+                left = minX,
+                top = minY,
+                right = maxX,
+                bottom = maxY
+            )
+        }
 
         val indexedItemsToMeasure = mutableListOf<IndexedValue<Positionable>>()
-        content.query(
-            viewport = Rect(
-                left = 0f,
-                top = 0f,
-                right = constraintWidth.toFloat(),
-                bottom = constraintHeight.toFloat()
-            ).inflate(LazyCompositionBuffer).run {
-                val angleRadians = (-angle).radians
-                val cos = cos(angleRadians)
-                val sin = sin(angleRadians)
-
-                var minX = Float.MAX_VALUE
-                var minY = Float.MAX_VALUE
-                var maxX = Float.NEGATIVE_INFINITY
-                var maxY = Float.NEGATIVE_INFINITY
-
-                vertices.forEach {
-                    val p = Offset(it) + offset
-                    val x = (p.x * cos - p.y * sin) / scale
-                    val y = (p.x * sin + p.y * cos) / scale
-                    if (x < minX) minX = x
-                    if (y < minY) minY = y
-                    if (x > maxX) maxX = x
-                    if (y > maxY) maxY = y
+        quadtree
+            ?.query(viewport, indexedItemsToMeasure)
+            ?: content.intervals.forEach { layer ->
+                layer.value.items.forEachIndexed { localIndex, positionable ->
+                    if (positionable.bounds.toRect().overlaps(viewport))
+                        indexedItemsToMeasure += IndexedValue(layer.startIndex + localIndex, positionable)
                 }
-
-                Rect(
-                    left = minX,
-                    top = minY,
-                    right = maxX,
-                    bottom = maxY
-                )
-            },
-            out = indexedItemsToMeasure
-        )
+            }
 
         layout(constraintWidth, constraintHeight) {
             indexedItemsToMeasure.fastForEach { (index, item) ->
@@ -179,7 +186,9 @@ fun LazyTransformableLayout(
                         }
                     }
 
-                    if (right >= -LazyCompositionBuffer && bottom >= -LazyCompositionBuffer) {
+                    if (right >= -LazyCompositionBuffer
+                        && bottom >= -LazyCompositionBuffer
+                    ) {
                         placeable.placeWithLayer(
                             position = itemPosition.transform(scale, angle).round(),
                             zIndex = item.zIndex
