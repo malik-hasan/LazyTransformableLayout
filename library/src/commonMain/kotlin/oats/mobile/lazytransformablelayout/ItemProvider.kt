@@ -2,6 +2,7 @@ package oats.mobile.lazytransformablelayout
 
 import androidx.compose.foundation.lazy.layout.LazyLayoutItemProvider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 
 internal class ItemProvider(
     private val content: Content
@@ -11,7 +12,7 @@ internal class ItemProvider(
         get() = content.itemCount
 
     @Composable
-    override fun Item(index: Int, key: Any) {
+    override fun Item(index: Int, key: Any) = key(key) {
         content.withInterval(index) { localIndex, layer ->
             layer.content(localIndex)
         }
