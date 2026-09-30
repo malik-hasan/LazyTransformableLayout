@@ -17,7 +17,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -427,7 +426,7 @@ class LazyTransformableLayoutState(
         fun saver(
             panFlingDecay: FloatDecayAnimationSpec,
             rotateZoomFlingDecay: DecayAnimationSpec<Pair<Float, Float>>
-        ): Saver<LazyTransformableLayoutState, *> = listSaver(
+        ) = listSaver(
             save = { state ->
                 state.run {
                     listOf(
