@@ -1,5 +1,6 @@
 package oats.mobile.lazytransformablelayout
 
+import androidx.compose.foundation.OverscrollEffect
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.lazy.layout.LazyLayout
 import androidx.compose.foundation.overscroll
@@ -42,6 +43,7 @@ private const val LazyCompositionBuffer = 256f
 fun LazyTransformableLayout(
     state: LazyTransformableLayoutState,
     modifier: Modifier = Modifier,
+    overscrollEffect: OverscrollEffect? = rememberOverscrollEffect(),
     contentBuilder: LazyTransformableLayoutScope.() -> Unit
 ) {
     val latestContentBuilder by rememberUpdatedState(contentBuilder)
@@ -63,7 +65,6 @@ fun LazyTransformableLayout(
         )
     }
 
-    val overscrollEffect = rememberOverscrollEffect()
     var fling: Job? by remember { mutableStateOf(null) }
     val scope = rememberCoroutineScope()
 
@@ -78,21 +79,21 @@ fun LazyTransformableLayout(
             .overscroll(overscrollEffect)
             .pointerInput(Unit) {
                 detectTransformGestures(
-                    onTransformStopped = { logZoomVelocity, rotationVelocity, panVelocity, centroid ->
+                    onTransformStopped = { rotationVelocity, logZoomVelocity, panVelocity, centroid ->
                         fling = scope.launch {
                             state.fling(
-                                initialLogZoomVelocity = logZoomVelocity,
                                 initialRotationVelocity = rotationVelocity,
+                                initialLogZoomVelocity = logZoomVelocity,
                                 initialPanVelocity = -panVelocity,
                                 centroid = centroid,
                                 overscrollEffect = overscrollEffect
                             )
                         }
                     }
-                ) { zoomFactor, rotationDelta, panDelta, centroid ->
+                ) { rotationDelta, zoomFactor, panDelta, centroid ->
                     state.transform(
-                        zoomFactor = zoomFactor,
                         rotationDelta = rotationDelta,
+                        zoomFactor = zoomFactor,
                         panDelta = panDelta,
                         centroid = centroid,
                         overscrollEffect = overscrollEffect
@@ -106,7 +107,7 @@ fun LazyTransformableLayout(
     ) { constraints ->
         state.acceptConstraints(constraints)
 
-        val (scale, angle, offset) = state
+        val (offset, angle, scale) = state
 
         val constraintWidth = constraints.maxWidth
         val constraintHeight = constraints.maxHeight

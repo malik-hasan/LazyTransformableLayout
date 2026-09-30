@@ -23,16 +23,16 @@ import kotlin.math.hypot
 import kotlin.math.ln
 
 suspend fun PointerInputScope.detectTransformGestures(
-    onTransformStopped: (logZoomVelocity: Float, rotationVelocity: Float, panVelocity: Velocity, centroid: Offset) -> Unit,
+    onTransformStopped: (rotationVelocity: Float, logZoomVelocity: Float, panVelocity: Velocity, centroid: Offset) -> Unit,
     panZoomLock: Boolean = false,
-    onTransform: (zoomFactor: Float, rotationDelta: Float, panDelta: Offset, centroid: Offset) -> Unit
+    onTransform: (rotationDelta: Float, zoomFactor: Float, panDelta: Offset, centroid: Offset) -> Unit
 ) = awaitEachGesture {
     var lockedToPanZoom = false
 
     var pastTouchSlop = false
     val touchSlop = viewConfiguration.touchSlop
-    var totalZoomBeforeTouchSlop = 1f
     var totalRotationBeforeTouchSlop = 0f
+    var totalZoomBeforeTouchSlop = 1f
     var totalPanBeforeTouchSlop = Offset.Zero
 
     var lastCentroid = Offset.Zero
@@ -43,8 +43,8 @@ suspend fun PointerInputScope.detectTransformGestures(
     var lastPointerCountChangeMillis = -1L
     var panVelocityBeforeLastReset = Velocity.Zero
 
-    val logZoomVelocityTracker = VelocityTracker1D(true)
     val rotationVelocityTracker = VelocityTracker1D(true)
+    val logZoomVelocityTracker = VelocityTracker1D(true)
     val panVelocityTracker = VelocityTracker()
 
     try {
@@ -54,22 +54,22 @@ suspend fun PointerInputScope.detectTransformGestures(
             val changes = event.changes
             val canceled = changes.fastAny { it.isConsumed }
             if (!canceled) {
-                val zoomFactor = event.calculateZoom()
                 var rotationDelta = if (lockedToPanZoom) 0f else event.calculateRotation()
+                val zoomFactor = event.calculateZoom()
                 val panDelta = event.calculatePan()
                 val centroidSize = event.calculateCentroidSize(useCurrent = false)
 
                 if (!pastTouchSlop) {
-                    totalZoomBeforeTouchSlop *= zoomFactor
                     totalRotationBeforeTouchSlop += rotationDelta
+                    totalZoomBeforeTouchSlop *= zoomFactor
                     totalPanBeforeTouchSlop += panDelta
 
-                    val zoomMotionBeforeTouchSlop = abs(1 - totalZoomBeforeTouchSlop) * centroidSize
                     val rotationMotionBeforeTouchSlop = abs(totalRotationBeforeTouchSlop * PI.toFloat() * centroidSize / 180f)
+                    val zoomMotionBeforeTouchSlop = abs(1 - totalZoomBeforeTouchSlop) * centroidSize
                     val panMotionBeforeTouchSlop = totalPanBeforeTouchSlop.getDistance()
 
-                    if (zoomMotionBeforeTouchSlop > touchSlop
-                        || rotationMotionBeforeTouchSlop > touchSlop
+                    if (rotationMotionBeforeTouchSlop > touchSlop
+                        || zoomMotionBeforeTouchSlop > touchSlop
                         || panMotionBeforeTouchSlop > touchSlop
                     ) {
                         pastTouchSlop = true
@@ -83,9 +83,8 @@ suspend fun PointerInputScope.detectTransformGestures(
                     if (centroid.isSpecified) lastCentroid = centroid
                     maxCentroidSize = maxOf(maxCentroidSize, centroidSize)
 
-                    if (zoomFactor != 1f || rotationDelta != 0f || panDelta != Offset.Zero) {
-                        onTransform(zoomFactor, rotationDelta, panDelta, centroid)
-                    }
+                    if (rotationDelta != 0f || zoomFactor != 1f || panDelta != Offset.Zero)
+                        onTransform(rotationDelta, zoomFactor, panDelta, centroid)
 
                     changes.fastForEach {
                         if (it.positionChanged()) it.consume()
@@ -103,8 +102,8 @@ suspend fun PointerInputScope.detectTransformGestures(
                     }
                     previousPointerCount = pointerCount
 
-                    logZoomVelocityTracker.addDataPoint(uptimeMillis, ln(zoomFactor))
                     rotationVelocityTracker.addDataPoint(uptimeMillis, rotationDelta)
+                    logZoomVelocityTracker.addDataPoint(uptimeMillis, ln(zoomFactor))
                     event.calculateCentroid().takeIf { it.isSpecified }?.let {
                         panVelocityTracker.addPosition(uptimeMillis, it)
                     }
@@ -112,33 +111,28 @@ suspend fun PointerInputScope.detectTransformGestures(
             }
         } while (!canceled && changes.fastAny { it.pressed })
     } finally {
-        var logZoomVelocity = logZoomVelocityTracker.calculateVelocity()
         var rotationVelocity = if (lockedToPanZoom) 0f else rotationVelocityTracker.calculateVelocity()
+        var logZoomVelocity = logZoomVelocityTracker.calculateVelocity()
         var panVelocity = if (lastPointerCountChangeMillis >= 0 && lastEventUptimeMillis - lastPointerCountChangeMillis < 40) {
             panVelocityBeforeLastReset
-        } else {
-            panVelocityTracker.calculateVelocity()
-        }
+        } else panVelocityTracker.calculateVelocity()
 
-        val zoomVelocityPixels = abs(logZoomVelocity) * maxCentroidSize
         val rotationVelocityPixels = abs(rotationVelocity).radians * maxCentroidSize
+        val zoomVelocityPixels = abs(logZoomVelocity) * maxCentroidSize
         val panVelocityPixels = hypot(panVelocity.x, panVelocity.y)
 
         val minZoomRotateFlingVelocity = 1000.dp.toPx()
         val zoomRotateNoiseFraction = 0.2f
 
-        if (zoomVelocityPixels < maxOf(minZoomRotateFlingVelocity, maxOf(panVelocityPixels, rotationVelocityPixels) * zoomRotateNoiseFraction)) {
-            logZoomVelocity = 0f
-        }
-
-        if (rotationVelocityPixels < maxOf(minZoomRotateFlingVelocity, maxOf(panVelocityPixels, zoomVelocityPixels) * zoomRotateNoiseFraction)) {
+        if (rotationVelocityPixels < maxOf(minZoomRotateFlingVelocity, maxOf(panVelocityPixels, zoomVelocityPixels) * zoomRotateNoiseFraction))
             rotationVelocity = 0f
-        }
 
-        if (panVelocityPixels < maxOf(300.dp.toPx(), maxOf(zoomVelocityPixels, rotationVelocityPixels) * 0.35f)) {
+        if (zoomVelocityPixels < maxOf(minZoomRotateFlingVelocity, maxOf(panVelocityPixels, rotationVelocityPixels) * zoomRotateNoiseFraction))
+            logZoomVelocity = 0f
+
+        if (panVelocityPixels < maxOf(300.dp.toPx(), maxOf(zoomVelocityPixels, rotationVelocityPixels) * 0.35f))
             panVelocity = Velocity.Zero
-        }
 
-        onTransformStopped(logZoomVelocity, rotationVelocity, panVelocity, lastCentroid)
+        onTransformStopped(rotationVelocity, logZoomVelocity, panVelocity, lastCentroid)
     }
 }
