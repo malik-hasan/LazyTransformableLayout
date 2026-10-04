@@ -38,7 +38,7 @@ fun Quadrants() {
             modifier = Modifier.padding(scaffoldPadding),
             state = remember {
                 LazyTransformableLayoutState(
-                    layoutBounds = Rect(
+                    initialLayoutBounds = Rect(
                         offset = Offset.Zero,
                         size = with(density) {
                             Size(layoutSize.dp.toPx(), layoutSize.dp.toPx())
