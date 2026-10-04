@@ -118,6 +118,75 @@ class LazyTransformableLayoutState(
         }
     }
 
+    private var constraints by mutableStateOf<IntSize?>(null)
+
+    internal fun acceptConstraints(incomingConstraints: Constraints) {
+        val previousConstraints = constraints
+        constraints = incomingConstraints.run { IntSize(maxWidth, maxHeight) }
+        if (previousConstraints == null) {
+            offset = clampOffset(offset)
+            scale = scale.coerceAtLeast(minScaleBound)
+        }
+    }
+
+    private val minScaleBound by derivedStateOf {
+        val lowerZoomBound = zoomBounds.start
+        constraints?.run {
+            val layoutBounds = layoutBounds
+            val angleRadians = angle.radians
+            val cos = abs(cos(angleRadians))
+            val sin = abs(sin(angleRadians))
+            maxOf(
+                lowerZoomBound,
+                width / layoutBounds.run { width * cos + height * sin },
+                height / layoutBounds.run { width * sin + height * cos }
+            )
+        } ?: lowerZoomBound
+    }
+
+    private val layoutBoundVertices by derivedStateOf { layoutBounds.vertices }
+
+    private val transformedLayoutBounds = LongArray(4)
+
+    private val panningBounds by derivedStateOf {
+        constraints?.run {
+            for (i in 0 until 4) {
+                transformedLayoutBounds[i] = Offset(layoutBoundVertices[i])
+                    .transform(scale, angle)
+                    .packedValue
+            }
+
+            var startIndex = 0
+            var v0 = Offset(transformedLayoutBounds[0])
+            for (i in 1..3) {
+                val v = Offset(transformedLayoutBounds[i])
+                if (v.x < v0.x || (v.x == v0.x && v.y < v0.y)) {
+                    v0 = v
+                    startIndex = i
+                }
+            }
+
+            val v1 = v(startIndex, 1)
+            val v2 = v(startIndex, 2)
+            val v3 = v(startIndex, 3)
+
+            val left = v0.x
+            val top = v1.y
+            val right = (v2.x - width).coerceAtLeast(left)
+            val bottom = (v3.y - height).coerceAtLeast(top)
+
+            Parallelogram(
+                left = Offset(left, (v0.y - height / 2).coerceIn(top, bottom)),
+                top = Offset((v1.x - width / 2).coerceIn(left, right), top),
+                right = Offset(right, (v2.y - height / 2).coerceIn(top, bottom)),
+                bottom = Offset((v3.x - width / 2).coerceIn(left, right), bottom)
+            )
+        }
+    }
+
+    private fun v(startIndex: Int, index: Int) =
+        Offset(transformedLayoutBounds[(startIndex + index) % 4])
+
     fun updateBounds(
         layoutBounds: Rect? = null,
         rotationBounds: ClosedFloatingPointRange<Float>? = null,
@@ -188,75 +257,6 @@ class LazyTransformableLayoutState(
 
         return clampedArray
     }
-
-    private var constraints by mutableStateOf<IntSize?>(null)
-
-    internal fun acceptConstraints(incomingConstraints: Constraints) {
-        val previousConstraints = constraints
-        constraints = incomingConstraints.run { IntSize(maxWidth, maxHeight) }
-        if (previousConstraints == null) {
-            offset = clampOffset(offset)
-            scale = scale.coerceAtLeast(minScaleBound)
-        }
-    }
-
-    private val minScaleBound by derivedStateOf {
-        val lowerZoomBound = zoomBounds.start
-        constraints?.run {
-            val layoutBounds = layoutBounds
-            val angleRadians = angle.radians
-            val cos = abs(cos(angleRadians))
-            val sin = abs(sin(angleRadians))
-            maxOf(
-                lowerZoomBound,
-                width / layoutBounds.run { width * cos + height * sin },
-                height / layoutBounds.run { width * sin + height * cos }
-            )
-        } ?: lowerZoomBound
-    }
-
-    private val layoutBoundVertices by derivedStateOf { layoutBounds.vertices }
-
-    private val transformedLayoutBounds = LongArray(4)
-
-    private val panningBounds by derivedStateOf {
-        constraints?.run {
-            for (i in 0 until 4) {
-                transformedLayoutBounds[i] = Offset(layoutBoundVertices[i])
-                    .transform(scale, angle)
-                    .packedValue
-            }
-
-            var startIndex = 0
-            var v0 = Offset(transformedLayoutBounds[0])
-            for (i in 1..3) {
-                val v = Offset(transformedLayoutBounds[i])
-                if (v.x < v0.x || (v.x == v0.x && v.y < v0.y)) {
-                    v0 = v
-                    startIndex = i
-                }
-            }
-
-            val v1 = v(startIndex, 1)
-            val v2 = v(startIndex, 2)
-            val v3 = v(startIndex, 3)
-
-            val left = v0.x
-            val top = v1.y
-            val right = (v2.x - width).coerceAtLeast(left)
-            val bottom = (v3.y - height).coerceAtLeast(top)
-
-            Parallelogram(
-                left = Offset(left, (v0.y - height / 2).coerceIn(top, bottom)),
-                top = Offset((v1.x - width / 2).coerceIn(left, right), top),
-                right = Offset(right, (v2.y - height / 2).coerceIn(top, bottom)),
-                bottom = Offset((v3.x - width / 2).coerceIn(left, right), bottom)
-            )
-        }
-    }
-
-    private fun v(startIndex: Int, index: Int) =
-        Offset(transformedLayoutBounds[(startIndex + index) % 4])
 
     fun transform(
         rotationDelta: Float,
