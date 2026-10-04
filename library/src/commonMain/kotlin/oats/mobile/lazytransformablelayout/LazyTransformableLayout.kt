@@ -28,10 +28,11 @@ import androidx.compose.ui.unit.roundToIntRect
 import androidx.compose.ui.util.fastForEach
 import kotlinx.coroutines.launch
 import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
+import oats.mobile.lazytransformablelayout.extension.extent
 import oats.mobile.lazytransformablelayout.extension.radians
 import oats.mobile.lazytransformablelayout.extension.transform
 import oats.mobile.lazytransformablelayout.extension.vertices
-import oats.mobile.lazytransformablelayout.model.Positionable
+import oats.mobile.lazytransformablelayout.model.Item
 import oats.mobile.lazytransformablelayout.model.SpatialBucketQuadtree
 import kotlin.math.cos
 import kotlin.math.sin
@@ -54,10 +55,11 @@ fun LazyTransformableLayout(
 
     var quadtree by remember { mutableStateOf<SpatialBucketQuadtree?>(null) }
     val density = LocalDensity.current
-    LaunchedEffect(content) {
+    LaunchedEffect(content, density) {
+        quadtree = null
         quadtree = SpatialBucketQuadtree.build(
             layoutBounds = state.layoutBounds,
-            items = content.intervals,
+            intervals = content.intervals,
             pxBounds = {
                 with(density) { bounds.toRect() }
             }
@@ -143,19 +145,25 @@ fun LazyTransformableLayout(
             )
         }
 
-        val indexedItemsToMeasure = mutableListOf<IndexedValue<Positionable>>()
+        val minItemExtent = 0.5f / scale
+        val items = mutableListOf<Item>()
         quadtree
-            ?.query(viewport, indexedItemsToMeasure)
+            ?.query(viewport, minItemExtent, items)
             ?: content.intervals.takeIf { it.size > 0 }?.forEach { layer ->
                 layer.value.items.forEachIndexed { localIndex, positionable ->
-                    if (positionable.bounds.toRect().overlaps(viewport))
-                        indexedItemsToMeasure += IndexedValue(layer.startIndex + localIndex, positionable)
+                    val pxBounds = positionable.bounds.toRect()
+                    if (pxBounds.extent >= minItemExtent && pxBounds.overlaps(viewport))
+                        items += Item(
+                            index = layer.startIndex + localIndex,
+                            bounds = pxBounds,
+                            zIndex = positionable.zIndex
+                        )
                 }
             }
 
         layout(constraintWidth, constraintHeight) {
-            indexedItemsToMeasure.fastForEach { (index, item) ->
-                val itemBounds = item.bounds.toRect()
+            items.fastForEach { item ->
+                val itemBounds = item.bounds
 
                 val itemConstraints = itemBounds.roundToIntRect().run {
                     Constraints(
@@ -166,7 +174,7 @@ fun LazyTransformableLayout(
 
                 val itemPosition = itemBounds.topLeft
 
-                compose(index).fastForEach { measurable ->
+                compose(item.index).fastForEach { measurable ->
                     val placeable = measurable.measure(itemConstraints)
 
                     var right = Float.NEGATIVE_INFINITY
