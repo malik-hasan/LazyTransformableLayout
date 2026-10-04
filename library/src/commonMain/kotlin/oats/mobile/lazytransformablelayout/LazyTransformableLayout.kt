@@ -23,7 +23,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.round
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.roundToIntRect
 import androidx.compose.ui.util.fastForEach
 import kotlinx.coroutines.Job
@@ -191,15 +191,16 @@ fun LazyTransformableLayout(
                         && bottom >= -LazyCompositionBuffer
                     ) {
                         placeable.placeWithLayer(
-                            position = itemPosition.transform(scale, angle).round(),
+                            position = IntOffset.Zero,
                             zIndex = item.zIndex
                         ) {
                             transformOrigin = TransformOrigin(0f, 0f)
                             scaleX = scale
                             scaleY = scale
                             rotationZ = angle
-                            translationX = -offset.x
-                            translationY = -offset.y
+                            val position = itemPosition.transform(scale, angle) - offset
+                            translationX = position.x
+                            translationY = position.y
                         }
                     }
                 }
