@@ -63,7 +63,7 @@ fun ThousandBoxes() {
             modifier = Modifier.padding(scaffoldPadding),
             state = remember {
                 LazyTransformableLayoutState(
-                    initialLayoutBounds = Rect(
+                    layoutBounds = Rect(
                         offset = Offset(0f, 0f),
                         size = with(density) {
                             Size(layoutSize.dp.toPx(), layoutSize.dp.toPx())

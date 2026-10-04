@@ -58,9 +58,9 @@ fun rememberLazyTransformableLayoutState(
         )
     ) {
         LazyTransformableLayoutState(
-            initialLayoutBounds = layoutBounds,
-            initialRotationBounds = rotationBounds,
-            initialZoomBounds = zoomBounds,
+            layoutBounds = layoutBounds,
+            rotationBounds = rotationBounds,
+            zoomBounds = zoomBounds,
             initialOffset = initialOffset,
             initialAngle = initialAngle,
             initialScale = initialScale,
@@ -73,9 +73,9 @@ fun rememberLazyTransformableLayoutState(
 /**
  * The state of the LazyTransformableLayout
  *
- * @param initialLayoutBounds The bounds of the layout which can be panned into view
- * @param initialRotationBounds min and max angle bounds in degrees
- * @param initialZoomBounds min and max scale bounds
+ * @param layoutBounds The bounds of the layout which can be panned into view
+ * @param rotationBounds min and max angle bounds in degrees
+ * @param zoomBounds min and max scale bounds
  * @param initialOffset initial offset of the top left corner of the viewport relative to the layoutBounds
  * @param initialAngle initial rotation angle in degrees
  * @param initialScale initial zoom scale (greater than zero)
@@ -84,37 +84,34 @@ fun rememberLazyTransformableLayoutState(
  */
 @Stable
 class LazyTransformableLayoutState(
-    initialLayoutBounds: Rect,
-    initialRotationBounds: ClosedFloatingPointRange<Float> = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY,
-    initialZoomBounds: ClosedFloatingPointRange<Float> = Float.MIN_VALUE..Float.MAX_VALUE,
+    layoutBounds: Rect,
+    rotationBounds: ClosedFloatingPointRange<Float> = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY,
+    zoomBounds: ClosedFloatingPointRange<Float> = Float.MIN_VALUE..Float.MAX_VALUE,
     initialOffset: Offset = Offset.Zero,
     initialAngle: Float = 0f,
     @FloatRange(from = 0.0, fromInclusive = false) initialScale: Float = 1f,
     private val panFlingDecay: FloatDecayAnimationSpec = FloatExponentialDecaySpec(),
     private val rotateZoomFlingDecay: DecayAnimationSpec<Pair<Float, Float>> = exponentialDecay()
 ) {
-    var layoutBounds by mutableStateOf(initialLayoutBounds)
-        internal set
+    internal var layoutBounds by mutableStateOf(layoutBounds)
 
-    var rotationBounds by mutableStateOf(initialRotationBounds)
-        internal set
+    internal var rotationBounds by mutableStateOf(rotationBounds)
 
-    var zoomBounds by mutableStateOf(initialZoomBounds)
-        internal set
+    internal var zoomBounds by mutableStateOf(zoomBounds)
 
     init {
-        require(zoomBounds.start > 0) { "zoomBounds must be positive." }
-
-        initialRotationBounds.run {
+        rotationBounds.run {
             require(!isEmpty()) {
                 "max rotation bound ($endInclusive) must be greater than or equal to min rotation bound ($start)."
             }
         }
 
-        initialZoomBounds.run {
+        zoomBounds.run {
             require(!isEmpty()) {
                 "max zoom bound ($endInclusive) must be greater than or equal to min zoom bound ($start)."
             }
+
+            require(start > 0) { "zoomBounds must be positive." }
         }
     }
 
@@ -130,9 +127,9 @@ class LazyTransformableLayoutState(
     }
 
     private val minScaleBound by derivedStateOf {
-        val lowerZoomBound = zoomBounds.start
+        val lowerZoomBound = this.zoomBounds.start
         constraints?.run {
-            val layoutBounds = layoutBounds
+            val layoutBounds = this@LazyTransformableLayoutState.layoutBounds
             val angleRadians = angle.radians
             val cos = abs(cos(angleRadians))
             val sin = abs(sin(angleRadians))
@@ -144,7 +141,7 @@ class LazyTransformableLayoutState(
         } ?: lowerZoomBound
     }
 
-    private val layoutBoundVertices by derivedStateOf { layoutBounds.vertices }
+    private val layoutBoundVertices by derivedStateOf { this.layoutBounds.vertices }
 
     private val transformedLayoutBounds = LongArray(4)
 
@@ -221,14 +218,14 @@ class LazyTransformableLayoutState(
     var angle by mutableFloatStateOf(clampAngle(initialAngle))
         private set
 
-    private fun clampAngle(angle: Float) = angle.coerceIn(rotationBounds)
+    private fun clampAngle(angle: Float) = angle.coerceIn(this.rotationBounds)
 
     operator fun component2() = angle
 
     var scale by mutableFloatStateOf(clampScale(initialScale))
         private set
 
-    private fun clampScale(scale: Float) = scale.coerceIn(minScaleBound, zoomBounds.endInclusive)
+    private fun clampScale(scale: Float) = scale.coerceIn(minScaleBound, this.zoomBounds.endInclusive)
 
     operator fun component3() = scale
 
@@ -331,9 +328,10 @@ class LazyTransformableLayoutState(
                 initialValue = previousAngle to ln(previousScale),
                 typeConverter = floatPairVectorConverter
             ).run {
+                val rotationBounds = this@LazyTransformableLayoutState.rotationBounds
                 updateBounds(
                     lowerBound = rotationBounds.start to ln(minScaleBound),
-                    upperBound = rotationBounds.endInclusive to ln(zoomBounds.endInclusive)
+                    upperBound = rotationBounds.endInclusive to ln(this@LazyTransformableLayoutState.zoomBounds.endInclusive)
                 )
 
                 animateDecay(
@@ -357,7 +355,7 @@ class LazyTransformableLayoutState(
                     previousAngle = newAngle
                     previousScale = newScale
 
-                    updateBounds(rotationBounds.start to ln(minScaleBound))
+                    updateBounds(this@LazyTransformableLayoutState.rotationBounds.start to ln(minScaleBound))
                 }
             }
         }
@@ -447,14 +445,14 @@ class LazyTransformableLayoutState(
             },
             restore = { values ->
                 LazyTransformableLayoutState(
-                    initialLayoutBounds = Rect(
+                    layoutBounds = Rect(
                         left = values[0],
                         top = values[1],
                         right = values[2],
                         bottom = values[3]
                     ),
-                    initialRotationBounds = values[4]..values[5],
-                    initialZoomBounds = values[6]..values[7],
+                    rotationBounds = values[4]..values[5],
+                    zoomBounds = values[6]..values[7],
                     initialOffset = Offset(values[8], values[9]),
                     initialAngle = values[10],
                     initialScale = values[11],
