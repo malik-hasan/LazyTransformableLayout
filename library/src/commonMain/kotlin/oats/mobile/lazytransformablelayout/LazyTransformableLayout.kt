@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.roundToIntRect
 import androidx.compose.ui.util.fastForEach
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
 import oats.mobile.lazytransformablelayout.extension.radians
@@ -65,7 +64,6 @@ fun LazyTransformableLayout(
         )
     }
 
-    var fling: Job? by remember { mutableStateOf(null) }
     val scope = rememberCoroutineScope()
 
     LazyLayout(
@@ -80,7 +78,7 @@ fun LazyTransformableLayout(
             .pointerInput(Unit) {
                 detectTransformGestures(
                     onTransformStopped = { rotationVelocity, logZoomVelocity, panVelocity, centroid ->
-                        fling = scope.launch {
+                         scope.launch {
                             state.fling(
                                 initialRotationVelocity = rotationVelocity,
                                 initialLogZoomVelocity = logZoomVelocity,
@@ -101,7 +99,7 @@ fun LazyTransformableLayout(
                 }
             }.pointerInput(Unit) {
                 detectTapGestures(
-                    onPress = { fling?.cancel() }
+                    onPress = { state.cancelFling() }
                 )
             }
     ) { constraints ->

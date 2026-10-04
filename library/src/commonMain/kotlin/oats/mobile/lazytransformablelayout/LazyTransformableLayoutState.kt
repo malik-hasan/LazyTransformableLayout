@@ -27,6 +27,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Velocity
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import oats.mobile.lazytransformablelayout.extension.clamp
@@ -314,62 +315,69 @@ class LazyTransformableLayoutState(
         convertFromVector = { it.v1 to it.v2 }
     )
 
+    private var fling: Job? = null
+
+    fun cancelFling() = fling?.cancel()
+
     internal suspend fun fling(
         initialRotationVelocity: Float,
         initialLogZoomVelocity: Float,
         initialPanVelocity: Velocity,
         centroid: Offset,
         overscrollEffect: OverscrollEffect? = null
-    ) = coroutineScope {
-        launch {
-            var previousAngle = angle
-            var previousScale = scale
-            Animatable(
-                initialValue = previousAngle to ln(previousScale),
-                typeConverter = floatPairVectorConverter
-            ).run {
-                val rotationBounds = this@LazyTransformableLayoutState.rotationBounds
-                updateBounds(
-                    lowerBound = rotationBounds.start to ln(minScaleBound),
-                    upperBound = rotationBounds.endInclusive to ln(this@LazyTransformableLayoutState.zoomBounds.endInclusive)
-                )
-
-                animateDecay(
-                    initialVelocity = initialRotationVelocity to initialLogZoomVelocity,
-                    animationSpec = rotateZoomFlingDecay
-                ) {
-                    val newAngle = value.first
-                    angle = newAngle
-
-                    val newScale = exp(value.second)
-                    scale = newScale
-
-                    offset = clampOffset(
-                        offset.transform(
-                            scale = newScale / previousScale,
-                            angle = newAngle - previousAngle,
-                            centroid = centroid
-                        )
+    ) {
+        fling?.cancel()
+        fling = coroutineScope {
+            launch {
+                var previousAngle = angle
+                var previousScale = scale
+                Animatable(
+                    initialValue = previousAngle to ln(previousScale),
+                    typeConverter = floatPairVectorConverter
+                ).run {
+                    val rotationBounds = this@LazyTransformableLayoutState.rotationBounds
+                    updateBounds(
+                        lowerBound = rotationBounds.start to ln(minScaleBound),
+                        upperBound = rotationBounds.endInclusive to ln(this@LazyTransformableLayoutState.zoomBounds.endInclusive)
                     )
 
-                    previousAngle = newAngle
-                    previousScale = newScale
+                    animateDecay(
+                        initialVelocity = initialRotationVelocity to initialLogZoomVelocity,
+                        animationSpec = rotateZoomFlingDecay
+                    ) {
+                        val newAngle = value.first
+                        angle = newAngle
 
-                    updateBounds(this@LazyTransformableLayoutState.rotationBounds.start to ln(minScaleBound))
+                        val newScale = exp(value.second)
+                        scale = newScale
+
+                        offset = clampOffset(
+                            offset.transform(
+                                scale = newScale / previousScale,
+                                angle = newAngle - previousAngle,
+                                centroid = centroid
+                            )
+                        )
+
+                        previousAngle = newAngle
+                        previousScale = newScale
+
+                        updateBounds(this@LazyTransformableLayoutState.rotationBounds.start to ln(minScaleBound))
+                    }
                 }
             }
-        }
 
-        launch {
-            overscrollEffect?.applyToFling(initialPanVelocity.copy(y = 0f)) { velocity ->
-                flingX(velocity.x)
-            } ?: flingX(initialPanVelocity.x)
-        }
+            launch {
+                overscrollEffect?.applyToFling(initialPanVelocity.copy(y = 0f)) { velocity ->
+                    flingX(velocity.x)
+                } ?: flingX(initialPanVelocity.x)
+            }
 
-        launch {
-            overscrollEffect?.applyToFling(initialPanVelocity.copy(x = 0f)) { velocity ->
-                flingY(velocity.y)
-            } ?: flingY(initialPanVelocity.y)
+            launch {
+                overscrollEffect?.applyToFling(initialPanVelocity.copy(x = 0f)) { velocity ->
+                    flingY(velocity.y)
+                } ?: flingY(initialPanVelocity.y)
+            }
         }
     }
 
