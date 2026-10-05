@@ -9,6 +9,3 @@ internal val Rect.vertices
         bottomRight.packedValue,
         bottomLeft.packedValue
     )
-
-internal val Rect.extent
-    get() = maxOf(width, height)
