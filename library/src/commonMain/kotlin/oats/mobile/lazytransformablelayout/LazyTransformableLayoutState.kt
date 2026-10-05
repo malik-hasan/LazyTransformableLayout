@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Velocity
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import oats.mobile.lazytransformablelayout.extension.clamp
 import oats.mobile.lazytransformablelayout.extension.radians
@@ -327,7 +329,8 @@ class LazyTransformableLayoutState(
         overscrollEffect: OverscrollEffect? = null
     ) {
         fling?.cancel()
-        fling = coroutineScope {
+        fling = currentCoroutineContext().job
+        coroutineScope {
             launch {
                 var previousAngle = angle
                 var previousScale = scale
