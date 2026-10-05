@@ -204,9 +204,9 @@ fun LazyTransformableLayout(
                             scaleX = scale
                             scaleY = scale
                             rotationZ = angle
-                            val position = itemPosition.transform(scale, angle) - offset
-                            translationX = position.x
-                            translationY = position.y
+                            val translation = itemPosition.transform(scale, angle) - offset
+                            translationX = translation.x
+                            translationY = translation.y
                         }
                     }
                 }
