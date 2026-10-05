@@ -124,8 +124,8 @@ class LazyTransformableLayoutState(
         val previousConstraints = constraints
         constraints = incomingConstraints.run { IntSize(maxWidth, maxHeight) }
         if (previousConstraints == null) {
-            offset = clampOffset(offset)
             scale = scale.coerceAtLeast(minScaleBound)
+            offset = clampOffset(offset)
         }
     }
 
