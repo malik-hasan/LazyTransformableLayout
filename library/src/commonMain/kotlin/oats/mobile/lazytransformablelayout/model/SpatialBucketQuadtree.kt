@@ -32,17 +32,16 @@ internal class SpatialBucketQuadtree private constructor(
         ) return
 
         val nodeItemStartIndex = nodeItemStart[nodeIndex]
-        nodeItems.sliceArray(nodeItemStartIndex until nodeItemStartIndex + nodeItemCount[nodeIndex])
-            .forEach { item ->
-                if (item.maxDimension >= minItemDimension && viewportBounds.intersects(item.bounds))
-                    out += item
-            }
+        for (i in nodeItemStartIndex until nodeItemStartIndex + nodeItemCount[nodeIndex]) {
+            val item = nodeItems[i]
+            if (item.maxDimension >= minItemDimension && viewportBounds.intersects(item.bounds))
+                out += item
+        }
 
         val nodeChildrenStartIndex = nodeIndex * 4
-        nodeChildren.sliceArray(nodeChildrenStartIndex until nodeChildrenStartIndex + 4)
-            .forEach { child ->
-                queryNode(child, viewportBounds, minItemDimension, out)
-            }
+        for (i in nodeChildrenStartIndex until nodeChildrenStartIndex + 4) {
+            queryNode(nodeChildren[i], viewportBounds, minItemDimension, out)
+        }
     }
 
     companion object {

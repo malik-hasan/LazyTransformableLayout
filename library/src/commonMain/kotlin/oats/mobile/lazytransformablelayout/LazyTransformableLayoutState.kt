@@ -123,19 +123,20 @@ class LazyTransformableLayoutState(
             )
         }
 
-    private val minScaleBound by derivedStateOf {
-        val lowerZoomBound = this.zoomBounds.start
+    private val scaleBounds by derivedStateOf {
+        val zoomBounds = this.zoomBounds
         constraints?.run {
             val layoutBounds = this@LazyTransformableLayoutState.layoutBounds
             val angleRadians = angle.radians
             val cos = abs(cos(angleRadians))
             val sin = abs(sin(angleRadians))
-            maxOf(
-                lowerZoomBound,
+            val start = maxOf(
+                zoomBounds.start,
                 width / layoutBounds.run { width * cos + height * sin },
                 height / layoutBounds.run { width * sin + height * cos }
             )
-        } ?: lowerZoomBound
+            start..maxOf(start, zoomBounds.endInclusive)
+        } ?: zoomBounds
     }
 
     private val panningBounds by derivedStateOf {
@@ -205,7 +206,7 @@ class LazyTransformableLayoutState(
     var scale by mutableFloatStateOf(clampScale(initialScale))
         private set
 
-    private fun clampScale(scale: Float) = scale.coerceIn(minScaleBound, this.zoomBounds.endInclusive)
+    private fun clampScale(scale: Float) = scale.coerceIn(scaleBounds)
 
     operator fun component3() = scale
 
@@ -316,9 +317,10 @@ class LazyTransformableLayoutState(
                     typeConverter = floatPairVectorConverter
                 ).run {
                     val rotationBounds = this@LazyTransformableLayoutState.rotationBounds
+                    val clampedZoomBounds = scaleBounds
                     updateBounds(
-                        lowerBound = rotationBounds.start to ln(minScaleBound),
-                        upperBound = rotationBounds.endInclusive to ln(this@LazyTransformableLayoutState.zoomBounds.endInclusive)
+                        lowerBound = rotationBounds.start to ln(clampedZoomBounds.start),
+                        upperBound = rotationBounds.endInclusive to ln(clampedZoomBounds.endInclusive)
                     )
 
                     animateDecay(
@@ -342,7 +344,12 @@ class LazyTransformableLayoutState(
                         previousAngle = newAngle
                         previousScale = newScale
 
-                        updateBounds(this@LazyTransformableLayoutState.rotationBounds.start to ln(minScaleBound))
+                        val rotationBounds = this@LazyTransformableLayoutState.rotationBounds
+                        val clampedZoomBounds = this@LazyTransformableLayoutState.scaleBounds
+                        updateBounds(
+                            lowerBound = rotationBounds.start to ln(clampedZoomBounds.start),
+                            upperBound = rotationBounds.endInclusive to ln(clampedZoomBounds.endInclusive)
+                        )
                     }
                 }
             }

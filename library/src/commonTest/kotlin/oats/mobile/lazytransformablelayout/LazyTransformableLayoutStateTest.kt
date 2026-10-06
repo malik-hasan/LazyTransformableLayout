@@ -196,4 +196,24 @@ class LazyTransformableLayoutStateTest {
         state.transform(rotationDelta = 0f, zoomFactor = 1.3f, panDelta = Offset.Zero, centroid = center)
         assertNotSame(panned, state.compositionBounds)
     }
+
+    @Test
+    fun coveringTheViewportWinsOverMaxZoom() {
+        // even max zoom leaves the 500x500 layout smaller than the 1080x2000 viewport
+        val state = LazyTransformableLayoutState(
+            layoutBounds = Rect(0f, 0f, 500f, 500f),
+            zoomBounds = 0.1f..1f
+        )
+        state.acceptConstraints(Constraints.fixed(viewportWidth, viewportHeight))
+
+        val coveringScale = maxOf(viewportWidth / 500f, viewportHeight / 500f)
+        assertEquals(coveringScale, state.scale)
+
+        val center = Offset(viewportWidth / 2f, viewportHeight / 2f)
+        state.transform(rotationDelta = 0f, zoomFactor = 2f, panDelta = Offset.Zero, centroid = center)
+        assertEquals(coveringScale, state.scale)
+
+        state.transform(rotationDelta = 0f, zoomFactor = 0.5f, panDelta = Offset.Zero, centroid = center)
+        assertEquals(coveringScale, state.scale)
+    }
 }
