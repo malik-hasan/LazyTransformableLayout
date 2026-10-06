@@ -24,17 +24,26 @@ class LazyTransformableLayoutStateTest {
             acceptConstraints(Constraints.fixed(viewportWidth, viewportHeight))
         }
 
+    private fun LazyTransformableLayoutState.viewportBounds(buffer: Float): Parallelogram {
+        val (offset, angle, scale) = this
+        return Parallelogram(
+            Rect(0f, 0f, viewportWidth.toFloat(), viewportHeight.toFloat()).inflate(buffer).vertices.map {
+                (it + offset).transform(scale = 1 / scale, angle = -angle)
+            }
+        )
+    }
+
     @Test
-    fun viewportBoundsAreTheInverseOfTheLayerTransform() {
+    fun compositionBoundsAreTheInverseOfTheLayerTransform() {
         val random = Random(0)
-        val buffer = 128f
-        val state = state()
+        val buffer = 256f
 
         for (angle in listOf(0f, 30f, 90f, -135f, 200f)) {
             for (scale in listOf(0.2f, 1f, 3f)) {
+                val state = state()
                 state.set(angle = angle, scale = scale, offset = Offset(1_000f, 1_000f))
                 val (offset, actualAngle, actualScale) = state
-                val region = state.viewportBounds(buffer)!!
+                val region = state.compositionBounds!!.first
 
                 repeat(2_000) {
                     val point = Offset(
@@ -68,11 +77,11 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun viewportBoundsContainSmallerBuffer() {
-        val state = state()
+    fun compositionBoundsContainTheRequeryMargin() {
         for (angle in listOf(0f, 45f, -100f)) {
+            val state = state()
             state.set(angle = angle, scale = 1f, offset = Offset(2_000f, 2_000f))
-            assertTrue(state.viewportBounds(128f)!! in state.viewportBounds(256f)!!)
+            assertTrue(state.viewportBounds(128f) in state.compositionBounds!!.first)
         }
     }
 
