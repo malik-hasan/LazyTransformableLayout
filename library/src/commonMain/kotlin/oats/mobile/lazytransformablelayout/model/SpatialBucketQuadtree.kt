@@ -2,60 +2,74 @@ package oats.mobile.lazytransformablelayout.model
 
 import androidx.compose.foundation.lazy.layout.IntervalList
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.util.fastForEach
-import androidx.compose.ui.util.fastMap
+import androidx.compose.ui.util.fastForEachIndexed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 internal class SpatialBucketQuadtree private constructor(
     private val nodeBounds: Array<Rect>,
-    private val childIndices: IntArray, // 4 slots per node, -1 = no child
-    private val itemStart: IntArray,
-    private val itemNodeCount: IntArray,
-    private val itemIndices: Array<IndexedValue<Positionable>>
+    private val nodeItemStart: IntArray,
+    private val nodeItemCount: IntArray,
+    private val nodeItems: Array<Item>,
+    private val nodeLargestItemDimension: FloatArray,
+    private val nodeChildren: IntArray // 4 per node
 ) {
-
-    context(density: Density)
-    fun query(rect: Rect, out: MutableList<IndexedValue<Positionable>>) {
-        if (nodeBounds.isNotEmpty()) queryNode(0, rect, out)
+    fun query(viewportBounds: Parallelogram, minItemDimension: Float, out: MutableList<Item>) {
+        if (nodeBounds.isNotEmpty()) queryNode(0, viewportBounds, minItemDimension, out)
     }
 
-    context(density: Density)
-    private fun queryNode(nodeIndex: Int, rect: Rect, out: MutableList<IndexedValue<Positionable>>) {
-        if (nodeIndex == -1 || !nodeBounds[nodeIndex].overlaps(rect)) return
+    private fun queryNode(
+        nodeIndex: Int,
+        viewportBounds: Parallelogram,
+        minItemDimension: Float,
+        out: MutableList<Item>
+    ) {
+        if (nodeIndex == -1
+            || nodeLargestItemDimension[nodeIndex] < minItemDimension
+            || !viewportBounds.intersects(nodeBounds[nodeIndex])
+        ) return
 
-        val start = itemStart[nodeIndex]
-        val end = start + itemNodeCount[nodeIndex]
-
-        for (i in start until end) {
-            val item = itemIndices[i]
-            with(density) {
-                if (item.value.bounds.toRect().overlaps(rect)) {
-                    out += item
-                }
-            }
+        val nodeItemStartIndex = nodeItemStart[nodeIndex]
+        for (i in nodeItemStartIndex until nodeItemStartIndex + nodeItemCount[nodeIndex]) {
+            val item = nodeItems[i]
+            if (item.maxDimension >= minItemDimension && viewportBounds.intersects(item.bounds))
+                out += item
         }
 
-        val base = nodeIndex * 4
-        for (c in 0 until 4) queryNode(childIndices[base + c], rect, out)
+        val nodeChildrenStartIndex = nodeIndex * 4
+        for (i in nodeChildrenStartIndex until nodeChildrenStartIndex + 4) {
+            queryNode(nodeChildren[i], viewportBounds, minItemDimension, out)
+        }
     }
 
     companion object {
         private class Node(
             val bounds: Rect,
-            val items: List<IndexedValue<Positionable>>,
+            val items: List<Item>,
             val children: Array<Node?>?
         ) {
+            val largestItemDimension: Float = run {
+                var max = 0f
+                items.fastForEach {
+                    max = maxOf(max, it.maxDimension)
+                }
+                children?.forEach { child ->
+                    child?.let {
+                        max = maxOf(max, it.largestItemDimension)
+                    }
+                }
+                max
+            }
+
             companion object {
                 fun build(
                     bounds: Rect,
-                    items: List<Pair<IndexedValue<Positionable>, Rect>>,
+                    items: List<Item>,
                     depth: Int
                 ): Node {
-                    if (items.size <= 8 || depth >= 16)
-                        return Node(bounds, items.fastMap { it.first }, children = null)
+                    if (items.size <= 32 || depth >= 12) return Node(bounds, items, children = null)
 
                     val midX = bounds.center.x
                     val midY = bounds.center.y
@@ -68,11 +82,11 @@ internal class SpatialBucketQuadtree private constructor(
                         )
                     }
 
-                    val buckets = Array(4) { mutableListOf<Pair<IndexedValue<Positionable>, Rect>>() }
-                    val straddling = mutableListOf<IndexedValue<Positionable>>()
-                    items.fastForEach { pair ->
-                        val (item, itemBounds) = pair
+                    val buckets = Array(4) { mutableListOf<Item>() }
 
+                    val straddling = mutableListOf<Item>()
+                    items.forEach { item ->
+                        val itemBounds = item.bounds
                         val left = itemBounds.right <= midX
                         val right = itemBounds.left >= midX
                         val top = itemBounds.bottom <= midY
@@ -84,7 +98,7 @@ internal class SpatialBucketQuadtree private constructor(
                             right && bottom -> 3
                             else -> null
                         }?.let { quadrant ->
-                            buckets[quadrant] += pair
+                            buckets[quadrant] += item
                         } ?: straddling.add(item)
                     }
 
@@ -103,21 +117,23 @@ internal class SpatialBucketQuadtree private constructor(
 
         suspend fun build(
             layoutBounds: Rect,
-            pxBounds: Positionable.() -> Rect,
-            items: IntervalList<LazyTransformableLayoutLayer>
+            intervals: IntervalList<LazyTransformableLayoutLayer>,
+            pxBounds: Positionable.() -> Rect
         ) = withContext(Dispatchers.Default) {
-            if (items.size == 0) return@withContext null
+            if (intervals.size == 0) return@withContext null
 
-            val withBounds = mutableListOf<Pair<IndexedValue<Positionable>, Rect>>()
+            val positionables = mutableListOf<Positionable>()
+            val positionableBounds = mutableListOf<Rect>()
             var left = layoutBounds.left
             var top = layoutBounds.top
             var right = layoutBounds.right
             var bottom = layoutBounds.bottom
-            items.forEach { layer ->
-                layer.value.items.forEachIndexed { localIndex, positionable ->
+            intervals.forEach { layer ->
+                layer.value.items.forEach { positionable ->
                     ensureActive()
                     val pxBounds = positionable.pxBounds()
-                    withBounds += IndexedValue(layer.startIndex + localIndex, positionable) to pxBounds
+                    positionables += positionable
+                    positionableBounds += pxBounds
                     left = minOf(left, pxBounds.left)
                     top = minOf(top, pxBounds.top)
                     right = maxOf(right, pxBounds.right)
@@ -125,40 +141,60 @@ internal class SpatialBucketQuadtree private constructor(
                 }
             }
 
+            val drawOrder = FloatArray(positionables.size)
+            positionables.indices
+                .sortedBy { positionables[it].zIndex }
+                .fastForEachIndexed { rank, i ->
+                    drawOrder[i] = rank.toFloat()
+                }
+
+            val allItems = List(positionables.size) { i ->
+                Item(
+                    index = i,
+                    bounds = positionableBounds[i],
+                    zIndex = drawOrder[i]
+                )
+            }
+
             val root = Node.build(
                 bounds = Rect(left, top, right, bottom),
-                items = withBounds,
+                items = allItems,
                 depth = 0
             )
 
-            val nodeBoundsList = mutableListOf<Rect>()
-            val childIndicesList = mutableListOf<Int>()
-            val itemStartList = mutableListOf<Int>()
-            val itemNodeCountList = mutableListOf<Int>()
-            val itemIndicesList = mutableListOf<IndexedValue<Positionable>>()
+            val nodeBounds = mutableListOf<Rect>()
+            val nodeItemStart = mutableListOf<Int>()
+            val nodeItemCount = mutableListOf<Int>()
+            val nodeItems = mutableListOf<Item>()
+            val nodeLargestItemDimension = mutableListOf<Float>()
+            val nodeChildren = mutableListOf<Int>()
 
             fun Node.visit(): Int {
                 ensureActive()
-                val myIndex = nodeBoundsList.size
-                nodeBoundsList += bounds
-                itemStartList += itemIndicesList.size
-                itemNodeCountList += this.items.size
-                itemIndicesList += this.items
-                val base = myIndex * 4
-                repeat(4) { childIndicesList += -1 }
-                children?.forEachIndexed { q, child ->
-                    child?.let { childIndicesList[base + q] = it.visit() }
+                val index = nodeBounds.size
+                nodeBounds += bounds
+                nodeItemStart += nodeItems.size
+                nodeItemCount += items.size
+                nodeItems += items
+                nodeLargestItemDimension += largestItemDimension
+                repeat(4) { nodeChildren += -1 }
+                children?.let {
+                    val nodeChildrenStartIndex = index * 4
+                    for (i in 0 until 4) {
+                        nodeChildren[nodeChildrenStartIndex + i] = children[i]?.visit() ?: -1
+                    }
                 }
-                return myIndex
+                return index
             }
             root.visit()
 
             SpatialBucketQuadtree(
-                nodeBounds = nodeBoundsList.toTypedArray(),
-                childIndices = childIndicesList.toIntArray(),
-                itemStart = itemStartList.toIntArray(),
-                itemNodeCount = itemNodeCountList.toIntArray(),
-                itemIndices = itemIndicesList.toTypedArray()
+                nodeBounds = nodeBounds.toTypedArray(),
+                nodeItemStart = nodeItemStart.toIntArray(),
+                nodeItemCount = nodeItemCount.toIntArray(),
+                nodeItems = nodeItems.toTypedArray(),
+                nodeLargestItemDimension = nodeLargestItemDimension.toFloatArray(),
+                nodeChildren = nodeChildren.toIntArray()
             )
         }
     }

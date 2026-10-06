@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalWasmDsl::class)
-
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -24,6 +22,8 @@ kotlin {
     iosArm64()
     iosSimulatorArm64()
     jvm()
+
+    @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
         browser()
     }
@@ -32,6 +32,10 @@ kotlin {
         commonMain.dependencies {
             implementation(libs.jetbrains.compose.foundation)
             implementation(libs.kermit)
+        }
+
+        commonTest.dependencies {
+            implementation(kotlin("test"))
         }
     }
 }

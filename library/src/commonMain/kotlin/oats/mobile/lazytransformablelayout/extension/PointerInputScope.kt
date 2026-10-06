@@ -133,6 +133,7 @@ suspend fun PointerInputScope.detectTransformGestures(
         if (panVelocityPixels < maxOf(300.dp.toPx(), maxOf(zoomVelocityPixels, rotationVelocityPixels) * 0.35f))
             panVelocity = Velocity.Zero
 
+        // This must always be called to allow the overscroll effect to release
         onTransformStopped(rotationVelocity, logZoomVelocity, panVelocity, lastCentroid)
     }
 }

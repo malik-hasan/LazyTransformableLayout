@@ -2,10 +2,5 @@ package oats.mobile.lazytransformablelayout.extension
 
 import androidx.compose.ui.geometry.Rect
 
-val Rect.vertices
-    get() = longArrayOf(
-        topLeft.packedValue,
-        topRight.packedValue,
-        bottomRight.packedValue,
-        bottomLeft.packedValue
-    )
+internal val Rect.vertices
+    get() = arrayOf(topLeft, topRight, bottomRight, bottomLeft)
