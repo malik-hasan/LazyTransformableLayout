@@ -13,34 +13,36 @@ internal class SpatialBucketQuadtree private constructor(
     private val nodeItemStart: IntArray,
     private val nodeItemCount: IntArray,
     private val nodeItems: Array<Item>,
-    private val nodeLargestItemExtent: FloatArray,
+    private val nodeLargestItemDimension: FloatArray,
     private val nodeChildren: IntArray // 4 per node
 ) {
-    fun query(rect: Rect, minItemExtent: Float, out: MutableList<Item>) {
-        if (nodeBounds.isNotEmpty()) queryNode(0, rect, minItemExtent, out)
+    fun query(viewportBounds: Parallelogram, minItemDimension: Float, out: MutableList<Item>) {
+        if (nodeBounds.isNotEmpty()) queryNode(0, viewportBounds, minItemDimension, out)
     }
 
     private fun queryNode(
         nodeIndex: Int,
-        rect: Rect,
-        minItemExtent: Float,
+        viewportBounds: Parallelogram,
+        minItemDimension: Float,
         out: MutableList<Item>
     ) {
         if (nodeIndex == -1
-            || nodeLargestItemExtent[nodeIndex] < minItemExtent
-            || !nodeBounds[nodeIndex].overlaps(rect)
+            || nodeLargestItemDimension[nodeIndex] < minItemDimension
+            || !viewportBounds.intersects(nodeBounds[nodeIndex])
         ) return
 
         val nodeItemStartIndex = nodeItemStart[nodeIndex]
-        for (i in nodeItemStartIndex until nodeItemStartIndex + nodeItemCount[nodeIndex]) {
-            val item = nodeItems[i]
-            if (item.extent >= minItemExtent && item.bounds.overlaps(rect))
-                out += item
-        }
+        nodeItems.sliceArray(nodeItemStartIndex until nodeItemStartIndex + nodeItemCount[nodeIndex])
+            .forEach { item ->
+                if (item.maxDimension >= minItemDimension && viewportBounds.intersects(item.bounds))
+                    out += item
+            }
 
         val nodeChildrenStartIndex = nodeIndex * 4
-        for (childIndex in nodeChildrenStartIndex until nodeChildrenStartIndex + 4)
-            queryNode(nodeChildren[childIndex], rect, minItemExtent, out)
+        nodeChildren.sliceArray(nodeChildrenStartIndex until nodeChildrenStartIndex + 4)
+            .forEach { child ->
+                queryNode(child, viewportBounds, minItemDimension, out)
+            }
     }
 
     companion object {
@@ -49,14 +51,14 @@ internal class SpatialBucketQuadtree private constructor(
             val items: List<Item>,
             val children: Array<Node?>?
         ) {
-            val largestItemExtent: Float = run {
+            val largestItemDimension: Float = run {
                 var max = 0f
                 items.fastForEach {
-                    max = maxOf(max, it.extent)
+                    max = maxOf(max, it.maxDimension)
                 }
                 children?.forEach { child ->
                     child?.let {
-                        max = maxOf(max, it.largestItemExtent)
+                        max = maxOf(max, it.largestItemDimension)
                     }
                 }
                 max
@@ -165,7 +167,7 @@ internal class SpatialBucketQuadtree private constructor(
             val nodeItemStart = mutableListOf<Int>()
             val nodeItemCount = mutableListOf<Int>()
             val nodeItems = mutableListOf<Item>()
-            val nodeLargestItemExtent = mutableListOf<Float>()
+            val nodeLargestItemDimension = mutableListOf<Float>()
             val nodeChildren = mutableListOf<Int>()
 
             fun Node.visit(): Int {
@@ -175,7 +177,7 @@ internal class SpatialBucketQuadtree private constructor(
                 nodeItemStart += nodeItems.size
                 nodeItemCount += items.size
                 nodeItems += items
-                nodeLargestItemExtent += largestItemExtent
+                nodeLargestItemDimension += largestItemDimension
                 repeat(4) { nodeChildren += -1 }
                 children?.let {
                     val nodeChildrenStartIndex = index * 4
@@ -192,7 +194,7 @@ internal class SpatialBucketQuadtree private constructor(
                 nodeItemStart = nodeItemStart.toIntArray(),
                 nodeItemCount = nodeItemCount.toIntArray(),
                 nodeItems = nodeItems.toTypedArray(),
-                nodeLargestItemExtent = nodeLargestItemExtent.toFloatArray(),
+                nodeLargestItemDimension = nodeLargestItemDimension.toFloatArray(),
                 nodeChildren = nodeChildren.toIntArray()
             )
         }
