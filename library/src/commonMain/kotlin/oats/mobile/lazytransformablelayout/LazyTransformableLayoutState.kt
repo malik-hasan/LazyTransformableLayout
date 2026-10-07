@@ -107,11 +107,11 @@ class LazyTransformableLayoutState(
 
     internal val compositionBounds by derivedStateOf(referentialEqualityPolicy()) {
         constraints?.run {
-            val scale = scale
-            previousCompositionBounds?.takeIf { (previousScale, previousBounds) ->
-                scale <= previousScale * 1.19f
+            val minItemDimension = 0.5f / scale
+            previousCompositionBounds?.takeIf { (previousMinItemDimension, previousBounds) ->
+                minItemDimension * 1.19f >= previousMinItemDimension
                     && viewportBounds(128f) in previousBounds
-            } ?: (scale to viewportBounds(256f))
+            } ?: (minItemDimension to viewportBounds(256f))
                 .also { previousCompositionBounds = it }
         }
     }
