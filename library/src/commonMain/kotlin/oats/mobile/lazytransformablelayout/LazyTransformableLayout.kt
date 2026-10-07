@@ -43,10 +43,11 @@ fun LazyTransformableLayout(
 
     val scope = rememberCoroutineScope()
 
+    val layoutBounds = state.layoutBounds
     val density = LocalDensity.current
-    val quadtree by produceState<SpatialBucketQuadtree?>(null, density) {
+    val quadtree by produceState<SpatialBucketQuadtree?>(null, layoutBounds, content, density) {
         value = SpatialBucketQuadtree.build(
-            layoutBounds = state.layoutBounds,
+            layoutBounds = layoutBounds,
             intervals = content.intervals,
             pxBounds = {
                 with(density) { bounds.toRect() }
