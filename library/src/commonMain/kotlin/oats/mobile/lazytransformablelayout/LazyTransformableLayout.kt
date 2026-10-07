@@ -28,7 +28,6 @@ import kotlinx.coroutines.launch
 import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
 import oats.mobile.lazytransformablelayout.extension.transform
 import oats.mobile.lazytransformablelayout.model.Item
-import oats.mobile.lazytransformablelayout.model.SpatialBucketQuadtree
 
 @Composable
 fun LazyTransformableLayout(

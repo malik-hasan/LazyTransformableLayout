@@ -1,4 +1,4 @@
-package oats.mobile.lazytransformablelayout.model
+package oats.mobile.lazytransformablelayout
 
 import androidx.compose.foundation.lazy.layout.IntervalList
 import androidx.compose.ui.geometry.Rect
@@ -7,6 +7,10 @@ import androidx.compose.ui.util.fastForEachIndexed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import oats.mobile.lazytransformablelayout.model.Item
+import oats.mobile.lazytransformablelayout.model.LazyTransformableLayoutLayer
+import oats.mobile.lazytransformablelayout.model.Parallelogram
+import oats.mobile.lazytransformablelayout.model.Positionable
 
 internal class SpatialBucketQuadtree private constructor(
     private val nodeBounds: Array<Rect>,
