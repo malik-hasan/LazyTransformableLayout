@@ -98,11 +98,11 @@ fun LazyTransformableLayout(
         val constraintHeight = constraints.maxHeight
 
         val compositionBounds = state.compositionBounds ?: return@LazyLayout layout(constraintWidth, constraintHeight) {}
-        val viewportBounds = compositionBounds.first
-        val minItemDimension = 0.5f / compositionBounds.second
+        val minItemDimension = 0.5f / compositionBounds.first
+        val viewportBounds = compositionBounds.second
         val items = mutableListOf<Item>()
         quadtree
-            ?.query(viewportBounds, minItemDimension, items)
+            ?.query(minItemDimension, viewportBounds, items)
             ?: content.intervals.takeIf { it.size > 0 }?.forEach { layer ->
                 layer.value.items.forEachIndexed { localIndex, positionable ->
                     val pxBounds = positionable.bounds.toRect()

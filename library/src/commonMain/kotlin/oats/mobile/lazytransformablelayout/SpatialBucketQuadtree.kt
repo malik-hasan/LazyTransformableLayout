@@ -20,14 +20,14 @@ internal class SpatialBucketQuadtree private constructor(
     private val nodeLargestItemDimension: FloatArray,
     private val nodeChildren: IntArray // 4 per node
 ) {
-    fun query(viewportBounds: Parallelogram, minItemDimension: Float, out: MutableList<Item>) {
-        if (nodeBounds.isNotEmpty()) queryNode(0, viewportBounds, minItemDimension, out)
+    fun query(minItemDimension: Float, viewportBounds: Parallelogram, out: MutableList<Item>) {
+        if (nodeBounds.isNotEmpty()) queryNode(0, minItemDimension, viewportBounds, out)
     }
 
     private fun queryNode(
         nodeIndex: Int,
-        viewportBounds: Parallelogram,
         minItemDimension: Float,
+        viewportBounds: Parallelogram,
         out: MutableList<Item>
     ) {
         if (nodeIndex == -1
@@ -44,7 +44,7 @@ internal class SpatialBucketQuadtree private constructor(
 
         val nodeChildrenStartIndex = nodeIndex * 4
         for (i in nodeChildrenStartIndex until nodeChildrenStartIndex + 4) {
-            queryNode(nodeChildren[i], viewportBounds, minItemDimension, out)
+            queryNode(nodeChildren[i], minItemDimension, viewportBounds, out)
         }
     }
 

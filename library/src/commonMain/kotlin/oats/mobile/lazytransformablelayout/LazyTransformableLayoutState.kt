@@ -103,15 +103,15 @@ class LazyTransformableLayoutState(
         }
     }
 
-    private var previousCompositionBounds: Pair<Parallelogram, Float>? = null
+    private var previousCompositionBounds: Pair<Float, Parallelogram>? = null
 
     internal val compositionBounds by derivedStateOf(referentialEqualityPolicy()) {
         constraints?.run {
             val scale = scale
-            previousCompositionBounds?.takeIf { (previousBounds, previousScale) ->
+            previousCompositionBounds?.takeIf { (previousScale, previousBounds) ->
                 scale <= previousScale * 1.19f
                     && viewportBounds(128f) in previousBounds
-            } ?: (viewportBounds(256f) to scale)
+            } ?: (scale to viewportBounds(256f))
                 .also { previousCompositionBounds = it }
         }
     }
