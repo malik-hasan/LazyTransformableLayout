@@ -48,7 +48,6 @@ fun LazyTransformableLayout(
     var quadtree by remember { mutableStateOf<SpatialBucketQuadtree?>(null) }
     val density = LocalDensity.current
     LaunchedEffect(content, density) {
-        quadtree = null
         quadtree = SpatialBucketQuadtree.build(
             layoutBounds = state.layoutBounds,
             intervals = content.intervals,
