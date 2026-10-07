@@ -68,10 +68,13 @@ class LazyTransformableLayoutState(
     private val rotateZoomFlingDecay: DecayAnimationSpec<Pair<Float, Float>> = exponentialDecay()
 ) {
     internal var layoutBounds by mutableStateOf(layoutBounds)
+        private set
 
     internal var rotationBounds by mutableStateOf(rotationBounds)
+        private set
 
     internal var zoomBounds by mutableStateOf(zoomBounds)
+        private set
 
     init {
         rotationBounds.run {

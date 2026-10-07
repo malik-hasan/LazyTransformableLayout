@@ -6,15 +6,13 @@ import androidx.compose.foundation.lazy.layout.LazyLayout
 import androidx.compose.foundation.overscroll
 import androidx.compose.foundation.rememberOverscrollEffect
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.referentialEqualityPolicy
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.TransformOrigin
@@ -45,10 +43,9 @@ fun LazyTransformableLayout(
 
     val scope = rememberCoroutineScope()
 
-    var quadtree by remember { mutableStateOf<SpatialBucketQuadtree?>(null) }
     val density = LocalDensity.current
-    LaunchedEffect(content, density) {
-        quadtree = SpatialBucketQuadtree.build(
+    val quadtree by produceState<SpatialBucketQuadtree?>(null, density) {
+        value = SpatialBucketQuadtree.build(
             layoutBounds = state.layoutBounds,
             intervals = content.intervals,
             pxBounds = {
@@ -66,7 +63,7 @@ fun LazyTransformableLayout(
         modifier = modifier
             .clipToBounds()
             .overscroll(overscrollEffect)
-            .pointerInput(Unit) {
+            .pointerInput(state, overscrollEffect) {
                 detectTransformGestures(
                     onTransformStopped = { rotationVelocity, logZoomVelocity, panVelocity, centroid ->
                          scope.launch {
@@ -88,7 +85,7 @@ fun LazyTransformableLayout(
                         overscrollEffect = overscrollEffect
                     )
                 }
-            }.pointerInput(Unit) {
+            }.pointerInput(state) {
                 detectTapGestures(
                     onPress = { state.cancelFling() }
                 )
