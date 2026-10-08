@@ -8,7 +8,6 @@ import androidx.compose.foundation.rememberOverscrollEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.referentialEqualityPolicy
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -18,15 +17,25 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.roundToIntRect
 import androidx.compose.ui.util.fastForEach
 import kotlinx.coroutines.launch
 import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
 import oats.mobile.lazytransformablelayout.extension.transform
 import oats.mobile.lazytransformablelayout.model.Item
 
+/**
+ * A lazy layout of [oats.mobile.lazytransformablelayout.model.Positionable] items that can be panned, zoomed and rotated.
+ * Only items intersecting the viewport are composed.
+ *
+ * @param state The camera state of this layout
+ * @param modifier The modifier to apply to this layout
+ * @param overscrollEffect The effect shown when panning past the layout bounds
+ * @param contentBuilder Declares the items of this layout. It runs again whenever its lambda instance changes
+ * or state it reads changes, and every run re-reads the bounds of all items and remeasures the layout.
+ * Keep it stable: avoid capturing values that change often, and read frequently changing state
+ * inside the item content instead.
+ */
 @Composable
 fun LazyTransformableLayout(
     state: LazyTransformableLayoutState,
@@ -41,19 +50,14 @@ fun LazyTransformableLayout(
         }
     }
 
-    val scope = rememberCoroutineScope()
-
-    val layoutBounds = state.layoutBounds
     val density = LocalDensity.current
-    val quadtree by produceState<SpatialBucketQuadtree?>(null, layoutBounds, content, density) {
-        value = SpatialBucketQuadtree.build(
-            layoutBounds = layoutBounds,
-            intervals = content.intervals,
-            pxBounds = {
-                with(density) { bounds.toRect() }
-            }
-        )
+    val spatialIndex by remember(density.density) {
+        derivedStateOf(referentialEqualityPolicy()) {
+            SpatialIndex(content.intervals, density)
+        }
     }
+
+    val scope = rememberCoroutineScope()
 
     LazyLayout(
         itemProvider = remember {
@@ -94,62 +98,38 @@ fun LazyTransformableLayout(
     ) { constraints ->
         state.acceptConstraints(constraints)
 
-        val constraintWidth = constraints.maxWidth
-        val constraintHeight = constraints.maxHeight
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            state.compositionBounds?.let { (minItemDimension, viewportBounds) ->
+                val items = mutableListOf<Item>()
+                spatialIndex.query(minItemDimension, viewportBounds, items)
 
-        val compositionBounds = state.compositionBounds ?: return@LazyLayout layout(constraintWidth, constraintHeight) {}
-        val (minItemDimension, viewportBounds) = compositionBounds
-        val items = mutableListOf<Item>()
-        quadtree
-            ?.query(minItemDimension, viewportBounds, items)
-            ?: content.intervals.takeIf { it.size > 0 }?.forEach { layer ->
-                layer.value.items.forEachIndexed { localIndex, positionable ->
-                    val pxBounds = positionable.bounds.toRect()
-                    if (pxBounds.maxDimension >= minItemDimension && viewportBounds.intersects(pxBounds))
-                        items += Item(
-                            index = layer.startIndex + localIndex,
-                            bounds = pxBounds,
-                            zIndex = positionable.zIndex
-                        )
-                }
-            }
+                items.fastForEach { item ->
+                    val itemPosition = item.position
 
-        layout(constraintWidth, constraintHeight) {
-            items.fastForEach { item ->
-                val itemBounds = item.bounds
+                    compose(item.index).fastForEach { measurable ->
+                        val placeable = measurable.measure(item.constraints)
 
-                val itemConstraints = itemBounds.roundToIntRect().run {
-                    Constraints(
-                        maxWidth = width,
-                        maxHeight = height
-                    )
-                }
-
-                val itemPosition = itemBounds.topLeft
-
-                compose(item.index).fastForEach { measurable ->
-                    val placeable = measurable.measure(itemConstraints)
-
-                    if (itemPosition.run {
-                        viewportBounds.intersects(
-                            left = x,
-                            top = y,
-                            right = x + placeable.width,
-                            bottom = y + placeable.height
-                        )
-                    }) {
-                        placeable.placeWithLayer(
-                            position = IntOffset.Zero,
-                            zIndex = item.zIndex
-                        ) {
-                            val (offset, angle, scale) = state
-                            transformOrigin = TransformOrigin(0f, 0f)
-                            scaleX = scale
-                            scaleY = scale
-                            rotationZ = angle
-                            val translation = itemPosition.transform(scale, angle) - offset
-                            translationX = translation.x
-                            translationY = translation.y
+                        if (itemPosition.run {
+                            viewportBounds.intersects(
+                                left = x,
+                                top = y,
+                                right = x + placeable.width,
+                                bottom = y + placeable.height
+                            )
+                        }) {
+                            placeable.placeWithLayer(
+                                position = IntOffset.Zero,
+                                zIndex = item.zIndex
+                            ) {
+                                val (offset, angle, scale) = state
+                                transformOrigin = TransformOrigin(0f, 0f)
+                                scaleX = scale
+                                scaleY = scale
+                                rotationZ = angle
+                                val translation = itemPosition.transform(scale, angle) - offset
+                                translationX = translation.x
+                                translationY = translation.y
+                            }
                         }
                     }
                 }

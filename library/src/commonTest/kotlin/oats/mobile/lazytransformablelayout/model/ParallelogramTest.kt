@@ -21,7 +21,7 @@ class ParallelogramTest {
 
     @Test
     fun boundsCoverAllVertices() {
-        assertEquals(Rect(-1f, -1f, 1f, 1f), diamond.bounds)
+        assertEquals(Rect(-1f, -1f, 1f, 1f), diamond.axisAlignedBoundingBox)
     }
 
     private val inner = Parallelogram(Offset(-0.5f, 0f), Offset(0f, -0.5f), Offset(0.5f, 0f), Offset(0f, 0.5f))

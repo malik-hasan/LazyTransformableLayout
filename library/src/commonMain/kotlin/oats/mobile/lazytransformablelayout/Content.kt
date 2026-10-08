@@ -48,13 +48,5 @@ internal class Content(
         ) { i -> content(i, items[i]) }
     )
 
-    init {
-        buildContent()
-        val seen = HashSet<Any>(itemCount)
-        for (i in 0 until itemCount) {
-            require(seen.add(getKey(i))) {
-                "Duplicate key ${getKey(i)} at index $i in LazyTransformableLayout content"
-            }
-        }
-    }
+    init { buildContent() }
 }

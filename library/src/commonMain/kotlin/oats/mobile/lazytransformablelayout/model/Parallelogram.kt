@@ -21,7 +21,7 @@ internal data class Parallelogram(
     private val determinant = u cross v
     private val center = (origin + this[2]) / 2f
 
-    val bounds = run {
+    val axisAlignedBoundingBox = run {
         var minX = Float.POSITIVE_INFINITY
         var minY = Float.POSITIVE_INFINITY
         var maxX = Float.NEGATIVE_INFINITY
@@ -47,8 +47,11 @@ internal data class Parallelogram(
     }
 
     fun intersects(left: Float, top: Float, right: Float, bottom: Float): Boolean {
-        if (right <= bounds.left || left >= bounds.right || bottom <= bounds.top || top >= bounds.bottom)
-            return false
+        if (right <= axisAlignedBoundingBox.left
+            || left >= axisAlignedBoundingBox.right
+            || bottom <= axisAlignedBoundingBox.top
+            || top >= axisAlignedBoundingBox.bottom
+        ) return false
 
         val d = Offset((left + right) / 2, (top + bottom) / 2) - center
         val rectHalfWidth = (right - left) / 2

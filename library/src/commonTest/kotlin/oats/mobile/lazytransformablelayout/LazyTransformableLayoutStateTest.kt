@@ -43,12 +43,12 @@ class LazyTransformableLayoutStateTest {
                 val state = state()
                 state.set(angle = angle, scale = scale, offset = Offset(1_000f, 1_000f))
                 val (offset, actualAngle, actualScale) = state
-                val region = state.compositionBounds!!.first
+                val region = state.compositionBounds!!.second
 
                 repeat(2_000) {
                     val point = Offset(
-                        region.bounds.left + random.nextFloat() * region.bounds.width,
-                        region.bounds.top + random.nextFloat() * region.bounds.height
+                        region.axisAlignedBoundingBox.left + random.nextFloat() * region.axisAlignedBoundingBox.width,
+                        region.axisAlignedBoundingBox.top + random.nextFloat() * region.axisAlignedBoundingBox.height
                     )
                     // where the layer blocks draw this layout point on screen
                     val screen = point.transform(actualScale, actualAngle) - offset
@@ -81,7 +81,7 @@ class LazyTransformableLayoutStateTest {
         for (angle in listOf(0f, 45f, -100f)) {
             val state = state()
             state.set(angle = angle, scale = 1f, offset = Offset(2_000f, 2_000f))
-            assertTrue(state.viewportBounds(128f) in state.compositionBounds!!.first)
+            assertTrue(state.viewportBounds(128f) in state.compositionBounds!!.second)
         }
     }
 

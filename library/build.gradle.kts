@@ -17,6 +17,9 @@ kotlin {
         compileSdk = libs.versions.android.targetSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
         compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
+        withDeviceTest {
+            instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        }
     }
 
     iosArm64()
@@ -36,6 +39,26 @@ kotlin {
 
         commonTest.dependencies {
             implementation(kotlin("test"))
+        }
+
+        named("androidDeviceTest").dependencies {
+            implementation(libs.androidx.test.runner)
+            implementation(libs.androidx.test.junit)
+            implementation(libs.junit)
+        }
+
+        jvmTest.dependencies {
+            implementation(libs.jetbrains.compose.ui.test)
+            implementation(
+                with(System.getProperty("os.name").lowercase()) {
+                    val arm = System.getProperty("os.arch").contains("aarch64")
+                    when {
+                        contains("mac") -> if (arm) libs.jetbrains.compose.desktop.macos.arm64 else libs.jetbrains.compose.desktop.macos.x64
+                        contains("win") -> libs.jetbrains.compose.desktop.windows.x64
+                        else -> if (arm) libs.jetbrains.compose.desktop.linux.arm64 else libs.jetbrains.compose.desktop.linux.x64
+                    }
+                }
+            )
         }
     }
 }

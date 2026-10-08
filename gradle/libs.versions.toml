@@ -2,15 +2,18 @@
 android-minSdk = "23"
 android-targetSdk = "37"
 
-android = "9.3.2" # https://kotlinlang.org/docs/multiplatform-compatibility-guide.html#version-compatibility
-kotlin = "2.4.10"
+android = "9.3.1" # https://kotlinlang.org/docs/multiplatform-compatibility-guide.html#version-compatibility
+kotlin = "2.4.20"
 maven-publish = "0.37.0"
 
 activity-compose = "1.13.0"
-androidx-compose = "2026.08.00"
-jetbrains-compose = "1.12.0"
-kermit = "2.1.0"
-navigation3 = "1.1.7"
+androidx-compose = "2026.09.00"
+androidx-test-junit = "1.3.0"
+androidx-test-runner = "1.7.0"
+jetbrains-compose = "1.12.1"
+junit = "4.13.2"
+kermit = "2.2.0"
+navigation3 = "1.2.0"
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "android" }
@@ -25,10 +28,21 @@ maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "maven-publ
 [libraries]
 activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
 
+androidx-test-junit = { module = "androidx.test.ext:junit", version.ref = "androidx-test-junit" }
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidx-test-runner" }
+
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "androidx-compose" }
 androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
 
 jetbrains-compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "jetbrains-compose" }
+jetbrains-compose-ui-test = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "jetbrains-compose" }
+jetbrains-compose-desktop-macos-arm64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-macos-arm64", version.ref = "jetbrains-compose" }
+jetbrains-compose-desktop-macos-x64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-macos-x64", version.ref = "jetbrains-compose" }
+jetbrains-compose-desktop-linux-arm64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-linux-arm64", version.ref = "jetbrains-compose" }
+jetbrains-compose-desktop-linux-x64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-linux-x64", version.ref = "jetbrains-compose" }
+jetbrains-compose-desktop-windows-x64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-windows-x64", version.ref = "jetbrains-compose" }
+
+junit = { module = "junit:junit", version.ref = "junit" }
 
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 
