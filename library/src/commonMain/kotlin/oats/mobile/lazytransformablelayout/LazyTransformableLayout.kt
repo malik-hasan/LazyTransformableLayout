@@ -19,6 +19,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.util.fastForEach
+import androidx.compose.ui.util.fastForEachIndexed
+import androidx.compose.ui.util.fastMap
 import kotlinx.coroutines.launch
 import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
 import oats.mobile.lazytransformablelayout.extension.transform
@@ -98,39 +100,41 @@ fun LazyTransformableLayout(
     ) { constraints ->
         state.acceptConstraints(constraints)
 
+        val (minItemDimension, viewportBounds) = state.compositionBounds
+            ?: return@LazyLayout layout(constraints.maxWidth, constraints.maxHeight) {}
+
+        val items = mutableListOf<Item>()
+        spatialIndex.query(minItemDimension, viewportBounds, items)
+        val placeables = items.fastMap { item ->
+            compose(item.index).fastMap {
+                it.measure(item.constraints)
+            }
+        }
+
         layout(constraints.maxWidth, constraints.maxHeight) {
-            state.compositionBounds?.let { (minItemDimension, viewportBounds) ->
-                val items = mutableListOf<Item>()
-                spatialIndex.query(minItemDimension, viewportBounds, items)
+            items.fastForEachIndexed { i, item ->
+                val itemPosition = item.position
 
-                items.fastForEach { item ->
-                    val itemPosition = item.position
-
-                    compose(item.index).fastForEach { measurable ->
-                        val placeable = measurable.measure(item.constraints)
-
-                        if (itemPosition.run {
-                            viewportBounds.intersects(
-                                left = x,
-                                top = y,
-                                right = x + placeable.width,
-                                bottom = y + placeable.height
-                            )
-                        }) {
-                            placeable.placeWithLayer(
-                                position = IntOffset.Zero,
-                                zIndex = item.zIndex
-                            ) {
-                                val (offset, angle, scale) = state
-                                transformOrigin = TransformOrigin(0f, 0f)
-                                scaleX = scale
-                                scaleY = scale
-                                rotationZ = angle
-                                val translation = itemPosition.transform(scale, angle) - offset
-                                translationX = translation.x
-                                translationY = translation.y
-                            }
-                        }
+                placeables[i].fastForEach { placeable ->
+                    if (itemPosition.run {
+                        viewportBounds.intersects(
+                            left = x,
+                            top = y,
+                            right = x + placeable.width,
+                            bottom = y + placeable.height
+                        )
+                    }) placeable.placeWithLayer(
+                        position = IntOffset.Zero,
+                        zIndex = item.zIndex
+                    ) {
+                        transformOrigin = TransformOrigin(0f, 0f)
+                        val (offset, angle, scale) = state
+                        scaleX = scale
+                        scaleY = scale
+                        rotationZ = angle
+                        val translation = itemPosition.transform(scale, angle, offset)
+                        translationX = translation.x
+                        translationY = translation.y
                     }
                 }
             }

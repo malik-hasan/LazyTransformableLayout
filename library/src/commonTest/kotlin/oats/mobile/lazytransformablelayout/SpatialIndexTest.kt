@@ -2,12 +2,14 @@ package oats.mobile.lazytransformablelayout
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import oats.mobile.lazytransformablelayout.model.Item
 import oats.mobile.lazytransformablelayout.model.Parallelogram
 import oats.mobile.lazytransformablelayout.model.Positionable
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -21,12 +23,19 @@ class SpatialIndexTest {
     private val density = Density(2f)
 
     private fun spatialIndex(
-        density: Float = this.density.density,
+        density: Density = this.density,
         builder: LazyTransformableLayoutScope.() -> Unit
     ) = SpatialIndex(Content(builder).intervals, density)
 
     private fun rectViewport(left: Float, top: Float, right: Float, bottom: Float) =
         Parallelogram(Offset(left, top), Offset(right, top), Offset(right, bottom), Offset(left, bottom))
+
+    private fun item(index: Int, bounds: Rect, zIndex: Float) = Item(
+        index = index,
+        constraints = Constraints(maxWidth = bounds.width.roundToInt(), maxHeight = bounds.height.roundToInt()),
+        position = bounds.topLeft,
+        zIndex = zIndex
+    )
 
     private fun SpatialIndex.query(minItemDimension: Float, viewport: Parallelogram) =
         mutableListOf<Item>().also { query(minItemDimension, viewport, it) }
@@ -53,10 +62,10 @@ class SpatialIndexTest {
 
         assertEquals(
             listOf(
-                Item(index = 0, bounds = Rect(0f, 0f, 20f, 20f), zIndex = 3f),
-                Item(index = 2, bounds = Rect(80f, 80f, 120f, 90f), zIndex = -1f),
-                Item(index = 3, bounds = Rect(100f, 0f, 120f, 20f), zIndex = 0f),
-                Item(index = 5, bounds = Rect(180f, 180f, 240f, 240f), zIndex = 2f)
+                item(index = 0, bounds = Rect(0f, 0f, 20f, 20f), zIndex = 3f),
+                item(index = 2, bounds = Rect(80f, 80f, 120f, 90f), zIndex = -1f),
+                item(index = 3, bounds = Rect(100f, 0f, 120f, 20f), zIndex = 0f),
+                item(index = 5, bounds = Rect(180f, 180f, 240f, 240f), zIndex = 2f)
             ),
             index.query(0f, rectViewport(0f, 0f, 200f, 200f))
         )
@@ -120,7 +129,7 @@ class SpatialIndexTest {
             val expected = positionables.mapIndexedNotNull { i, p ->
                 val bounds = with(density) { p.bounds.toRect() }
                 if (bounds.maxDimension >= minItemDimension && viewport.intersects(bounds))
-                    Item(i, bounds, p.zIndex)
+                    item(i, bounds, p.zIndex)
                 else null
             }
             assertEquals(expected, index.query(minItemDimension, viewport))
@@ -135,17 +144,17 @@ class SpatialIndexTest {
 
         assertEquals(
             listOf(
-                Item(index = 0, bounds = Rect(0f, 0f, 20f, 20f), zIndex = 0f),
-                Item(index = 1, bounds = Rect(40f, 40f, 80f, 60f), zIndex = 2f)
+                item(index = 0, bounds = Rect(0f, 0f, 20f, 20f), zIndex = 0f),
+                item(index = 1, bounds = Rect(40f, 40f, 80f, 60f), zIndex = 2f)
             ),
-            spatialIndex(2f) { itemsIndexed(list) { _, _ -> } }.query(0f, everything)
+            spatialIndex(Density(2f)) { itemsIndexed(list) { _, _ -> } }.query(0f, everything)
         )
         assertEquals(
             listOf(
-                Item(index = 0, bounds = Rect(0f, 0f, 30f, 30f), zIndex = 0f),
-                Item(index = 1, bounds = Rect(60f, 60f, 120f, 90f), zIndex = 2f)
+                item(index = 0, bounds = Rect(0f, 0f, 30f, 30f), zIndex = 0f),
+                item(index = 1, bounds = Rect(60f, 60f, 120f, 90f), zIndex = 2f)
             ),
-            spatialIndex(3f) { itemsIndexed(list) { _, _ -> } }.query(0f, everything)
+            spatialIndex(Density(3f)) { itemsIndexed(list) { _, _ -> } }.query(0f, everything)
         )
     }
 
@@ -159,14 +168,14 @@ class SpatialIndexTest {
         backing += positionable(40, 0, 50, 10)
         backing += positionable(60, 0, 70, 10)
 
-        val items = SpatialIndex(content.intervals, density.density).query(0f, everything)
+        val items = SpatialIndex(content.intervals, density).query(0f, everything)
 
         assertEquals(3, content.itemCount)
         assertEquals(
             listOf(
-                Item(index = 0, bounds = Rect(200f, 200f, 220f, 220f), zIndex = 0f),
-                Item(index = 1, bounds = Rect(0f, 0f, 20f, 20f), zIndex = 0f),
-                Item(index = 2, bounds = Rect(40f, 0f, 60f, 20f), zIndex = 0f)
+                item(index = 0, bounds = Rect(200f, 200f, 220f, 220f), zIndex = 0f),
+                item(index = 1, bounds = Rect(0f, 0f, 20f, 20f), zIndex = 0f),
+                item(index = 2, bounds = Rect(40f, 0f, 60f, 20f), zIndex = 0f)
             ),
             items
         )
@@ -182,14 +191,14 @@ class SpatialIndexTest {
         }
         repeat(5) { backing += positionable(500, 500, 510, 510, zIndex = 9f) }
 
-        val items = SpatialIndex(content.intervals, density.density).query(0f, everything)
+        val items = SpatialIndex(content.intervals, density).query(0f, everything)
 
         assertEquals(3, content.itemCount)
         assertEquals(
             listOf(
-                Item(index = 0, bounds = Rect(0f, 0f, 20f, 20f), zIndex = 0f),
-                Item(index = 1, bounds = Rect(200f, 200f, 220f, 220f), zIndex = 1f),
-                Item(index = 2, bounds = Rect(400f, 400f, 420f, 420f), zIndex = 2f)
+                item(index = 0, bounds = Rect(0f, 0f, 20f, 20f), zIndex = 0f),
+                item(index = 1, bounds = Rect(200f, 200f, 220f, 220f), zIndex = 1f),
+                item(index = 2, bounds = Rect(400f, 400f, 420f, 420f), zIndex = 2f)
             ),
             items
         )

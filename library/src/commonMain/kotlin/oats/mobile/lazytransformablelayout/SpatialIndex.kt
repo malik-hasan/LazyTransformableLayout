@@ -49,7 +49,7 @@ internal class SpatialIndex(
                 && left <= viewportAABB.right
                 && bottom >= viewportAABB.top
                 && top <= viewportAABB.bottom
-                && maxOf(right - left, bottom - top) > minItemDimension
+                && maxOf(right - left, bottom - top) >= minItemDimension
                 && viewportBounds.intersects(left, top, right, bottom)
             ) out += Item(
                 index = i,

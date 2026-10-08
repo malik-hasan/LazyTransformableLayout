@@ -2,6 +2,7 @@ package oats.mobile.lazytransformablelayout
 
 import android.util.Log
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -51,8 +52,8 @@ class SpatialIndexDeviceBenchmark {
             val iterations = if (n >= 100_000) 20 else 100
 
             val content = Content { itemsIndexed(positionables) { _, _ -> } }
-            val (indexBuildMs, _) = time(iterations / 2) { SpatialIndex(content.intervals, 1f); 0 }
-            val index = SpatialIndex(content.intervals, 1f)
+            val (indexBuildMs, _) = time(iterations / 2) { SpatialIndex(content.intervals, Density(1f)); 0 }
+            val index = SpatialIndex(content.intervals, Density(1f))
 
             Log.i(TAG, "n=%-7d indexBuild=%.3fms".format(n, indexBuildMs))
 
