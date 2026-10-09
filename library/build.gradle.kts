@@ -63,6 +63,11 @@ kotlin {
     }
 }
 
+tasks.withType<Test> {
+    systemProperty("java.awt.headless", "true")
+    systemProperty("apple.awt.UIElement", "true")
+}
+
 mavenPublishing {
     coordinates(
         groupId = packageName,
