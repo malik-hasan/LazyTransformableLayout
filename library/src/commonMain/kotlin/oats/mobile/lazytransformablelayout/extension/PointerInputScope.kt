@@ -23,9 +23,9 @@ import kotlin.math.hypot
 import kotlin.math.ln
 
 suspend fun PointerInputScope.detectTransformGestures(
-    onTransformStopped: (rotationVelocity: Float, logZoomVelocity: Float, panVelocity: Velocity, centroid: Offset) -> Unit,
+    onTransformStopped: (centroid: Offset, rotationVelocity: Float, logZoomVelocity: Float, panVelocity: Velocity) -> Unit,
     panZoomLock: Boolean = false,
-    onTransform: (rotationDelta: Float, zoomFactor: Float, panDelta: Offset, centroid: Offset) -> Unit
+    onTransform: (centroid: Offset, rotationDelta: Float, zoomFactor: Float, panDelta: Offset) -> Unit
 ) = awaitEachGesture {
     var lockedToPanZoom = false
 
@@ -84,7 +84,7 @@ suspend fun PointerInputScope.detectTransformGestures(
                     maxCentroidSize = maxOf(maxCentroidSize, centroidSize)
 
                     if (rotationDelta != 0f || zoomFactor != 1f || panDelta != Offset.Zero)
-                        onTransform(rotationDelta, zoomFactor, panDelta, centroid)
+                        onTransform(centroid, rotationDelta, zoomFactor, panDelta)
 
                     changes.fastForEach {
                         if (it.positionChanged()) it.consume()
@@ -134,6 +134,6 @@ suspend fun PointerInputScope.detectTransformGestures(
             panVelocity = Velocity.Zero
 
         // This must always be called to allow the overscroll effect to release
-        onTransformStopped(rotationVelocity, logZoomVelocity, panVelocity, lastCentroid)
+        onTransformStopped(lastCentroid, rotationVelocity, logZoomVelocity, panVelocity)
     }
 }

@@ -2,14 +2,11 @@ package oats.mobile.lazytransformablelayout
 
 import androidx.annotation.FloatRange
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.AnimationVector2D
-import androidx.compose.animation.core.DecayAnimation
-import androidx.compose.animation.core.DecayAnimationSpec
+import androidx.compose.animation.core.AnimationState
 import androidx.compose.animation.core.FloatDecayAnimationSpec
 import androidx.compose.animation.core.FloatExponentialDecaySpec
-import androidx.compose.animation.core.TwoWayConverter
-import androidx.compose.animation.core.exponentialDecay
-import androidx.compose.animation.core.getVelocityFromNanos
+import androidx.compose.animation.core.animateDecay
+import androidx.compose.animation.core.generateDecayAnimationSpec
 import androidx.compose.foundation.OverscrollEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
@@ -19,7 +16,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.referentialEqualityPolicy
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.toRect
@@ -41,7 +37,6 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.floor
-import kotlin.math.ln
 import kotlin.math.sin
 
 /**
@@ -54,7 +49,8 @@ import kotlin.math.sin
  * @param initialAngle initial rotation angle in degrees
  * @param initialScale initial zoom scale (greater than zero)
  * @param panFlingDecay decay animation spec for panning fling velocity
- * @param rotateZoomFlingDecay decay animation spec for zoom and rotation fling velocity
+ * @param rotationFlingDecay decay animation spec for rotation fling velocity in degrees
+ * @param zoomFlingDecay decay animation spec for zoom fling velocity in log scale
  */
 @Stable
 class LazyTransformableLayoutState(
@@ -65,7 +61,8 @@ class LazyTransformableLayoutState(
     initialAngle: Float = 0f,
     @FloatRange(from = 0.0, fromInclusive = false) initialScale: Float = 1f,
     private val panFlingDecay: FloatDecayAnimationSpec = FloatExponentialDecaySpec(),
-    private val rotateZoomFlingDecay: DecayAnimationSpec<Pair<Float, Float>> = exponentialDecay()
+    private val rotationFlingDecay: FloatDecayAnimationSpec = FloatExponentialDecaySpec(),
+    private val zoomFlingDecay: FloatDecayAnimationSpec = FloatExponentialDecaySpec()
 ) {
     internal var layoutBounds by mutableStateOf(layoutBounds)
         private set
@@ -173,20 +170,22 @@ class LazyTransformableLayoutState(
         rotationBounds: ClosedFloatingPointRange<Float>? = null,
         zoomBounds: ClosedFloatingPointRange<Float>? = null
     ) {
-        layoutBounds?.let {
-            this.layoutBounds = it
-        }
-
-        rotationBounds?.let {
-            this.rotationBounds = it
-            angle = clampAngle(angle)
-        }
-
-        zoomBounds?.let {
-            this.zoomBounds = it
-        }
-
         if (layoutBounds != null || rotationBounds != null || zoomBounds != null) {
+            cancelFling()
+
+            layoutBounds?.let {
+                this.layoutBounds = it
+            }
+
+            rotationBounds?.let {
+                this.rotationBounds = it
+                angle = clampAngle(angle)
+            }
+
+            zoomBounds?.let {
+                this.zoomBounds = it
+            }
+
             scale = clampScale(scale)
             offset = clampOffset(offset)
         }
@@ -216,20 +215,22 @@ class LazyTransformableLayoutState(
     fun set(angle: Float? = null, scale: Float? = null, offset: Offset? = null): Array<Boolean?> {
         val clampedArray = arrayOfNulls<Boolean>(3)
 
-        angle?.let {
-            val clampedAngle = clampAngle(angle)
-            this.angle = clampedAngle
-            clampedArray[0] = clampedAngle == angle
-        }
-
-        if (angle != null || scale != null) {
-            val preClampScale = scale ?: this.scale
-            val clampedScale = clampScale(preClampScale)
-            this.scale = clampedScale
-            clampedArray[1] = clampedScale == preClampScale
-        }
-
         if (angle != null || scale != null || offset != null) {
+            cancelFling()
+
+            angle?.let {
+                val clampedAngle = clampAngle(angle)
+                this.angle = clampedAngle
+                clampedArray[0] = clampedAngle == angle
+            }
+
+            if (angle != null || scale != null) {
+                val preClampScale = scale ?: this.scale
+                val clampedScale = clampScale(preClampScale)
+                this.scale = clampedScale
+                clampedArray[1] = clampedScale == preClampScale
+            }
+
             val preClampOffset = offset ?: this.offset
             val clampedOffset = clampOffset(preClampOffset)
             this.offset = clampedOffset
@@ -240,34 +241,36 @@ class LazyTransformableLayoutState(
     }
 
     fun transform(
-        rotationDelta: Float,
-        zoomFactor: Float,
-        panDelta: Offset,
         centroid: Offset,
+        rotationDelta: Float = 0f,
+        zoomFactor: Float = 1f,
+        panDelta: Offset = Offset.Zero,
         overscrollEffect: OverscrollEffect? = null,
         nestedScrollSource: NestedScrollSource = NestedScrollSource.UserInput
     ) {
+        cancelFling()
+
         val scaledPanDelta = panDelta / zoomFactor
         overscrollEffect?.applyToScroll(scaledPanDelta, nestedScrollSource) { scrollDelta ->
             transform(
+                centroid = centroid,
                 rotationDelta = rotationDelta,
                 zoomFactor = zoomFactor,
-                panDelta = scrollDelta,
-                centroid = centroid
+                panDelta = scrollDelta
             )
         } ?: transform(
+            centroid = centroid,
             rotationDelta = rotationDelta,
             zoomFactor = zoomFactor,
-            panDelta = scaledPanDelta,
-            centroid = centroid
+            panDelta = scaledPanDelta
         )
     }
 
     private fun transform(
-        rotationDelta: Float,
-        zoomFactor: Float,
-        panDelta: Offset,
-        centroid: Offset
+        centroid: Offset,
+        rotationDelta: Float = 0f,
+        zoomFactor: Float = 1f,
+        panDelta: Offset = Offset.Zero
     ): Offset {
         val previousAngle = angle
         val newAngle = clampAngle(previousAngle + rotationDelta)
@@ -293,11 +296,6 @@ class LazyTransformableLayoutState(
         return prePanOffset - postPanOffset
     }
 
-    private val floatPairVectorConverter = TwoWayConverter<Pair<Float, Float>, AnimationVector2D>(
-        convertToVector = { AnimationVector2D(it.first, it.second) },
-        convertFromVector = { it.v1 to it.v2 }
-    )
-
     private var fling: Job? = null
 
     fun cancelFling() = fling?.cancel()
@@ -311,117 +309,108 @@ class LazyTransformableLayoutState(
     ) {
         fling?.cancel()
         fling = currentCoroutineContext().job
+
         coroutineScope {
-            launch {
-                var previousAngle = angle
-                var previousScale = scale
-                Animatable(
-                    initialValue = previousAngle to ln(previousScale),
-                    typeConverter = floatPairVectorConverter
-                ).run {
-                    val rotationBounds = this@LazyTransformableLayoutState.rotationBounds
-                    val clampedZoomBounds = scaleBounds
-                    updateBounds(
-                        lowerBound = rotationBounds.start to ln(clampedZoomBounds.start),
-                        upperBound = rotationBounds.endInclusive to ln(clampedZoomBounds.endInclusive)
-                    )
+            val rotation = Animatable(angle)
+            if (initialRotationVelocity != 0f) launch {
+                rotation.run {
+                    rotationBounds.run {
+                        updateBounds(start, endInclusive)
+                    }
 
                     animateDecay(
-                        initialVelocity = initialRotationVelocity to initialLogZoomVelocity,
-                        animationSpec = rotateZoomFlingDecay
+                        initialVelocity = initialRotationVelocity,
+                        animationSpec = rotationFlingDecay.generateDecayAnimationSpec()
                     ) {
-                        val newAngle = value.first
-                        angle = newAngle
-
-                        val newScale = exp(value.second)
-                        scale = newScale
-
-                        offset = clampOffset(
-                            offset.transform(
-                                scale = newScale / previousScale,
-                                angle = newAngle - previousAngle,
-                                centroid = centroid
-                            )
-                        )
-
-                        previousAngle = newAngle
-                        previousScale = newScale
-
-                        val rotationBounds = this@LazyTransformableLayoutState.rotationBounds
-                        val clampedZoomBounds = this@LazyTransformableLayoutState.scaleBounds
-                        updateBounds(
-                            lowerBound = rotationBounds.start to ln(clampedZoomBounds.start),
-                            upperBound = rotationBounds.endInclusive to ln(clampedZoomBounds.endInclusive)
+                        transform(
+                            centroid = centroid,
+                            rotationDelta = value - angle
                         )
                     }
                 }
             }
 
+            var zoomRunning = true
+            launch {
+                try {
+                    animateFling(zoomFlingDecay, initialLogZoomVelocity) { logDelta ->
+                        val zoomFactor = exp(logDelta)
+                        val targetScale = scale * zoomFactor
+                        transform(
+                            centroid = centroid,
+                            zoomFactor = zoomFactor
+                        )
+                        scale == targetScale || rotation.isRunning
+                    }
+                } finally {
+                    zoomRunning = false
+                }
+            }
+
+            val boundsChanging = { rotation.isRunning || zoomRunning }
+
             launch {
                 overscrollEffect?.applyToFling(initialPanVelocity.copy(y = 0f)) { velocity ->
-                    flingX(velocity.x)
-                } ?: flingX(initialPanVelocity.x)
+                    flingX(velocity.x, boundsChanging)
+                } ?: flingX(initialPanVelocity.x, boundsChanging)
             }
 
             launch {
                 overscrollEffect?.applyToFling(initialPanVelocity.copy(x = 0f)) { velocity ->
-                    flingY(velocity.y)
-                } ?: flingY(initialPanVelocity.y)
+                    flingY(velocity.y, boundsChanging)
+                } ?: flingY(initialPanVelocity.y, boundsChanging)
             }
         }
     }
 
-    private suspend fun flingX(xVelocity: Float) = Velocity(
-        x = flingPan(xVelocity) { delta ->
-            offset.copy(x = offset.x + delta)
+    private suspend fun flingX(xVelocity: Float, boundsChanging: () -> Boolean) = Velocity(
+        x = flingPan(xVelocity, boundsChanging) { previousOffset, delta ->
+            val newOffset = clampOffset(previousOffset.copy(x = previousOffset.x + delta))
+            newOffset to newOffset.x - previousOffset.x
         },
         y = 0f
     )
 
-    private suspend fun flingY(yVelocity: Float) = Velocity(
+    private suspend fun flingY(yVelocity: Float, boundsChanging: () -> Boolean) = Velocity(
         x = 0f,
-        y = flingPan(yVelocity) { delta ->
-            offset.copy(y = offset.y + delta)
+        y = flingPan(yVelocity, boundsChanging) { previousOffset, delta ->
+            val newOffset = clampOffset(previousOffset.copy(y = previousOffset.y + delta))
+            newOffset to newOffset.y - previousOffset.y
         }
     )
 
     private suspend fun flingPan(
         initialVelocity: Float,
-        applyDelta: (Float) -> Offset
-    ): Float {
-        val animation = DecayAnimation(
-            animationSpec = panFlingDecay,
-            initialValue = 0f,
-            initialVelocity = initialVelocity
-        )
+        boundsChanging: () -> Boolean,
+        applyDelta: (previousOffset: Offset, delta: Float) -> Pair<Offset, Float>
+    ) = animateFling(panFlingDecay, initialVelocity) { delta ->
+        val (newOffset, consumed) = applyDelta(offset, delta)
+        offset = newOffset
+        delta == 0f || consumed / delta > MIN_PAN_FLING_PROGRESS || boundsChanging()
+    }
 
-        val startTimeNanos = withFrameNanos { it }
-        var currentVelocity: Float
+    private suspend fun animateFling(
+        animationSpec: FloatDecayAnimationSpec,
+        initialVelocity: Float,
+        applyDelta: (Float) -> Boolean
+    ) = if (initialVelocity == 0f) {
+        0f
+    } else AnimationState(0f, initialVelocity).run {
         var previousValue = 0f
-
-        animation.run {
-            do {
-                val frameTimeNanos = withFrameNanos { it }
-                val playTimeNanos = frameTimeNanos - startTimeNanos
-
-                val currentValue = getValueFromNanos(playTimeNanos)
-                currentVelocity = getVelocityFromNanos(playTimeNanos)
-
-                val preClampOffset = applyDelta(currentValue - previousValue)
-                val postClampOffset = clampOffset(preClampOffset)
-                offset = postClampOffset
-
-                previousValue = currentValue
-            } while (postClampOffset == preClampOffset && !isFinishedFromNanos(playTimeNanos))
+        animateDecay(animationSpec.generateDecayAnimationSpec()) {
+            if (!applyDelta(value - previousValue)) cancelAnimation()
+            previousValue = value
         }
-
-        return currentVelocity
+        velocity
     }
 
     companion object {
+        private const val MIN_PAN_FLING_PROGRESS = 0.1f
+
         fun saver(
             panFlingDecay: FloatDecayAnimationSpec,
-            rotateZoomFlingDecay: DecayAnimationSpec<Pair<Float, Float>>
+            rotationFlingDecay: FloatDecayAnimationSpec,
+            zoomFlingDecay: FloatDecayAnimationSpec
         ) = listSaver(
             save = { state ->
                 state.run {
@@ -455,7 +444,8 @@ class LazyTransformableLayoutState(
                     initialAngle = values[10],
                     initialScale = values[11],
                     panFlingDecay = panFlingDecay,
-                    rotateZoomFlingDecay = rotateZoomFlingDecay
+                    rotationFlingDecay = rotationFlingDecay,
+                    zoomFlingDecay = zoomFlingDecay
                 )
             }
         )
