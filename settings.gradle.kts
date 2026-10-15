@@ -18,5 +18,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "LazyTransformableLayout"
 
-include(":android-demo")
+include(":demo:androidApp")
+include(":demo:shared")
 include(":library")

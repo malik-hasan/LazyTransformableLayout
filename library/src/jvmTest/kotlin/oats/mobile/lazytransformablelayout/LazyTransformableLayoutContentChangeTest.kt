@@ -236,6 +236,86 @@ class LazyTransformableLayoutContentChangeTest {
         assertShowsExactly()
     }
 
+    @Test
+    fun stateBackedBoundsChangeComposesOffscreenItemWithoutRebuildingContent() = runComposeUiTest {
+        val onScreen = MovableItem(DpRect(DpOffset(10.dp, 10.dp), DpSize(50.dp, 50.dp)))
+        val offScreen = MovableItem(DpRect(DpOffset(1000.dp, 1000.dp), DpSize(50.dp, 50.dp)))
+        var builds = 0
+        val state = LazyTransformableLayoutState(layoutBounds = Rect(0f, 0f, 2000f, 2000f))
+        setContent {
+            CompositionLocalProvider(LocalDensity provides Density(1f)) {
+                Box(Modifier.size(500.dp)) {
+                    LazyTransformableLayout(state = state, overscrollEffect = null) {
+                        builds++
+                        item(onScreen, key = "on") { Box(Modifier.size(50.dp).testTag("item-on")) }
+                        item(offScreen, key = "off") { Box(Modifier.size(50.dp).testTag("item-off")) }
+                    }
+                }
+            }
+        }
+        assertShowsExactly("on" to DpOffset(10.dp, 10.dp))
+        val initialBuilds = builds
+
+        offScreen.bounds = DpRect(DpOffset(200.dp, 250.dp), DpSize(50.dp, 50.dp))
+        assertShowsExactly("on" to DpOffset(10.dp, 10.dp), "off" to DpOffset(200.dp, 250.dp))
+
+        onScreen.bounds = DpRect(DpOffset(300.dp, 100.dp), DpSize(50.dp, 50.dp))
+        assertShowsExactly("on" to DpOffset(300.dp, 100.dp), "off" to DpOffset(200.dp, 250.dp))
+
+        onScreen.bounds = DpRect(DpOffset(1500.dp, 1500.dp), DpSize(50.dp, 50.dp))
+        assertShowsExactly("off" to DpOffset(200.dp, 250.dp))
+
+        assertEquals(initialBuilds, builds)
+    }
+
+    @Test
+    fun emptyContentDoesNotCrash() = runComposeUiTest {
+        var empty by mutableStateOf(true)
+        val state = LazyTransformableLayoutState(layoutBounds = Rect(0f, 0f, 2000f, 2000f))
+        setContent {
+            CompositionLocalProvider(LocalDensity provides Density(1f)) {
+                Box(Modifier.size(500.dp)) {
+                    LazyTransformableLayout(state = state, overscrollEffect = null) {
+                        if (!empty) item(offset = DpOffset(10.dp, 10.dp), size = DpSize(50.dp, 50.dp)) {
+                            Box(Modifier.size(50.dp).testTag("item-a"))
+                        }
+                    }
+                }
+            }
+        }
+        assertShowsExactly()
+
+        empty = false
+        assertShowsExactly("a" to DpOffset(10.dp, 10.dp))
+
+        empty = true
+        assertShowsExactly()
+    }
+
+    @Test
+    fun itemIsPlacedAtItsBoundsInPixelsWithItsBoundsSize() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds = Rect(0f, 0f, 2000f, 2000f))
+        setContent {
+            CompositionLocalProvider(LocalDensity provides Density(1.5f)) {
+                Box(Modifier.size(500.dp)) {
+                    LazyTransformableLayout(state = state, overscrollEffect = null) {
+                        item(offset = DpOffset(10.dp, 20.dp), size = DpSize(60.dp, 30.dp)) {
+                            Box(Modifier.fillMaxSize().testTag("a"))
+                        }
+                        item(offset = DpOffset(100.dp, 40.dp), size = DpSize(15.dp, 25.dp)) {
+                            Box(Modifier.fillMaxSize().testTag("b"))
+                        }
+                    }
+                }
+            }
+        }
+        waitForIdle()
+        assertPositionInRootPx("a", 15f, 30f)
+        assertEquals(IntSize(90, 45), onNodeWithTag("a").fetchSemanticsNode().size)
+        assertPositionInRootPx("b", 150f, 60f)
+        assertEquals(IntSize(23, 38), onNodeWithTag("b").fetchSemanticsNode().size)
+    }
+
     private fun ComposeUiTest.assertPositionInRootPx(tag: String, x: Float, y: Float) =
         assertEquals(Offset(x, y), onNodeWithTag(tag).fetchSemanticsNode().positionInRoot)
 

@@ -17,9 +17,6 @@ kotlin {
         compileSdk = libs.versions.android.targetSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
         compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
-        withDeviceTest {
-            instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        }
     }
 
     iosArm64()
@@ -33,7 +30,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(libs.jetbrains.compose.foundation)
+            implementation(libs.compose.foundation)
             implementation(libs.kermit)
         }
 
@@ -41,21 +38,15 @@ kotlin {
             implementation(kotlin("test"))
         }
 
-        named("androidDeviceTest").dependencies {
-            implementation(libs.androidx.test.runner)
-            implementation(libs.androidx.test.junit)
-            implementation(libs.junit)
-        }
-
         jvmTest.dependencies {
-            implementation(libs.jetbrains.compose.ui.test)
+            implementation(libs.compose.ui.test)
             implementation(
                 with(System.getProperty("os.name").lowercase()) {
                     val arm = System.getProperty("os.arch").contains("aarch64")
                     when {
-                        contains("mac") -> if (arm) libs.jetbrains.compose.desktop.macos.arm64 else libs.jetbrains.compose.desktop.macos.x64
-                        contains("win") -> libs.jetbrains.compose.desktop.windows.x64
-                        else -> if (arm) libs.jetbrains.compose.desktop.linux.arm64 else libs.jetbrains.compose.desktop.linux.x64
+                        contains("mac") -> if (arm) libs.compose.desktop.macos.arm64 else libs.compose.desktop.macos.x64
+                        contains("win") -> libs.compose.desktop.windows.x64
+                        else -> if (arm) libs.compose.desktop.linux.arm64 else libs.compose.desktop.linux.x64
                     }
                 }
             )
