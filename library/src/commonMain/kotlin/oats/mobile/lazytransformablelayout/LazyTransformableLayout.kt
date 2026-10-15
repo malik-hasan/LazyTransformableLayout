@@ -14,9 +14,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachIndexed
@@ -25,6 +26,7 @@ import kotlinx.coroutines.launch
 import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
 import oats.mobile.lazytransformablelayout.extension.transform
 import oats.mobile.lazytransformablelayout.model.Item
+import kotlin.math.roundToInt
 
 /**
  * A lazy layout of [oats.mobile.lazytransformablelayout.model.Positionable] items that can be panned, zoomed and rotated.
@@ -34,9 +36,8 @@ import oats.mobile.lazytransformablelayout.model.Item
  * @param modifier The modifier to apply to this layout
  * @param overscrollEffect The effect shown when panning past the layout bounds
  * @param contentBuilder Declares the items of this layout. It runs again whenever its lambda instance changes
- * or state it reads changes, and every run re-reads the bounds of all items and remeasures the layout.
- * Keep it stable: avoid capturing values that change often, and read frequently changing state
- * inside the item content instead.
+ * or state it reads changes. Keep it stable: avoid capturing values that change often, and read frequently
+ * changing state inside the item content or the [oats.mobile.lazytransformablelayout.model.Positionable] fields instead.
  */
 @Composable
 fun LazyTransformableLayout(
@@ -49,13 +50,6 @@ fun LazyTransformableLayout(
     val content by remember {
         derivedStateOf(referentialEqualityPolicy()) {
             Content(latestContentBuilder)
-        }
-    }
-
-    val density = LocalDensity.current
-    val spatialIndex by remember(density.density) {
-        derivedStateOf(referentialEqualityPolicy()) {
-            SpatialIndex(content.intervals, density)
         }
     }
 
@@ -103,16 +97,40 @@ fun LazyTransformableLayout(
         val (minItemDimension, viewportBounds) = state.compositionBounds
             ?: return@LazyLayout layout(constraints.maxWidth, constraints.maxHeight) {}
 
-        val items = mutableListOf<Item>()
-        spatialIndex.query(minItemDimension, viewportBounds, items)
-        val placeables = items.fastMap { item ->
+        val itemsToCompose = mutableListOf<Item>()
+        content.intervals.takeIf { it.size > 0 }?.forEach { interval ->
+            for (localIndex in 0 until interval.size) {
+                val positionable = interval.value.items[localIndex]
+                val bounds = positionable.bounds
+                val left = bounds.left.toPx()
+                val top = bounds.top.toPx()
+                val right = bounds.right.toPx()
+                val bottom = bounds.bottom.toPx()
+                val width = right - left
+                val height = bottom - top
+
+                if (maxOf(width, height) >= minItemDimension
+                    && viewportBounds.intersects(left, top, right, bottom)
+                ) itemsToCompose += Item(
+                    index = interval.startIndex + localIndex,
+                    constraints = Constraints(
+                        maxWidth = width.roundToInt(),
+                        maxHeight = height.roundToInt()
+                    ),
+                    position = Offset(left, top),
+                    zIndex = positionable.zIndex
+                )
+            }
+        }
+
+        val placeables = itemsToCompose.fastMap { item ->
             compose(item.index).fastMap {
                 it.measure(item.constraints)
             }
         }
 
         layout(constraints.maxWidth, constraints.maxHeight) {
-            items.fastForEachIndexed { i, item ->
+            itemsToCompose.fastForEachIndexed { i, item ->
                 val itemPosition = item.position
 
                 placeables[i].fastForEach { placeable ->

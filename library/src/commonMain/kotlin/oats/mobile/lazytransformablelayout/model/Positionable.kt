@@ -14,6 +14,9 @@ import androidx.compose.ui.unit.DpRect
  * ***The lazy optimization can only be as effective as the right/bottom bounds provided are accurate.***
  *
  * @property zIndex The Z index of this item
+ *
+ * Both properties are read during layout, so they may be backed by snapshot state
+ * (e.g. `mutableStateOf`) to move or restack an item without rebuilding the layout's content.
  */
 interface Positionable {
     val bounds: DpRect

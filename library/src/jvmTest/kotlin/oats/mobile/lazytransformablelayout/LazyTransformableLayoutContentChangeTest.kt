@@ -277,6 +277,45 @@ class LazyTransformableLayoutContentChangeTest {
         assertPositionInRootPx("new1", 450f, 225f)
     }
 
+    @Test
+    fun itemsSmallerThanHalfAPixelOnScreenAreNotComposed() = runComposeUiTest {
+        val items = listOf(
+            TestItem("large", DpOffset(0.dp, 0.dp), DpSize(60.dp, 60.dp)),
+            TestItem("thin", DpOffset(100.dp, 0.dp), DpSize(60.dp, 1.dp)),
+            TestItem("small", DpOffset(0.dp, 100.dp), DpSize(40.dp, 40.dp))
+        )
+        val state = LazyTransformableLayoutState(layoutBounds = Rect(0f, 0f, 100_000f, 100_000f), initialScale = 0.01f)
+        setContent {
+            CompositionLocalProvider(LocalDensity provides Density(1f)) {
+                Box(Modifier.size(500.dp)) {
+                    LazyTransformableLayout(state = state, overscrollEffect = null) {
+                        items.forEach { item ->
+                            item(offset = item.offset, size = item.size, key = item.key) {
+                                Box(Modifier.size(item.size).testTag(item.key))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        fun assertComposed(vararg keys: String) {
+            waitForIdle()
+            assertEquals(
+                keys.sorted(),
+                onAllNodes(hasTagStartingWith("")).fetchSemanticsNodes().map { it.config[SemanticsProperties.TestTag] }.sorted()
+            )
+        }
+
+        assertComposed("large", "thin")
+
+        state.set(scale = 1f)
+        assertComposed("large", "thin", "small")
+
+        state.set(scale = 0.01f)
+        assertComposed("large", "thin")
+    }
+
     private val gridColumns = 50
     private val gridCell = 100
 
