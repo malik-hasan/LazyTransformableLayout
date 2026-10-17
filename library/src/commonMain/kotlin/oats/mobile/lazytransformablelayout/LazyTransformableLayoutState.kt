@@ -2,11 +2,14 @@ package oats.mobile.lazytransformablelayout
 
 import androidx.annotation.FloatRange
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.AnimationState
 import androidx.compose.animation.core.FloatDecayAnimationSpec
 import androidx.compose.animation.core.FloatExponentialDecaySpec
 import androidx.compose.animation.core.animateDecay
+import androidx.compose.animation.core.animateTo
 import androidx.compose.animation.core.generateDecayAnimationSpec
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.OverscrollEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
@@ -28,6 +31,8 @@ import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.util.lerp
 import androidx.compose.ui.unit.toSize
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -42,6 +47,7 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.floor
+import kotlin.math.ln
 import kotlin.math.sin
 
 /**
@@ -142,45 +148,44 @@ class LazyTransformableLayoutState(
             )
         }
 
-    private val scaleBounds by derivedStateOf {
-        val zoomBounds = this.zoomBounds
-        measured { layoutBounds ->
-            val angleRadians = angle.radians
-            val cos = abs(cos(angleRadians))
-            val sin = abs(sin(angleRadians))
-            val start = maxOf(
-                zoomBounds.start,
-                width / layoutBounds.run { width * cos + height * sin },
-                height / layoutBounds.run { width * sin + height * cos }
-            )
-            start..maxOf(start, zoomBounds.endInclusive)
-        } ?: zoomBounds
-    }
+    private val scaleBounds by derivedStateOf { scaleBoundsAt(angle) }
 
-    private val panningBounds by derivedStateOf {
-        measured { layoutBounds ->
-            val startIndex = (-floor(angle / 90f).toInt() - 1).mod(4)
-            fun vertex(index: Int) = layoutBounds
-                .vertices[(startIndex + index) % 4]
-                .transform(scale, angle)
+    private fun scaleBoundsAt(angle: Float) = measured { layoutBounds ->
+        val angleRadians = angle.radians
+        val cos = abs(cos(angleRadians))
+        val sin = abs(sin(angleRadians))
+        val start = maxOf(
+            zoomBounds.start,
+            width / layoutBounds.run { width * cos + height * sin },
+            height / layoutBounds.run { width * sin + height * cos }
+        )
+        start..maxOf(start, zoomBounds.endInclusive)
+    } ?: zoomBounds
 
-            val leftmost = vertex(0)
-            val topmost = vertex(1)
-            val rightmost = vertex(2)
-            val bottommost = vertex(3)
+    private val panningBounds by derivedStateOf { panningBoundsAt(angle, scale) }
 
-            val left = leftmost.x
-            val top = topmost.y
-            val right = (rightmost.x - width).coerceAtLeast(left)
-            val bottom = (bottommost.y - height).coerceAtLeast(top)
+    private fun panningBoundsAt(angle: Float, scale: Float) = measured { layoutBounds ->
+        val startIndex = (-floor(angle / 90f).toInt() - 1).mod(4)
+        fun vertex(index: Int) = layoutBounds
+            .vertices[(startIndex + index) % 4]
+            .transform(scale, angle)
 
-            Parallelogram(
-                Offset(left, (leftmost.y - height / 2).coerceIn(top, bottom)),
-                Offset((topmost.x - width / 2).coerceIn(left, right), top),
-                Offset(right, (rightmost.y - height / 2).coerceIn(top, bottom)),
-                Offset((bottommost.x - width / 2).coerceIn(left, right), bottom)
-            )
-        }
+        val leftmost = vertex(0)
+        val topmost = vertex(1)
+        val rightmost = vertex(2)
+        val bottommost = vertex(3)
+
+        val left = leftmost.x
+        val top = topmost.y
+        val right = (rightmost.x - width).coerceAtLeast(left)
+        val bottom = (bottommost.y - height).coerceAtLeast(top)
+
+        Parallelogram(
+            Offset(left, (leftmost.y - height / 2).coerceIn(top, bottom)),
+            Offset((topmost.x - width / 2).coerceIn(left, right), top),
+            Offset(right, (rightmost.y - height / 2).coerceIn(top, bottom)),
+            Offset((bottommost.x - width / 2).coerceIn(left, right), bottom)
+        )
     }
 
     fun updateBounds(
@@ -222,12 +227,15 @@ class LazyTransformableLayoutState(
      * The point of the layout, in the same space as the items' bounds, at the center of the viewport
      */
     val center: DpOffset
-        get() = pendingCenter ?: requireNotNull(density).run {
-            val viewportCenter = requireNotNull(constraints).toSize().center
-            (viewportCenter + offset)
-                .transform(scale = 1 / scale, angle = -angle)
-                .let { DpOffset(it.x.toDp(), it.y.toDp()) }
-        }
+        get() = pendingCenter ?: requireNotNull(density).offsetToCenter(offset, angle, scale, requireNotNull(constraints))
+
+    private fun Density.centerToOffset(center: DpOffset, angle: Float, scale: Float, viewport: IntSize) =
+        Offset(center.x.toPx(), center.y.toPx()).transform(scale, angle) - viewport.toSize().center
+
+    private fun Density.offsetToCenter(offset: Offset, angle: Float, scale: Float, viewport: IntSize) =
+        (viewport.toSize().center + offset)
+            .transform(scale = 1 / scale, angle = -angle)
+            .let { DpOffset(it.x.toDp(), it.y.toDp()) }
 
     operator fun component1() = center
 
@@ -264,6 +272,60 @@ class LazyTransformableLayoutState(
         }
     }
 
+    /**
+     * Animates the camera to the given values, clamped to their bounds. Each frame interpolates the angle linearly,
+     * the scale in log space, and the center linearly in layout space, then applies them like [set].
+     * A null value keeps its current value, so changing only the angle or scale rotates or zooms about the
+     * center of the viewport. Cancels any ongoing fling or animation, and is cancelled by touch input.
+     *
+     * @param angle rotation angle in degrees
+     * @param scale zoom scale
+     * @param center point of the layout, in the same space as the items' bounds, to place at the center of the viewport
+     * @param animationSpec the spec animating progress from 0 to 1
+     * @return for angle, scale and center, whether the value was within bounds, or null if it was not updated
+     */
+    suspend fun animate(
+        angle: Float? = null,
+        scale: Float? = null,
+        center: DpOffset? = null,
+        animationSpec: AnimationSpec<Float> = spring()
+    ): Array<Boolean?> {
+        if (angle == null && scale == null && center == null) return arrayOfNulls(3)
+
+        val constraints = constraints
+        val density = density
+        if (constraints == null || density == null) return set(angle, scale, center)
+
+        fling?.cancel()
+        fling = currentCoroutineContext().job
+
+        val startAngle = this.angle
+        val startScale = this.scale
+        val startCenter = this.center
+
+        val targetAngle = clampAngle(angle ?: startAngle)
+        val targetScale = (scale ?: startScale).coerceIn(scaleBoundsAt(targetAngle))
+        val targetCenter = (center ?: startCenter).let {
+            val offset = density.centerToOffset(it, targetAngle, targetScale, constraints)
+            val clampedOffset = panningBoundsAt(targetAngle, targetScale)?.clamp(offset) ?: offset
+            density.offsetToCenter(clampedOffset, targetAngle, targetScale, constraints)
+        }
+        val logZoom = ln(targetScale / startScale)
+
+        AnimationState(0f).animateTo(1f, animationSpec) {
+            applyCamera(
+                angle = lerp(startAngle, targetAngle, value),
+                scale = startScale * exp(logZoom * value),
+                center = lerp(startCenter, targetCenter, value)
+            )
+        }
+
+        return applyCamera(angle ?: startAngle, scale ?: startScale, center ?: startCenter).apply {
+            if (angle == null) this[0] = null
+            if (angle == null && scale == null) this[1] = null
+        }
+    }
+
     private fun applyCamera(angle: Float, scale: Float, center: DpOffset): Array<Boolean?> {
         val clampedAngle = clampAngle(angle)
         this.angle = clampedAngle
@@ -277,8 +339,7 @@ class LazyTransformableLayoutState(
             pendingCenter = center
             null
         } else {
-            val preClampOffset = with(density) { Offset(center.x.toPx(), center.y.toPx()) }
-                .transform(clampedScale, clampedAngle) - constraints.toSize().center
+            val preClampOffset = density.centerToOffset(center, clampedAngle, clampedScale, constraints)
             val clampedOffset = clampOffset(preClampOffset)
             offset = clampedOffset
             clampedOffset == preClampOffset
@@ -354,8 +415,10 @@ class LazyTransformableLayoutState(
         centroid: Offset,
         overscrollEffect: OverscrollEffect? = null
     ) {
-        fling?.cancel()
-        fling = currentCoroutineContext().job
+        if (initialRotationVelocity != 0f || initialLogZoomVelocity != 0f || initialPanVelocity != Velocity.Zero) {
+            fling?.cancel()
+            fling = currentCoroutineContext().job
+        }
 
         coroutineScope {
             val rotation = Animatable(angle)
