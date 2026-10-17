@@ -21,7 +21,6 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.center
 import androidx.compose.ui.geometry.toRect
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.unit.Constraints
@@ -60,7 +59,8 @@ import kotlin.math.sin
  * @param layoutBounds The bounds of the layout which can be panned into view, in the same space as the items' bounds
  * @param rotationBounds min and max angle bounds in degrees
  * @param zoomBounds min and max scale bounds
- * @param initialCenter initial point of the layout at the center of the viewport, defaulting to the center of [layoutBounds]
+ * @param initialCenter initial point of the layout at the center of the viewport's content area, defaulting to the
+ * center of [layoutBounds]
  * @param initialAngle initial rotation angle in degrees
  * @param initialScale initial zoom scale (greater than zero)
  * @param panFlingDecay decay animation spec for panning fling velocity
@@ -106,24 +106,27 @@ class LazyTransformableLayoutState(
 
     private var constraints by mutableStateOf<IntSize?>(null)
 
+    private var contentBounds by mutableStateOf<Rect?>(null)
+
     private var density by mutableStateOf<Density?>(null)
 
     private val layoutBoundsPx by derivedStateOf {
         density?.run { this@LazyTransformableLayoutState.layoutBounds.toRect() }
     }
 
-    private inline fun <T> measured(block: IntSize.(density: Density, layoutBounds: Rect) -> T): T? {
-        val constraints = constraints ?: return null
+    private inline fun <T> measured(block: (contentBounds: Rect, density: Density, layoutBounds: Rect) -> T): T? {
+        val contentBounds = contentBounds ?: return null
         val density = density ?: return null
         val layoutBounds = layoutBoundsPx ?: return null
-        return constraints.block(density, layoutBounds)
+        return block(contentBounds, density, layoutBounds)
     }
 
-    internal fun acceptConstraints(incomingConstraints: Constraints, density: Density) {
+    internal fun acceptConstraints(incomingConstraints: Constraints, density: Density, contentBounds: Rect) {
         val newConstraints = incomingConstraints.run { IntSize(maxWidth, maxHeight) }
-        if (constraints != newConstraints || this.density != density) {
+        if (constraints != newConstraints || this.density != density || this.contentBounds != contentBounds) {
             constraints = newConstraints
             this.density = density
+            this.contentBounds = contentBounds
             val scale = pendingFit?.let { (bounds, padding) -> fitScale(bounds, angle, padding) } ?: scale
             pendingFit = null
             applyCamera(angle, scale, center)
@@ -155,21 +158,23 @@ class LazyTransformableLayoutState(
 
     private val scaleBounds by derivedStateOf { scaleBoundsAt(angle) }
 
-    private fun scaleBoundsAt(angle: Float) = measured { _, layoutBounds ->
+    private fun scaleBoundsAt(angle: Float) = measured { contentBounds, _, layoutBounds ->
         val angleRadians = angle.radians
         val cos = abs(cos(angleRadians))
         val sin = abs(sin(angleRadians))
         val start = maxOf(
             zoomBounds.start,
-            width / layoutBounds.run { width * cos + height * sin },
-            height / layoutBounds.run { width * sin + height * cos }
+            contentBounds.width / layoutBounds.run { width * cos + height * sin },
+            contentBounds.height / layoutBounds.run { width * sin + height * cos }
         )
         start..maxOf(start, zoomBounds.endInclusive)
     } ?: zoomBounds
 
     private val panningBounds by derivedStateOf { panningBoundsAt(angle, scale) }
 
-    private fun panningBoundsAt(angle: Float, scale: Float) = measured { _, layoutBounds ->
+    private fun panningBoundsAt(angle: Float, scale: Float) = measured { contentBounds, _, layoutBounds ->
+        val width = contentBounds.width
+        val height = contentBounds.height
         val startIndex = (-floor(angle / 90f).toInt() - 1).mod(4)
         fun vertex(index: Int) = layoutBounds
             .vertices[(startIndex + index) % 4]
@@ -185,14 +190,14 @@ class LazyTransformableLayoutState(
         val right = (rightmost.x - width).coerceAtLeast(left)
         val bottom = (bottommost.y - height).coerceAtLeast(top)
 
-        val viewportCenter = toSize().center
+        val contentCenter = Offset(width / 2, height / 2)
         Parallelogram(
             listOf(
                 Offset(left, (leftmost.y - height / 2).coerceIn(top, bottom)),
                 Offset((topmost.x - width / 2).coerceIn(left, right), top),
                 Offset(right, (rightmost.y - height / 2).coerceIn(top, bottom)),
                 Offset((bottommost.x - width / 2).coerceIn(left, right), bottom)
-            ).map { (it + viewportCenter).transform(scale = 1 / scale, angle = -angle) }
+            ).map { (it + contentCenter).transform(scale = 1 / scale, angle = -angle) }
         )
     }
 
@@ -222,7 +227,7 @@ class LazyTransformableLayoutState(
     }
 
     /**
-     * The point of the layout, in the same space as the items' bounds, at the center of the viewport
+     * The point of the layout, in the same space as the items' bounds, at the center of the viewport's content area
      */
     var center by mutableStateOf(initialCenter ?: layoutBounds.center)
         private set
@@ -230,8 +235,8 @@ class LazyTransformableLayoutState(
     private fun clampCenter(center: Offset) = panningBounds?.clamp(center) ?: center
 
     internal val offset by derivedStateOf {
-        measured { density, _ ->
-            density.toPx(center).transform(scale, angle) - toSize().center
+        measured { contentBounds, density, _ ->
+            density.toPx(center).transform(scale, angle) - contentBounds.center
         } ?: Offset.Zero
     }
 
@@ -290,7 +295,7 @@ class LazyTransformableLayoutState(
         if (angle == null && scale == null && center == null) return arrayOfNulls(3)
 
         val density = density
-        if (constraints == null || density == null) return set(angle, scale, center)
+        if (contentBounds == null || density == null) return set(angle, scale, center)
 
         fling?.cancel()
         fling = currentCoroutineContext().job
@@ -361,7 +366,7 @@ class LazyTransformableLayoutState(
     private var pendingFit: Pair<DpRect, Dp>? = null
 
     private fun fitScale(bounds: DpRect, angle: Float, padding: Dp): Float? {
-        val constraints = constraints ?: return null
+        val contentBounds = contentBounds ?: return null
         val density = density ?: return null
         return with(density) {
             val angleRadians = angle.radians
@@ -371,8 +376,8 @@ class LazyTransformableLayoutState(
             val height = bounds.height.toPx()
             val totalPadding = 2 * padding.toPx()
             minOf(
-                (constraints.width - totalPadding) / (width * cos + height * sin),
-                (constraints.height - totalPadding) / (width * sin + height * cos)
+                (contentBounds.width - totalPadding) / (width * cos + height * sin),
+                (contentBounds.height - totalPadding) / (width * sin + height * cos)
             )
         }
     }
@@ -385,7 +390,7 @@ class LazyTransformableLayoutState(
         this.scale = clampedScale
 
         val density = density
-        val centerInBounds = if (constraints == null || density == null) {
+        val centerInBounds = if (contentBounds == null || density == null) {
             this.center = center
             null
         } else {
@@ -431,7 +436,7 @@ class LazyTransformableLayoutState(
         panDelta: Offset = Offset.Zero
     ): Offset {
         val density = density ?: return Offset.Zero
-        val viewportCenter = constraints?.toSize()?.center ?: return Offset.Zero
+        val contentCenter = contentBounds?.center ?: return Offset.Zero
 
         val previousAngle = angle
         val newAngle = clampAngle(previousAngle + rotationDelta)
@@ -441,7 +446,7 @@ class LazyTransformableLayoutState(
         val newScale = clampScale(previousScale * zoomFactor)
         scale = newScale
 
-        val centroidFromCenter = centroid - viewportCenter
+        val centroidFromCenter = centroid - contentCenter
         center = density.toDp(
             clampCenter(
                 density.toPx(center)

@@ -1,6 +1,7 @@
 package oats.mobile.lazytransformablelayout
 
 import androidx.compose.foundation.OverscrollEffect
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.layout.LazyLayout
 import androidx.compose.foundation.overscroll
 import androidx.compose.foundation.rememberOverscrollEffect
@@ -14,6 +15,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Constraints
@@ -35,6 +37,8 @@ import kotlin.math.roundToInt
  *
  * @param state The camera state of this layout
  * @param modifier The modifier to apply to this layout
+ * @param contentPadding Padding around the viewport's content area, such as space under overlaid UI.
+ * The camera centers, fits and clamps to the content area, while items still draw underneath the padding.
  * @param overscrollEffect The effect shown when panning past the layout bounds
  * @param contentBuilder Declares the items of this layout. It runs again whenever its lambda instance changes
  * or state it reads changes. Keep it stable: avoid capturing values that change often, and read frequently
@@ -44,6 +48,7 @@ import kotlin.math.roundToInt
 fun LazyTransformableLayout(
     state: LazyTransformableLayoutState,
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
     overscrollEffect: OverscrollEffect? = rememberOverscrollEffect(),
     contentBuilder: LazyTransformableLayoutScope.() -> Unit
 ) {
@@ -102,7 +107,18 @@ fun LazyTransformableLayout(
                 )
             }
     ) { constraints ->
-        state.acceptConstraints(constraints, this)
+        val contentLeft = contentPadding.calculateLeftPadding(layoutDirection).toPx()
+        val contentTop = contentPadding.calculateTopPadding().toPx()
+        state.acceptConstraints(
+            constraints,
+            this,
+            Rect(
+                left = contentLeft,
+                top = contentTop,
+                right = maxOf(contentLeft, constraints.maxWidth - contentPadding.calculateRightPadding(layoutDirection).toPx()),
+                bottom = maxOf(contentTop, constraints.maxHeight - contentPadding.calculateBottomPadding().toPx())
+            )
+        )
 
         val (minItemDimension, viewportBounds) = state.compositionBounds
             ?: return@LazyLayout layout(constraints.maxWidth, constraints.maxHeight) {}
