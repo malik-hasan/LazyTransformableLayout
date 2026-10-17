@@ -461,6 +461,17 @@ class LazyTransformableLayoutState(
         return (newCenter - previousCenter).transform(scale, angle)
     }
 
+    internal suspend fun animateZoom(centroid: Offset, zoomFactor: Float) {
+        fling?.cancel()
+        fling = currentCoroutineContext().job
+
+        var previousLogZoom = 0f
+        AnimationState(0f).animateTo(ln(clampScale(scale * zoomFactor) / scale), spring()) {
+            transform(centroid = centroid, zoomFactor = exp(value - previousLogZoom))
+            previousLogZoom = value
+        }
+    }
+
     private var fling: Job? = null
 
     fun cancelFling() = fling?.cancel()

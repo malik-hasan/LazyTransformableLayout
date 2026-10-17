@@ -9,16 +9,21 @@ import androidx.compose.foundation.gestures.calculateRotation
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.VelocityTracker1D
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastAny
+import androidx.compose.ui.util.fastFirstOrNull
 import androidx.compose.ui.util.fastForEach
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.ln
 
@@ -137,3 +142,61 @@ suspend fun PointerInputScope.detectTransformGestures(
         onTransformStopped(lastCentroid, rotationVelocity, logZoomVelocity, panVelocity)
     }
 }
+
+internal suspend fun PointerInputScope.detectZoomTapGestures(
+    onPress: () -> Unit,
+    onDoubleTap: (position: Offset) -> Unit,
+    onDoubleTapDrag: (centroid: Offset, zoomFactor: Float) -> Unit,
+    onTwoFingerTap: (centroid: Offset) -> Unit
+) = awaitEachGesture {
+    val firstDown = awaitFirstDown()
+    onPress()
+
+    val touchSlop = viewConfiguration.touchSlop
+    val downPositions = mutableMapOf(firstDown.id to firstDown.position)
+    val isTap = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+        var isTap: Boolean
+        do {
+            val changes = awaitPointerEvent(PointerEventPass.Final).changes
+            changes.fastForEach {
+                if (it.changedToDown()) downPositions[it.id] = it.position
+            }
+            isTap = downPositions.size <= 2 && changes.fastAll { change ->
+                !change.isConsumed && downPositions[change.id]?.let {
+                    (change.position - it).getDistance() <= touchSlop
+                } == true
+            }
+        } while (isTap && changes.fastAny { it.pressed })
+        isTap
+    } ?: false
+
+    if (!isTap) return@awaitEachGesture
+
+    if (downPositions.size == 2) {
+        onTwoFingerTap(downPositions.values.reduce(Offset::plus) / 2f)
+        return@awaitEachGesture
+    }
+
+    val secondDown = withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) {
+        awaitFirstDown()
+    } ?: return@awaitEachGesture
+    onPress()
+
+    val zoomPerPixel = ln(2f) / DOUBLE_TAP_DRAG_DOUBLING_DISTANCE.toPx()
+    var dragging = false
+    var previousY = secondDown.position.y
+    do {
+        val event = awaitPointerEvent()
+        val change = event.changes.fastFirstOrNull { it.id == secondDown.id }
+        if (change == null || change.isConsumed || event.changes.size > 1) return@awaitEachGesture
+
+        if (!dragging && (change.position - secondDown.position).getDistance() > touchSlop) dragging = true
+        if (dragging) onDoubleTapDrag(secondDown.position, exp((change.position.y - previousY) * zoomPerPixel))
+        previousY = change.position.y
+        change.consume()
+    } while (change.pressed)
+
+    if (!dragging) onDoubleTap(secondDown.position)
+}
+
+private val DOUBLE_TAP_DRAG_DOUBLING_DISTANCE = 100.dp
