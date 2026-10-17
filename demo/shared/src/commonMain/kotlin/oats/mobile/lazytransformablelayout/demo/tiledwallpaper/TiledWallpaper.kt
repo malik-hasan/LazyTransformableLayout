@@ -14,10 +14,6 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
@@ -78,14 +74,10 @@ fun TiledWallpaper() {
 
 @Composable
 private fun TiledWallpaper(wallpaper: Wallpaper) {
-    val density = LocalDensity.current
     val info = wallpaper.imageInfo
 
     val layoutState = rememberLazyTransformableLayoutState(
-        Rect(
-            offset = Offset.Zero,
-            size = with(density) { Size(info.width.dp.toPx(), info.height.dp.toPx()) }
-        )
+        DpRect(0.dp, 0.dp, info.width.dp, info.height.dp)
     )
 
     val tiles = remember(info) {

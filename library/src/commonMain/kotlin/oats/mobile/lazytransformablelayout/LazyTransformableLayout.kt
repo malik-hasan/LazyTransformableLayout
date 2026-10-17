@@ -92,7 +92,7 @@ fun LazyTransformableLayout(
                 )
             }
     ) { constraints ->
-        state.acceptConstraints(constraints)
+        state.acceptConstraints(constraints, this)
 
         val (minItemDimension, viewportBounds) = state.compositionBounds
             ?: return@LazyLayout layout(constraints.maxWidth, constraints.maxHeight) {}

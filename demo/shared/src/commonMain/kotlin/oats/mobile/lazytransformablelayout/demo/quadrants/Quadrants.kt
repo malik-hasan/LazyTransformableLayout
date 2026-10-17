@@ -9,11 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,16 +28,10 @@ fun Quadrants() {
     val layoutSize = 10000 // dp
 
     Scaffold { scaffoldPadding ->
-        val density = LocalDensity.current
         LazyTransformableLayout(
             modifier = Modifier.padding(scaffoldPadding),
             state = rememberLazyTransformableLayoutState(
-                layoutBounds = Rect(
-                    offset = Offset.Zero,
-                    size = with(density) {
-                        Size(layoutSize.dp.toPx(), layoutSize.dp.toPx())
-                    }
-                )
+                layoutBounds = DpRect(0.dp, 0.dp, layoutSize.dp, layoutSize.dp)
             )
         ) {
             itemsIndexed(

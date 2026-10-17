@@ -21,8 +21,11 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.toRect
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -42,7 +45,7 @@ import kotlin.math.sin
 /**
  * The state of the LazyTransformableLayout
  *
- * @param layoutBounds The bounds of the layout which can be panned into view
+ * @param layoutBounds The bounds of the layout which can be panned into view, in the same space as the items' bounds
  * @param rotationBounds min and max angle bounds in degrees
  * @param zoomBounds min and max scale bounds
  * @param initialOffset initial offset of the top left corner of the viewport relative to the layoutBounds
@@ -54,7 +57,7 @@ import kotlin.math.sin
  */
 @Stable
 class LazyTransformableLayoutState(
-    layoutBounds: Rect,
+    layoutBounds: DpRect,
     rotationBounds: ClosedFloatingPointRange<Float> = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY,
     zoomBounds: ClosedFloatingPointRange<Float> = Float.MIN_VALUE..Float.MAX_VALUE,
     initialOffset: Offset = Offset.Zero,
@@ -91,10 +94,23 @@ class LazyTransformableLayoutState(
 
     private var constraints by mutableStateOf<IntSize?>(null)
 
-    internal fun acceptConstraints(incomingConstraints: Constraints) {
+    private var density by mutableStateOf<Density?>(null)
+
+    private val layoutBoundsPx by derivedStateOf {
+        density?.run { this@LazyTransformableLayoutState.layoutBounds.toRect() }
+    }
+
+    private inline fun <T> measured(block: IntSize.(layoutBounds: Rect) -> T): T? {
+        val constraints = constraints ?: return null
+        val layoutBounds = layoutBoundsPx ?: return null
+        return constraints.block(layoutBounds)
+    }
+
+    internal fun acceptConstraints(incomingConstraints: Constraints, density: Density) {
         val newConstraints = incomingConstraints.run { IntSize(maxWidth, maxHeight) }
-        if (constraints != newConstraints) {
+        if (constraints != newConstraints || this.density != density) {
             constraints = newConstraints
+            this.density = density
             scale = clampScale(scale)
             offset = clampOffset(offset)
         }
@@ -125,8 +141,7 @@ class LazyTransformableLayoutState(
 
     private val scaleBounds by derivedStateOf {
         val zoomBounds = this.zoomBounds
-        constraints?.run {
-            val layoutBounds = this@LazyTransformableLayoutState.layoutBounds
+        measured { layoutBounds ->
             val angleRadians = angle.radians
             val cos = abs(cos(angleRadians))
             val sin = abs(sin(angleRadians))
@@ -140,9 +155,9 @@ class LazyTransformableLayoutState(
     }
 
     private val panningBounds by derivedStateOf {
-        constraints?.run {
+        measured { layoutBounds ->
             val startIndex = (-floor(angle / 90f).toInt() - 1).mod(4)
-            fun vertex(index: Int) = this@LazyTransformableLayoutState.layoutBounds
+            fun vertex(index: Int) = layoutBounds
                 .vertices[(startIndex + index) % 4]
                 .transform(scale, angle)
 
@@ -166,7 +181,7 @@ class LazyTransformableLayoutState(
     }
 
     fun updateBounds(
-        layoutBounds: Rect? = null,
+        layoutBounds: DpRect? = null,
         rotationBounds: ClosedFloatingPointRange<Float>? = null,
         zoomBounds: ClosedFloatingPointRange<Float>? = null
     ) {
@@ -411,14 +426,14 @@ class LazyTransformableLayoutState(
             panFlingDecay: FloatDecayAnimationSpec,
             rotationFlingDecay: FloatDecayAnimationSpec,
             zoomFlingDecay: FloatDecayAnimationSpec
-        ) = listSaver(
+        ) = listSaver<LazyTransformableLayoutState, Float>(
             save = { state ->
                 state.run {
                     listOf(
-                        layoutBounds.left,
-                        layoutBounds.top,
-                        layoutBounds.right,
-                        layoutBounds.bottom,
+                        layoutBounds.left.value,
+                        layoutBounds.top.value,
+                        layoutBounds.right.value,
+                        layoutBounds.bottom.value,
                         rotationBounds.start,
                         rotationBounds.endInclusive,
                         zoomBounds.start,
@@ -432,11 +447,11 @@ class LazyTransformableLayoutState(
             },
             restore = { values ->
                 LazyTransformableLayoutState(
-                    layoutBounds = Rect(
-                        left = values[0],
-                        top = values[1],
-                        right = values[2],
-                        bottom = values[3]
+                    layoutBounds = DpRect(
+                        left = values[0].dp,
+                        top = values[1].dp,
+                        right = values[2].dp,
+                        bottom = values[3].dp
                     ),
                     rotationBounds = values[4]..values[5],
                     zoomBounds = values[6]..values[7],
