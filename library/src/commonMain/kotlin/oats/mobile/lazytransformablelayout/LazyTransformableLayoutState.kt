@@ -18,10 +18,12 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.center
 import androidx.compose.ui.geometry.toRect
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Velocity
@@ -48,7 +50,7 @@ import kotlin.math.sin
  * @param layoutBounds The bounds of the layout which can be panned into view, in the same space as the items' bounds
  * @param rotationBounds min and max angle bounds in degrees
  * @param zoomBounds min and max scale bounds
- * @param initialOffset initial offset of the top left corner of the viewport relative to the layoutBounds
+ * @param initialCenter initial point of the layout at the center of the viewport, defaulting to the center of [layoutBounds]
  * @param initialAngle initial rotation angle in degrees
  * @param initialScale initial zoom scale (greater than zero)
  * @param panFlingDecay decay animation spec for panning fling velocity
@@ -60,7 +62,7 @@ class LazyTransformableLayoutState(
     layoutBounds: DpRect,
     rotationBounds: ClosedFloatingPointRange<Float> = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY,
     zoomBounds: ClosedFloatingPointRange<Float> = Float.MIN_VALUE..Float.MAX_VALUE,
-    initialOffset: Offset = Offset.Zero,
+    initialCenter: DpOffset? = null,
     initialAngle: Float = 0f,
     @FloatRange(from = 0.0, fromInclusive = false) initialScale: Float = 1f,
     private val panFlingDecay: FloatDecayAnimationSpec = FloatExponentialDecaySpec(),
@@ -109,10 +111,11 @@ class LazyTransformableLayoutState(
     internal fun acceptConstraints(incomingConstraints: Constraints, density: Density) {
         val newConstraints = incomingConstraints.run { IntSize(maxWidth, maxHeight) }
         if (constraints != newConstraints || this.density != density) {
+            val center = this.center
             constraints = newConstraints
             this.density = density
-            scale = clampScale(scale)
-            offset = clampOffset(offset)
+            pendingCenter = null
+            applyCamera(angle, scale, center)
         }
     }
 
@@ -187,6 +190,7 @@ class LazyTransformableLayoutState(
     ) {
         if (layoutBounds != null || rotationBounds != null || zoomBounds != null) {
             cancelFling()
+            val center = this.center
 
             layoutBounds?.let {
                 this.layoutBounds = it
@@ -201,17 +205,31 @@ class LazyTransformableLayoutState(
                 this.zoomBounds = it
             }
 
-            scale = clampScale(scale)
-            offset = clampOffset(offset)
+            applyCamera(angle, scale, center)
         }
     }
 
-    var offset by mutableStateOf(clampOffset(initialOffset))
+    internal var offset by mutableStateOf(Offset.Zero)
         private set
 
     private fun clampOffset(offset: Offset) = panningBounds?.clamp(offset) ?: offset
 
-    operator fun component1() = offset
+    private var pendingCenter by mutableStateOf<DpOffset?>(
+        initialCenter ?: layoutBounds.run { DpOffset((left + right) / 2, (top + bottom) / 2) }
+    )
+
+    /**
+     * The point of the layout, in the same space as the items' bounds, at the center of the viewport
+     */
+    val center: DpOffset
+        get() = pendingCenter ?: requireNotNull(density).run {
+            val viewportCenter = requireNotNull(constraints).toSize().center
+            (viewportCenter + offset)
+                .transform(scale = 1 / scale, angle = -angle)
+                .let { DpOffset(it.x.toDp(), it.y.toDp()) }
+        }
+
+    operator fun component1() = center
 
     var angle by mutableFloatStateOf(clampAngle(initialAngle))
         private set
@@ -227,32 +245,46 @@ class LazyTransformableLayoutState(
 
     operator fun component3() = scale
 
-    fun set(angle: Float? = null, scale: Float? = null, offset: Offset? = null): Array<Boolean?> {
-        val clampedArray = arrayOfNulls<Boolean>(3)
+    /**
+     * Snaps the camera to the given values, clamped to their bounds. A null value keeps its current value,
+     * so changing only the angle or scale rotates or zooms about the center of the viewport.
+     *
+     * @param angle rotation angle in degrees
+     * @param scale zoom scale
+     * @param center point of the layout, in the same space as the items' bounds, to place at the center of the viewport
+     * @return for angle, scale and center, whether the value was within bounds, or null if it was not updated
+     */
+    fun set(angle: Float? = null, scale: Float? = null, center: DpOffset? = null): Array<Boolean?> {
+        if (angle == null && scale == null && center == null) return arrayOfNulls(3)
 
-        if (angle != null || scale != null || offset != null) {
-            cancelFling()
+        cancelFling()
+        return applyCamera(angle ?: this.angle, scale ?: this.scale, center ?: this.center).apply {
+            if (angle == null) this[0] = null
+            if (angle == null && scale == null) this[1] = null
+        }
+    }
 
-            angle?.let {
-                val clampedAngle = clampAngle(angle)
-                this.angle = clampedAngle
-                clampedArray[0] = clampedAngle == angle
-            }
+    private fun applyCamera(angle: Float, scale: Float, center: DpOffset): Array<Boolean?> {
+        val clampedAngle = clampAngle(angle)
+        this.angle = clampedAngle
 
-            if (angle != null || scale != null) {
-                val preClampScale = scale ?: this.scale
-                val clampedScale = clampScale(preClampScale)
-                this.scale = clampedScale
-                clampedArray[1] = clampedScale == preClampScale
-            }
+        val clampedScale = clampScale(scale)
+        this.scale = clampedScale
 
-            val preClampOffset = offset ?: this.offset
+        val constraints = constraints
+        val density = density
+        val centerInBounds = if (constraints == null || density == null) {
+            pendingCenter = center
+            null
+        } else {
+            val preClampOffset = with(density) { Offset(center.x.toPx(), center.y.toPx()) }
+                .transform(clampedScale, clampedAngle) - constraints.toSize().center
             val clampedOffset = clampOffset(preClampOffset)
-            this.offset = clampedOffset
-            clampedArray[2] = clampedOffset == preClampOffset
+            offset = clampedOffset
+            clampedOffset == preClampOffset
         }
 
-        return clampedArray
+        return arrayOf(clampedAngle == angle, clampedScale == scale, centerInBounds)
     }
 
     fun transform(
@@ -438,8 +470,8 @@ class LazyTransformableLayoutState(
                         rotationBounds.endInclusive,
                         zoomBounds.start,
                         zoomBounds.endInclusive,
-                        offset.x,
-                        offset.y,
+                        center.x.value,
+                        center.y.value,
                         angle,
                         scale
                     )
@@ -455,7 +487,7 @@ class LazyTransformableLayoutState(
                     ),
                     rotationBounds = values[4]..values[5],
                     zoomBounds = values[6]..values[7],
-                    initialOffset = Offset(values[8], values[9]),
+                    initialCenter = DpOffset(values[8].dp, values[9].dp),
                     initialAngle = values[10],
                     initialScale = values[11],
                     panFlingDecay = panFlingDecay,

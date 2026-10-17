@@ -146,7 +146,9 @@ fun LazyTransformableLayout(
                         zIndex = item.zIndex
                     ) {
                         transformOrigin = TransformOrigin(0f, 0f)
-                        val (offset, angle, scale) = state
+                        val offset = state.offset
+                        val angle = state.angle
+                        val scale = state.scale
                         scaleX = scale
                         scaleY = scale
                         rotationZ = angle
