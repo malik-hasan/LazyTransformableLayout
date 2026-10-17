@@ -1,7 +1,6 @@
 package oats.mobile.lazytransformablelayout
 
 import androidx.compose.foundation.OverscrollEffect
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.lazy.layout.LazyLayout
 import androidx.compose.foundation.overscroll
 import androidx.compose.foundation.rememberOverscrollEffect
@@ -24,6 +23,7 @@ import androidx.compose.ui.util.fastForEachIndexed
 import androidx.compose.ui.util.fastMap
 import kotlinx.coroutines.launch
 import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
+import oats.mobile.lazytransformablelayout.extension.detectZoomTapGestures
 import oats.mobile.lazytransformablelayout.extension.transform
 import oats.mobile.lazytransformablelayout.model.Item
 import kotlin.math.roundToInt
@@ -31,6 +31,7 @@ import kotlin.math.roundToInt
 /**
  * A lazy layout of [oats.mobile.lazytransformablelayout.model.Positionable] items that can be panned, zoomed and rotated.
  * Only items intersecting the viewport are composed.
+ * Double tap zooms in, two-finger tap zooms out, and double tap then drag zooms continuously.
  *
  * @param state The camera state of this layout
  * @param modifier The modifier to apply to this layout
@@ -87,8 +88,17 @@ fun LazyTransformableLayout(
                     )
                 }
             }.pointerInput(state) {
-                detectTapGestures(
-                    onPress = { state.cancelFling() }
+                detectZoomTapGestures(
+                    onPress = { state.cancelFling() },
+                    onDoubleTap = { position ->
+                        scope.launch { state.animateZoom(position, TAP_ZOOM_FACTOR) }
+                    },
+                    onDoubleTapDrag = { centroid, zoomFactor ->
+                        state.transform(centroid = centroid, zoomFactor = zoomFactor)
+                    },
+                    onTwoFingerTap = { centroid ->
+                        scope.launch { state.animateZoom(centroid, 1 / TAP_ZOOM_FACTOR) }
+                    }
                 )
             }
     ) { constraints ->
@@ -161,3 +171,5 @@ fun LazyTransformableLayout(
         }
     }
 }
+
+private const val TAP_ZOOM_FACTOR = 2f
