@@ -1,6 +1,7 @@
 package oats.mobile.lazytransformablelayout
 
 import androidx.compose.foundation.OverscrollEffect
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.layout.LazyLayout
 import androidx.compose.foundation.overscroll
@@ -93,11 +94,14 @@ fun LazyTransformableLayout(
                     )
                 }
             }.pointerInput(state) {
-                detectZoomTapGestures(
+                detectTapGestures(
                     onPress = { state.cancelFling() },
                     onDoubleTap = { position ->
                         scope.launch { state.animateZoom(position, TAP_ZOOM_FACTOR) }
-                    },
+                    }
+                )
+            }..pointerInput(state) {
+                detectZoomTapGestures(
                     onDoubleTapDrag = { centroid, zoomFactor ->
                         state.transform(centroid = centroid, zoomFactor = zoomFactor)
                     },

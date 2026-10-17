@@ -9,7 +9,6 @@ import androidx.compose.foundation.gestures.calculateRotation
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.input.pointer.positionChanged
@@ -144,20 +143,17 @@ suspend fun PointerInputScope.detectTransformGestures(
 }
 
 internal suspend fun PointerInputScope.detectZoomTapGestures(
-    onPress: () -> Unit,
-    onDoubleTap: (position: Offset) -> Unit,
     onDoubleTapDrag: (centroid: Offset, zoomFactor: Float) -> Unit,
     onTwoFingerTap: (centroid: Offset) -> Unit
 ) = awaitEachGesture {
     val firstDown = awaitFirstDown()
-    onPress()
 
     val touchSlop = viewConfiguration.touchSlop
     val downPositions = mutableMapOf(firstDown.id to firstDown.position)
     val isTap = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
         var isTap: Boolean
         do {
-            val changes = awaitPointerEvent(PointerEventPass.Final).changes
+            val changes = awaitPointerEvent().changes
             changes.fastForEach {
                 if (it.changedToDown()) downPositions[it.id] = it.position
             }
@@ -180,7 +176,6 @@ internal suspend fun PointerInputScope.detectZoomTapGestures(
     val secondDown = withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) {
         awaitFirstDown()
     } ?: return@awaitEachGesture
-    onPress()
 
     val zoomPerPixel = ln(2f) / DOUBLE_TAP_DRAG_DOUBLING_DISTANCE.toPx()
     var dragging = false
@@ -191,12 +186,12 @@ internal suspend fun PointerInputScope.detectZoomTapGestures(
         if (change == null || change.isConsumed || event.changes.size > 1) return@awaitEachGesture
 
         if (!dragging && (change.position - secondDown.position).getDistance() > touchSlop) dragging = true
-        if (dragging) onDoubleTapDrag(secondDown.position, exp((change.position.y - previousY) * zoomPerPixel))
+        if (dragging) {
+            onDoubleTapDrag(secondDown.position, exp((change.position.y - previousY) * zoomPerPixel))
+            change.consume()
+        }
         previousY = change.position.y
-        change.consume()
     } while (change.pressed)
-
-    if (!dragging) onDoubleTap(secondDown.position)
 }
 
 private val DOUBLE_TAP_DRAG_DOUBLING_DISTANCE = 100.dp
