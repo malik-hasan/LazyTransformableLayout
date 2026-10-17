@@ -26,19 +26,23 @@ import androidx.compose.ui.geometry.toRect
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.unit.width
 import androidx.compose.ui.util.lerp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import oats.mobile.lazytransformablelayout.extension.center
 import oats.mobile.lazytransformablelayout.extension.radians
 import oats.mobile.lazytransformablelayout.extension.transform
 import oats.mobile.lazytransformablelayout.extension.vertices
@@ -121,6 +125,8 @@ class LazyTransformableLayoutState(
             constraints = newConstraints
             this.density = density
             pendingCenter = null
+            val scale = pendingFit?.let { (bounds, padding) -> fitScale(bounds, angle, padding) } ?: scale
+            pendingFit = null
             applyCamera(angle, scale, center)
         }
     }
@@ -220,7 +226,7 @@ class LazyTransformableLayoutState(
     private fun clampOffset(offset: Offset) = panningBounds?.clamp(offset) ?: offset
 
     private var pendingCenter by mutableStateOf<DpOffset?>(
-        initialCenter ?: layoutBounds.run { DpOffset((left + right) / 2, (top + bottom) / 2) }
+        initialCenter ?: layoutBounds.center
     )
 
     /**
@@ -266,6 +272,7 @@ class LazyTransformableLayoutState(
         if (angle == null && scale == null && center == null) return arrayOfNulls(3)
 
         cancelFling()
+        pendingFit = null
         return applyCamera(angle ?: this.angle, scale ?: this.scale, center ?: this.center).apply {
             if (angle == null) this[0] = null
             if (angle == null && scale == null) this[1] = null
@@ -323,6 +330,61 @@ class LazyTransformableLayoutState(
         return applyCamera(angle ?: startAngle, scale ?: startScale, center ?: startCenter).apply {
             if (angle == null) this[0] = null
             if (angle == null && scale == null) this[1] = null
+        }
+    }
+
+    /**
+     * Snaps the camera to center [bounds] in the viewport, at the largest scale that fits them at the target angle.
+     * The values are clamped to their bounds like the other [set].
+     *
+     * @param bounds area of the layout, in the same space as the items' bounds, to fit in the viewport
+     * @param angle rotation angle in degrees, or null to keep the current angle
+     * @param padding space to keep between [bounds] and each edge of the viewport
+     * @return for angle, scale and center, whether the value was within bounds, or null if it was not updated
+     */
+    fun set(bounds: DpRect, angle: Float? = null, padding: Dp = 0.dp): Array<Boolean?> {
+        val scale = fitScale(bounds, clampAngle(angle ?: this.angle), padding)
+        return set(angle, scale ?: this.scale, bounds.center).also {
+            if (scale == null) pendingFit = bounds to padding
+        }
+    }
+
+    /**
+     * Animates the camera to center [bounds] in the viewport, at the largest scale that fits them at the target angle.
+     * Interpolates and clamps like the other [animate].
+     *
+     * @param bounds area of the layout, in the same space as the items' bounds, to fit in the viewport
+     * @param angle rotation angle in degrees, or null to keep the current angle
+     * @param padding space to keep between [bounds] and each edge of the viewport
+     * @param animationSpec the spec animating progress from 0 to 1
+     * @return for angle, scale and center, whether the value was within bounds, or null if it was not updated
+     */
+    suspend fun animate(
+        bounds: DpRect,
+        angle: Float? = null,
+        padding: Dp = 0.dp,
+        animationSpec: AnimationSpec<Float> = spring()
+    ): Array<Boolean?> {
+        val scale = fitScale(bounds, clampAngle(angle ?: this.angle), padding) ?: return set(bounds, angle, padding)
+        return animate(angle, scale, bounds.center, animationSpec)
+    }
+
+    private var pendingFit: Pair<DpRect, Dp>? = null
+
+    private fun fitScale(bounds: DpRect, angle: Float, padding: Dp): Float? {
+        val constraints = constraints ?: return null
+        val density = density ?: return null
+        return with(density) {
+            val angleRadians = angle.radians
+            val cos = abs(cos(angleRadians))
+            val sin = abs(sin(angleRadians))
+            val width = bounds.width.toPx()
+            val height = bounds.height.toPx()
+            val totalPadding = 2 * padding.toPx()
+            minOf(
+                (constraints.width - totalPadding) / (width * cos + height * sin),
+                (constraints.height - totalPadding) / (width * sin + height * cos)
+            )
         }
     }
 
