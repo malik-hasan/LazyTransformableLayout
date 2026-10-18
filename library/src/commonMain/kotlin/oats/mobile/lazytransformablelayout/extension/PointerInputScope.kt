@@ -20,7 +20,6 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.VelocityTracker1D
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
 import kotlin.math.abs
@@ -144,32 +143,33 @@ suspend fun PointerInputScope.detectTransformGestures(
     }
 }
 
-internal suspend fun PointerInputScope.detectTwoFingerTapGestures(
+suspend fun PointerInputScope.detectTwoFingerTapGestures(
     onTwoFingerTap: (centroid: Offset) -> Unit
 ) = awaitEachGesture {
     val firstDown = awaitFirstDown()
-    val touchSlop = viewConfiguration.touchSlop
     val downPositions = mutableMapOf(firstDown.id to firstDown.position)
-    val isTap = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+    withTimeout(viewConfiguration.longPressTimeoutMillis) {
         do {
             val changes = awaitPointerEvent().changes
             changes.fastForEach {
                 if (it.changedToDown()) downPositions[it.id] = it.position
             }
-            val isTap = downPositions.size <= 2 && changes.fastAll { change ->
-                !change.isConsumed && downPositions[change.id]?.let {
-                    (change.position - it).getDistance() <= touchSlop
-                } == true
-            }
-            if (!isTap) return@withTimeoutOrNull false
-        } while (changes.fastAny { it.pressed })
-        true
-    } ?: false
 
-    if (isTap && downPositions.size == 2) onTwoFingerTap(downPositions.values.reduce(Offset::plus) / 2f)
+            if (downPositions.size > 2
+                || changes.fastAny { change ->
+                    change.isConsumed || downPositions[change.id]?.let {
+                        (change.position - it).getDistance() > viewConfiguration.touchSlop
+                    } != false
+                }
+            ) return@withTimeout
+        } while (changes.fastAny { it.pressed })
+
+        if (downPositions.size == 2)
+            onTwoFingerTap(downPositions.values.reduce(Offset::plus) / 2f)
+    }
 }
 
-internal suspend fun PointerInputScope.detectDoubleTapDragGestures(
+suspend fun PointerInputScope.detectDoubleTapDragGestures(
     onDoubleTapDrag: (centroid: Offset, zoomFactor: Float) -> Unit
 ) = awaitEachGesture {
     awaitFirstDown()
