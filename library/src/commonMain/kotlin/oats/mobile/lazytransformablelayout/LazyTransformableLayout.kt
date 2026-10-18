@@ -25,8 +25,9 @@ import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachIndexed
 import androidx.compose.ui.util.fastMap
 import kotlinx.coroutines.launch
+import oats.mobile.lazytransformablelayout.extension.detectDoubleTapDragGestures
 import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
-import oats.mobile.lazytransformablelayout.extension.detectZoomTapGestures
+import oats.mobile.lazytransformablelayout.extension.detectTwoFingerTapGestures
 import oats.mobile.lazytransformablelayout.extension.transform
 import oats.mobile.lazytransformablelayout.model.Item
 import kotlin.math.roundToInt
@@ -101,14 +102,13 @@ fun LazyTransformableLayout(
                     }
                 )
             }.pointerInput(state) {
-                detectZoomTapGestures(
-                    onDoubleTapDrag = { centroid, zoomFactor ->
-                        state.transform(centroid = centroid, zoomFactor = zoomFactor)
-                    },
-                    onTwoFingerTap = { centroid ->
-                        scope.launch { state.animateZoom(centroid, 1 / TAP_ZOOM_FACTOR) }
-                    }
-                )
+                detectTwoFingerTapGestures { centroid ->
+                    scope.launch { state.animateZoom(centroid, 1 / TAP_ZOOM_FACTOR) }
+                }
+            }.pointerInput(state) {
+                detectDoubleTapDragGestures { centroid, zoomFactor ->
+                    state.transform(centroid = centroid, zoomFactor = zoomFactor)
+                }
             }
     ) { constraints ->
         val contentLeft = contentPadding.calculateLeftPadding(layoutDirection).toPx()
