@@ -2,16 +2,19 @@ package oats.mobile.lazytransformablelayout.extension
 
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateCentroidSize
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateRotation
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
-import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.changedToDown
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.VelocityTracker1D
@@ -19,9 +22,7 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastAny
-import androidx.compose.ui.util.fastFirstOrNull
 import androidx.compose.ui.util.fastForEach
-import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.hypot
@@ -69,7 +70,7 @@ suspend fun PointerInputScope.detectTransformGestures(
                     totalZoomBeforeTouchSlop *= zoomFactor
                     totalPanBeforeTouchSlop += panDelta
 
-                    val rotationMotionBeforeTouchSlop = abs(totalRotationBeforeTouchSlop * PI.toFloat() * centroidSize / 180f)
+                    val rotationMotionBeforeTouchSlop = abs(totalRotationBeforeTouchSlop.radians * centroidSize)
                     val zoomMotionBeforeTouchSlop = abs(1 - totalZoomBeforeTouchSlop) * centroidSize
                     val panMotionBeforeTouchSlop = totalPanBeforeTouchSlop.getDistance()
 
@@ -146,54 +147,51 @@ suspend fun PointerInputScope.detectTransformGestures(
 internal suspend fun PointerInputScope.detectTwoFingerTapGestures(
     onTwoFingerTap: (centroid: Offset) -> Unit
 ) = awaitEachGesture {
-    awaitTap(pointerCount = 2)?.let { onTwoFingerTap(it.reduce(Offset::plus) / 2f) }
-}
-
-internal suspend fun PointerInputScope.detectDoubleTapDragGestures(
-    onDoubleTapDrag: (centroid: Offset, zoomFactor: Float) -> Unit
-) = awaitEachGesture {
-    awaitTap(pointerCount = 1) ?: return@awaitEachGesture
-
-    val secondDown = withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) {
-        awaitFirstDown()
-    } ?: return@awaitEachGesture
-
-    val touchSlop = viewConfiguration.touchSlop
-    val zoomPerPixel = ln(2f) / DOUBLE_TAP_DRAG_DOUBLING_DISTANCE.toPx()
-    var dragging = false
-    var previousY = secondDown.position.y
-    do {
-        val event = awaitPointerEvent()
-        val change = event.changes.fastFirstOrNull { it.id == secondDown.id }
-        if (change == null || change.isConsumed || event.changes.size > 1) return@awaitEachGesture
-
-        if (!dragging && (change.position - secondDown.position).getDistance() > touchSlop) dragging = true
-        if (dragging) {
-            onDoubleTapDrag(secondDown.position, exp((change.position.y - previousY) * zoomPerPixel))
-            change.consume()
-        }
-        previousY = change.position.y
-    } while (change.pressed)
-}
-
-private suspend fun AwaitPointerEventScope.awaitTap(pointerCount: Int): Collection<Offset>? {
     val firstDown = awaitFirstDown()
     val touchSlop = viewConfiguration.touchSlop
     val downPositions = mutableMapOf(firstDown.id to firstDown.position)
-    return withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+    val isTap = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
         do {
             val changes = awaitPointerEvent().changes
             changes.fastForEach {
                 if (it.changedToDown()) downPositions[it.id] = it.position
             }
-            val isTap = downPositions.size <= pointerCount && changes.fastAll { change ->
+            val isTap = downPositions.size <= 2 && changes.fastAll { change ->
                 !change.isConsumed && downPositions[change.id]?.let {
                     (change.position - it).getDistance() <= touchSlop
                 } == true
             }
-            if (!isTap) return@withTimeoutOrNull null
+            if (!isTap) return@withTimeoutOrNull false
         } while (changes.fastAny { it.pressed })
-        downPositions.values.takeIf { it.size == pointerCount }
+        true
+    } ?: false
+
+    if (isTap && downPositions.size == 2) onTwoFingerTap(downPositions.values.reduce(Offset::plus) / 2f)
+}
+
+internal suspend fun PointerInputScope.detectDoubleTapDragGestures(
+    onDoubleTapDrag: (centroid: Offset, zoomFactor: Float) -> Unit
+) = awaitEachGesture {
+    awaitFirstDown()
+    withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+        waitForUpOrCancellation()
+    } ?: return@awaitEachGesture
+
+    val secondDown = withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) {
+        awaitFirstDown()
+    } ?: return@awaitEachGesture
+
+    val zoomPerPixel = ln(2f) / DOUBLE_TAP_DRAG_DOUBLING_DISTANCE.toPx()
+    fun zoomBy(dragY: Float) = onDoubleTapDrag(secondDown.position, exp(dragY * zoomPerPixel))
+
+    val slopChange = awaitTouchSlopOrCancellation(secondDown.id) { change, overSlop ->
+        zoomBy(overSlop.y)
+        change.consume()
+    } ?: return@awaitEachGesture
+
+    drag(slopChange.id) { change ->
+        zoomBy(change.positionChange().y)
+        change.consume()
     }
 }
 
