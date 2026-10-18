@@ -100,7 +100,7 @@ fun LazyTransformableLayout(
                         scope.launch { state.animateZoom(position, TAP_ZOOM_FACTOR) }
                     }
                 )
-            }..pointerInput(state) {
+            }.pointerInput(state) {
                 detectZoomTapGestures(
                     onDoubleTapDrag = { centroid, zoomFactor ->
                         state.transform(centroid = centroid, zoomFactor = zoomFactor)
