@@ -33,6 +33,8 @@ import oats.mobile.lazytransformablelayout.extension.transform
 import oats.mobile.lazytransformablelayout.model.Item
 import kotlin.math.roundToInt
 
+private const val TAP_ZOOM_FACTOR = 2f
+
 /**
  * A lazy layout of [oats.mobile.lazytransformablelayout.model.Positionable] items that can be panned, zoomed and rotated.
  * Only items intersecting the viewport are composed.
@@ -131,14 +133,20 @@ fun LazyTransformableLayout(
     ) { constraints ->
         val contentLeft = contentPadding.calculateLeftPadding(layoutDirection).toPx()
         val contentTop = contentPadding.calculateTopPadding().toPx()
-        state.acceptConstraints(
-            constraints,
-            this,
-            Rect(
+        state.measure(
+            constraints = constraints,
+            density = this,
+            contentBounds = Rect(
                 left = contentLeft,
                 top = contentTop,
-                right = maxOf(contentLeft, constraints.maxWidth - contentPadding.calculateRightPadding(layoutDirection).toPx()),
-                bottom = maxOf(contentTop, constraints.maxHeight - contentPadding.calculateBottomPadding().toPx())
+                right = maxOf(
+                    contentLeft,
+                    constraints.maxWidth - contentPadding.calculateRightPadding(layoutDirection).toPx()
+                ),
+                bottom = maxOf(
+                    contentTop,
+                    constraints.maxHeight - contentPadding.calculateBottomPadding().toPx()
+                )
             )
         )
 
@@ -209,5 +217,3 @@ fun LazyTransformableLayout(
         }
     }
 }
-
-private const val TAP_ZOOM_FACTOR = 2f

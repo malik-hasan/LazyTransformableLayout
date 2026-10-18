@@ -72,7 +72,7 @@ class LazyTransformableLayoutState(
     layoutBounds: DpRect,
     rotationBounds: ClosedFloatingPointRange<Float> = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY,
     zoomBounds: ClosedFloatingPointRange<Float> = Float.MIN_VALUE..Float.MAX_VALUE,
-    initialCenter: DpOffset? = null,
+    initialCenter: DpOffset = layoutBounds.center,
     initialAngle: Float = 0f,
     @FloatRange(from = 0.0, fromInclusive = false) initialScale: Float = 1f,
     private val panFlingDecay: FloatDecayAnimationSpec = FloatExponentialDecaySpec(),
@@ -116,17 +116,20 @@ class LazyTransformableLayoutState(
         density?.run { this@LazyTransformableLayoutState.layoutBounds.toRect() }
     }
 
-    private inline fun <T> measured(block: (contentBounds: Rect, density: Density, layoutBounds: Rect) -> T): T? {
-        val contentBounds = contentBounds ?: return null
-        val density = density ?: return null
-        val layoutBounds = layoutBoundsPx ?: return null
-        return block(contentBounds, density, layoutBounds)
-    }
+    private inline fun <T> measured(block: (contentBounds: Rect, density: Density, layoutBounds: Rect) -> T) =
+        contentBounds?.let { contentBounds ->
+            density?.let { density ->
+                layoutBoundsPx?.let { layoutBoundsPx ->
+                    block(contentBounds, density, layoutBoundsPx)
+                }
+            }
+        }
 
-    internal fun acceptConstraints(incomingConstraints: Constraints, density: Density, contentBounds: Rect) {
-        val newConstraints = incomingConstraints.run { IntSize(maxWidth, maxHeight) }
-        if (constraints != newConstraints || this.density != density || this.contentBounds != contentBounds) {
-            constraints = newConstraints
+
+    internal fun measure(constraints: Constraints, density: Density, contentBounds: Rect) {
+        val constraintsSize = constraints.run { IntSize(maxWidth, maxHeight) }
+        if (this.constraints != constraintsSize || this.density != density || this.contentBounds != contentBounds) {
+            this.constraints = constraintsSize
             this.density = density
             this.contentBounds = contentBounds
             val scale = pendingFit?.let { (bounds, padding) -> fitScale(bounds, angle, padding) } ?: scale
@@ -231,7 +234,7 @@ class LazyTransformableLayoutState(
     /**
      * The point of the layout, in the same space as the items' bounds, at the center of the viewport's content area
      */
-    var center by mutableStateOf(initialCenter ?: layoutBounds.center)
+    var center by mutableStateOf(initialCenter)
         private set
 
     private fun clampCenter(center: Offset) = panningBounds?.clamp(center) ?: center
