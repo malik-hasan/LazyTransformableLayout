@@ -8,7 +8,7 @@ import androidx.compose.foundation.gestures.calculateCentroidSize
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateRotation
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.gestures.verticalDrag
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
@@ -27,6 +27,8 @@ import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.ln
+
+private val MinZoomRotateFlingVelocity = 1000.dp
 
 suspend fun PointerInputScope.detectTransformGestures(
     onTransformStopped: (centroid: Offset, rotationVelocity: Float, logZoomVelocity: Float, panVelocity: Velocity) -> Unit,
@@ -127,7 +129,7 @@ suspend fun PointerInputScope.detectTransformGestures(
         val zoomVelocityPixels = abs(logZoomVelocity) * maxCentroidSize
         val panVelocityPixels = hypot(panVelocity.x, panVelocity.y)
 
-        val minZoomRotateFlingVelocity = 1000.dp.toPx()
+        val minZoomRotateFlingVelocity = MinZoomRotateFlingVelocity.toPx()
         val zoomRotateNoiseFraction = 0.2f
 
         if (rotationVelocityPixels < maxOf(minZoomRotateFlingVelocity, maxOf(panVelocityPixels, zoomVelocityPixels) * zoomRotateNoiseFraction))
@@ -177,26 +179,33 @@ suspend fun PointerInputScope.detectDoubleTapDragGestures(
     awaitFirstDown()
     withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
         waitForUpOrCancellation()
-    } ?: return@awaitEachGesture
+    }?.let {
 
-    val secondDown = withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) {
-        awaitFirstDown()
-    } ?: return@awaitEachGesture
+        withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) {
+            awaitFirstDown()
+        }?.let { secondDown ->
 
-    val zoomPerPixel = ln(16f) / size.height.coerceAtLeast(1)
-    val velocityTracker = VelocityTracker1D(isDataDifferential = false)
-    fun zoomBy(change: PointerInputChange, dragY: Float) {
-        onDoubleTapDrag(exp(dragY * zoomPerPixel))
-        velocityTracker.addDataPoint(change.uptimeMillis, change.position.y)
-        change.consume()
-    }
+            val zoomPerPixel = ln(16f) / size.height.coerceAtLeast(1)
+            val velocityTracker = VelocityTracker1D(false)
+            fun zoomBy(change: PointerInputChange, dragY: Float) {
+                onDoubleTapDrag(exp(dragY * zoomPerPixel))
+                change.run {
+                    velocityTracker.addDataPoint(uptimeMillis, position.y)
+                    consume()
+                }
+            }
 
-    val slopChange = awaitTouchSlopOrCancellation(secondDown.id) { change, overSlop ->
-        zoomBy(change, overSlop.y)
-    } ?: return@awaitEachGesture
-
-    if (drag(slopChange.id) { zoomBy(it, it.positionChange().y) }) {
-        val dragVelocity = velocityTracker.calculateVelocity().takeIf { abs(it) >= 1000.dp.toPx() } ?: 0f
-        onDoubleTapDragStopped(dragVelocity * zoomPerPixel)
+            awaitTouchSlopOrCancellation(secondDown.id) { change, overSlop ->
+                zoomBy(change, overSlop.y)
+            }?.id?.let { dragPointerId ->
+                if (verticalDrag(dragPointerId) {
+                    zoomBy(it, it.positionChange().y)
+                }) velocityTracker.calculateVelocity().takeIf {
+                    abs(it) >= MinZoomRotateFlingVelocity.toPx()
+                }?.let { velocity ->
+                    onDoubleTapDragStopped(velocity * zoomPerPixel)
+                }
+            }
+        }
     }
 }
