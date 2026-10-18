@@ -12,6 +12,7 @@ import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.input.pointer.positionChange
@@ -170,7 +171,8 @@ suspend fun PointerInputScope.detectTwoFingerTapGestures(
 }
 
 suspend fun PointerInputScope.detectDoubleTapDragGestures(
-    onDoubleTapDrag: (centroid: Offset, zoomFactor: Float) -> Unit
+    onDoubleTapDragStopped: (logZoomVelocity: Float) -> Unit,
+    onDoubleTapDrag: (zoomFactor: Float) -> Unit
 ) = awaitEachGesture {
     awaitFirstDown()
     withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
@@ -182,15 +184,19 @@ suspend fun PointerInputScope.detectDoubleTapDragGestures(
     } ?: return@awaitEachGesture
 
     val zoomPerPixel = ln(16f) / size.height.coerceAtLeast(1)
-    fun zoomBy(dragY: Float) = onDoubleTapDrag(secondDown.position, exp(dragY * zoomPerPixel))
+    val velocityTracker = VelocityTracker1D(isDataDifferential = false)
+    fun zoomBy(change: PointerInputChange, dragY: Float) {
+        onDoubleTapDrag(exp(dragY * zoomPerPixel))
+        velocityTracker.addDataPoint(change.uptimeMillis, change.position.y)
+        change.consume()
+    }
 
     val slopChange = awaitTouchSlopOrCancellation(secondDown.id) { change, overSlop ->
-        zoomBy(overSlop.y)
-        change.consume()
+        zoomBy(change, overSlop.y)
     } ?: return@awaitEachGesture
 
-    drag(slopChange.id) { change ->
-        zoomBy(change.positionChange().y)
-        change.consume()
+    if (drag(slopChange.id) { zoomBy(it, it.positionChange().y) }) {
+        val dragVelocity = velocityTracker.calculateVelocity().takeIf { abs(it) >= 1000.dp.toPx() } ?: 0f
+        onDoubleTapDragStopped(dragVelocity * zoomPerPixel)
     }
 }

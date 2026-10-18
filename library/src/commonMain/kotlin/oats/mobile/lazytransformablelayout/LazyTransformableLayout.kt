@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachIndexed
 import androidx.compose.ui.util.fastMap
@@ -106,8 +107,23 @@ fun LazyTransformableLayout(
                     scope.launch { state.animateZoom(centroid, 1 / TAP_ZOOM_FACTOR) }
                 }
             }.pointerInput(state) {
-                detectDoubleTapDragGestures { centroid, zoomFactor ->
-                    state.transform(centroid = centroid, zoomFactor = zoomFactor)
+                detectDoubleTapDragGestures(
+                    onDoubleTapDragStopped = { logZoomVelocity ->
+                        state.contentCenter?.let { centroid ->
+                            scope.launch {
+                                state.fling(
+                                    centroid = centroid,
+                                    initialRotationVelocity = 0f,
+                                    initialLogZoomVelocity = logZoomVelocity,
+                                    initialPanVelocity = Velocity.Zero
+                                )
+                            }
+                        }
+                    }
+                ) { zoomFactor ->
+                    state.contentCenter?.let { centroid ->
+                        state.transform(centroid = centroid, zoomFactor = zoomFactor)
+                    }
                 }
             }
     ) { constraints ->

@@ -108,6 +108,8 @@ class LazyTransformableLayoutState(
 
     private var contentBounds by mutableStateOf<Rect?>(null)
 
+    internal val contentCenter get() = contentBounds?.center
+
     private var density by mutableStateOf<Density?>(null)
 
     private val layoutBoundsPx by derivedStateOf {
