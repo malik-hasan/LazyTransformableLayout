@@ -181,7 +181,7 @@ suspend fun PointerInputScope.detectDoubleTapDragGestures(
         awaitFirstDown()
     } ?: return@awaitEachGesture
 
-    val zoomPerPixel = ln(2f) / DOUBLE_TAP_DRAG_DOUBLING_DISTANCE.toPx()
+    val zoomPerPixel = ln(16f) / size.height.coerceAtLeast(1)
     fun zoomBy(dragY: Float) = onDoubleTapDrag(secondDown.position, exp(dragY * zoomPerPixel))
 
     val slopChange = awaitTouchSlopOrCancellation(secondDown.id) { change, overSlop ->
@@ -194,5 +194,3 @@ suspend fun PointerInputScope.detectDoubleTapDragGestures(
         change.consume()
     }
 }
-
-private val DOUBLE_TAP_DRAG_DOUBLING_DISTANCE = 100.dp
