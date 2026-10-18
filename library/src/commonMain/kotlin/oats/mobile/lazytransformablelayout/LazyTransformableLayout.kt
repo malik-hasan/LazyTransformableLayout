@@ -103,8 +103,10 @@ fun LazyTransformableLayout(
                     }
                 )
             }.pointerInput(state) {
-                detectTwoFingerTapGestures { centroid ->
-                    scope.launch { state.animateZoom(centroid, 1 / TAP_ZOOM_FACTOR) }
+                detectTwoFingerTapGestures {
+                    state.contentCenter?.let { centroid ->
+                        scope.launch { state.animateZoom(centroid, 1 / TAP_ZOOM_FACTOR) }
+                    }
                 }
             }.pointerInput(state) {
                 detectDoubleTapDragGestures(

@@ -147,7 +147,7 @@ suspend fun PointerInputScope.detectTransformGestures(
 }
 
 suspend fun PointerInputScope.detectTwoFingerTapGestures(
-    onTwoFingerTap: (centroid: Offset) -> Unit
+    onTwoFingerTap: () -> Unit
 ) = awaitEachGesture {
     val firstDown = awaitFirstDown()
     val downPositions = mutableMapOf(firstDown.id to firstDown.position)
@@ -167,8 +167,7 @@ suspend fun PointerInputScope.detectTwoFingerTapGestures(
             ) return@withTimeout
         } while (changes.fastAny { it.pressed })
 
-        if (downPositions.size == 2)
-            onTwoFingerTap(downPositions.values.reduce(Offset::plus) / 2f)
+        if (downPositions.size == 2) onTwoFingerTap()
     }
 }
 
