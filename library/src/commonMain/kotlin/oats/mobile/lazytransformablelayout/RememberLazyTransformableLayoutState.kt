@@ -5,16 +5,17 @@ import androidx.compose.animation.core.FloatDecayAnimationSpec
 import androidx.compose.animation.core.FloatExponentialDecaySpec
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.DpRect
+import oats.mobile.lazytransformablelayout.extension.center
 
 /**
  * Creates and remembers a [LazyTransformableLayoutState] that survives configuration changes
  *
- * @param layoutBounds The bounds of the layout which can be panned into view
+ * @param layoutBounds The bounds of the layout which can be panned into view, in the same space as the items' bounds
  * @param rotationBounds min and max angle bounds in degrees
  * @param zoomBounds min and max scale bounds
- * @param initialOffset initial offset of the top left corner of the viewport relative to the layoutBounds
+ * @param initialCenter initial point of the layout at the center of the viewport, defaulting to the center of [layoutBounds]
  * @param initialAngle initial rotation angle in degrees
  * @param initialScale initial zoom scale (greater than zero)
  * @param panFlingDecay decay animation spec for panning fling velocity
@@ -23,10 +24,10 @@ import androidx.compose.ui.geometry.Rect
  */
 @Composable
 fun rememberLazyTransformableLayoutState(
-    layoutBounds: Rect,
+    layoutBounds: DpRect,
     rotationBounds: ClosedFloatingPointRange<Float> = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY,
     zoomBounds: ClosedFloatingPointRange<Float> = Float.MIN_VALUE..Float.MAX_VALUE,
-    initialOffset: Offset = Offset.Zero,
+    initialCenter: DpOffset = layoutBounds.center,
     initialAngle: Float = 0f,
     @FloatRange(from = 0.0, fromInclusive = false) initialScale: Float = 1f,
     panFlingDecay: FloatDecayAnimationSpec = FloatExponentialDecaySpec(),
@@ -44,7 +45,7 @@ fun rememberLazyTransformableLayoutState(
             layoutBounds = layoutBounds,
             rotationBounds = rotationBounds,
             zoomBounds = zoomBounds,
-            initialOffset = initialOffset,
+            initialCenter = initialCenter,
             initialAngle = initialAngle,
             initialScale = initialScale,
             panFlingDecay = panFlingDecay,

@@ -2,10 +2,12 @@ package oats.mobile.lazytransformablelayout
 
 import androidx.compose.foundation.OverscrollEffect
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.layout.LazyLayout
 import androidx.compose.foundation.overscroll
 import androidx.compose.foundation.rememberOverscrollEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.referentialEqualityPolicy
@@ -15,25 +17,34 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachIndexed
 import androidx.compose.ui.util.fastMap
 import kotlinx.coroutines.launch
+import oats.mobile.lazytransformablelayout.extension.detectDoubleTapDragGestures
 import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
+import oats.mobile.lazytransformablelayout.extension.detectTwoFingerTapGestures
 import oats.mobile.lazytransformablelayout.extension.transform
 import oats.mobile.lazytransformablelayout.model.Item
 import kotlin.math.roundToInt
 
+private const val TAP_ZOOM_FACTOR = 2f
+
 /**
  * A lazy layout of [oats.mobile.lazytransformablelayout.model.Positionable] items that can be panned, zoomed and rotated.
  * Only items intersecting the viewport are composed.
+ * Double tap zooms in, two-finger tap zooms out, and double tap then drag zooms continuously.
  *
  * @param state The camera state of this layout
  * @param modifier The modifier to apply to this layout
+ * @param contentPadding Padding around the viewport's content area, such as space under overlaid UI.
+ * The camera centers, fits and clamps to the content area, while items still draw underneath the padding.
  * @param overscrollEffect The effect shown when panning past the layout bounds
  * @param contentBuilder Declares the items of this layout. It runs again whenever its lambda instance changes
  * or state it reads changes. Keep it stable: avoid capturing values that change often, and read frequently
@@ -43,6 +54,7 @@ import kotlin.math.roundToInt
 fun LazyTransformableLayout(
     state: LazyTransformableLayoutState,
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
     overscrollEffect: OverscrollEffect? = rememberOverscrollEffect(),
     contentBuilder: LazyTransformableLayoutScope.() -> Unit
 ) {
@@ -54,6 +66,7 @@ fun LazyTransformableLayout(
     }
 
     val scope = rememberCoroutineScope()
+    LaunchedEffect(state) { state.runAnimationRequests() }
 
     LazyLayout(
         itemProvider = remember {
@@ -88,11 +101,56 @@ fun LazyTransformableLayout(
                 }
             }.pointerInput(state) {
                 detectTapGestures(
-                    onPress = { state.cancelFling() }
+                    onPress = { state.cancelFling() },
+                    onDoubleTap = { position ->
+                        scope.launch { state.animateZoom(position, TAP_ZOOM_FACTOR) }
+                    }
                 )
+            }.pointerInput(state) {
+                detectTwoFingerTapGestures {
+                    state.contentCenter?.let { centroid ->
+                        scope.launch { state.animateZoom(centroid, 1 / TAP_ZOOM_FACTOR) }
+                    }
+                }
+            }.pointerInput(state) {
+                detectDoubleTapDragGestures(
+                    onDoubleTapDragStopped = { logZoomVelocity ->
+                        state.contentCenter?.let { centroid ->
+                            scope.launch {
+                                state.fling(
+                                    centroid = centroid,
+                                    initialRotationVelocity = 0f,
+                                    initialLogZoomVelocity = logZoomVelocity,
+                                    initialPanVelocity = Velocity.Zero
+                                )
+                            }
+                        }
+                    }
+                ) { zoomFactor ->
+                    state.contentCenter?.let { centroid ->
+                        state.transform(centroid = centroid, zoomFactor = zoomFactor)
+                    }
+                }
             }
     ) { constraints ->
-        state.acceptConstraints(constraints)
+        val contentLeft = contentPadding.calculateLeftPadding(layoutDirection).toPx()
+        val contentTop = contentPadding.calculateTopPadding().toPx()
+        state.measure(
+            constraints = constraints,
+            density = this,
+            contentBounds = Rect(
+                left = contentLeft,
+                top = contentTop,
+                right = maxOf(
+                    contentLeft,
+                    constraints.maxWidth - contentPadding.calculateRightPadding(layoutDirection).toPx()
+                ),
+                bottom = maxOf(
+                    contentTop,
+                    constraints.maxHeight - contentPadding.calculateBottomPadding().toPx()
+                )
+            )
+        )
 
         val (minItemDimension, viewportBounds) = state.compositionBounds
             ?: return@LazyLayout layout(constraints.maxWidth, constraints.maxHeight) {}
@@ -146,7 +204,9 @@ fun LazyTransformableLayout(
                         zIndex = item.zIndex
                     ) {
                         transformOrigin = TransformOrigin(0f, 0f)
-                        val (offset, angle, scale) = state
+                        val offset = state.offset
+                        val angle = state.angle
+                        val scale = state.scale
                         scaleX = scale
                         scaleY = scale
                         rotationZ = angle

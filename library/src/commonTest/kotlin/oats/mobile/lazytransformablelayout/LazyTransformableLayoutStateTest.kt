@@ -21,7 +21,7 @@ class LazyTransformableLayoutStateTest {
 
     private fun state(layoutBounds: Rect = Rect(0f, 0f, 10_000f, 6_000f)) =
         LazyTransformableLayoutState(layoutBounds).apply {
-            acceptConstraints(Constraints.fixed(viewportWidth, viewportHeight))
+            measure(Constraints.fixed(viewportWidth, viewportHeight))
         }
 
     private fun LazyTransformableLayoutState.viewportBounds(buffer: Float): Parallelogram {
@@ -155,7 +155,7 @@ class LazyTransformableLayoutStateTest {
         val height = 1_080
         val layoutBounds = Rect(0f, 0f, 10_000f, 6_000f)
         val state = LazyTransformableLayoutState(layoutBounds).apply {
-            acceptConstraints(Constraints.fixed(width, height))
+            measure(Constraints.fixed(width, height))
             set(angle = 30f, scale = 1e-6f)
         }
 
@@ -204,7 +204,7 @@ class LazyTransformableLayoutStateTest {
             layoutBounds = Rect(0f, 0f, 500f, 500f),
             zoomBounds = 0.1f..1f
         )
-        state.acceptConstraints(Constraints.fixed(viewportWidth, viewportHeight))
+        state.measure(Constraints.fixed(viewportWidth, viewportHeight))
 
         val coveringScale = maxOf(viewportWidth / 500f, viewportHeight / 500f)
         assertEquals(coveringScale, state.scale)

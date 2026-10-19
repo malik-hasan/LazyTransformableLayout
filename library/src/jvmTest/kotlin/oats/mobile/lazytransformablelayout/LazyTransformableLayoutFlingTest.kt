@@ -45,7 +45,7 @@ class LazyTransformableLayoutFlingTest {
         rotationFlingDecay = rotationFlingDecay,
         zoomFlingDecay = zoomFlingDecay
     ).apply {
-        acceptConstraints(Constraints.fixed(viewportWidth, viewportHeight))
+        measure(Constraints.fixed(viewportWidth, viewportHeight))
     }
 
     private fun LazyTransformableLayoutState.runFling(

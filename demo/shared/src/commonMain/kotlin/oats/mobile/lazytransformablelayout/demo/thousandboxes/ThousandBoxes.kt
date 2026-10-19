@@ -9,11 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.DpSize
@@ -55,16 +51,10 @@ fun ThousandBoxes() {
     }
 
     Scaffold { scaffoldPadding ->
-        val density = LocalDensity.current
         LazyTransformableLayout(
             modifier = Modifier.padding(scaffoldPadding),
             state = rememberLazyTransformableLayoutState(
-                layoutBounds = Rect(
-                    offset = Offset.Zero,
-                    size = with(density) {
-                        Size(LAYOUT_SIZE.dp.toPx(), LAYOUT_SIZE.dp.toPx())
-                    }
-                )
+                layoutBounds = DpRect(0.dp, 0.dp, LAYOUT_SIZE.dp, LAYOUT_SIZE.dp)
             )
         ) {
             items(boxes, key = { it.id }) { box ->
