@@ -19,6 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.referentialEqualityPolicy
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.toRect
@@ -39,6 +40,9 @@ import androidx.compose.ui.util.lerp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import oats.mobile.lazytransformablelayout.extension.center
@@ -273,6 +277,7 @@ class LazyTransformableLayoutState(
 
         cancelFling()
         pendingFit = null
+        animationRequest = null
         return applyCamera(angle ?: this.angle, scale ?: this.scale, center ?: this.center).apply {
             if (angle == null) this[0] = null
             if (angle == null && scale == null) this[1] = null
@@ -350,7 +355,8 @@ class LazyTransformableLayoutState(
 
     /**
      * Animates the camera to center [bounds] in the viewport, at the largest scale that fits them at the target angle.
-     * Interpolates and clamps like the other [animate].
+     * Interpolates and clamps like the other [animate]. Suspends until the layout is first measured,
+     * since the fitting scale depends on the viewport size.
      *
      * @param bounds area of the layout, in the same space as the items' bounds, to fit in the viewport
      * @param angle rotation angle in degrees, or null to keep the current angle
@@ -364,8 +370,52 @@ class LazyTransformableLayoutState(
         padding: Dp = 0.dp,
         animationSpec: AnimationSpec<Float> = spring()
     ): Array<Boolean?> {
-        val scale = fitScale(bounds, clampAngle(angle ?: this.angle), padding) ?: return set(bounds, angle, padding)
-        return animate(angle, scale, bounds.center, animationSpec)
+        snapshotFlow { contentBounds != null && density != null }.first { it }
+        return animate(angle, fitScale(bounds, clampAngle(angle ?: this.angle), padding), bounds.center, animationSpec)
+    }
+
+    private var animationRequest by mutableStateOf<(suspend () -> Unit)?>(null)
+
+    /**
+     * Requests the same animation as [animate] without suspending, so it can be called outside a composition-bound
+     * coroutine, such as from a ViewModel. The animation runs on the next frame while the layout is composed,
+     * replacing any earlier request. A [set] before it starts discards the request.
+     *
+     * @param angle rotation angle in degrees
+     * @param scale zoom scale
+     * @param center point of the layout, in the same space as the items' bounds, to place at the center of the viewport
+     * @param animationSpec the spec animating progress from 0 to 1
+     */
+    fun requestAnimate(
+        angle: Float? = null,
+        scale: Float? = null,
+        center: DpOffset? = null,
+        animationSpec: AnimationSpec<Float> = spring()
+    ) {
+        animationRequest = { animate(angle, scale, center, animationSpec) }
+    }
+
+    /**
+     * Requests the same animation as the [animate] that fits [bounds], without suspending. Runs like the other
+     * [requestAnimate].
+     *
+     * @param bounds area of the layout, in the same space as the items' bounds, to fit in the viewport
+     * @param angle rotation angle in degrees, or null to keep the current angle
+     * @param padding space to keep between [bounds] and each edge of the viewport
+     * @param animationSpec the spec animating progress from 0 to 1
+     */
+    fun requestAnimate(
+        bounds: DpRect,
+        angle: Float? = null,
+        padding: Dp = 0.dp,
+        animationSpec: AnimationSpec<Float> = spring()
+    ) {
+        animationRequest = { animate(bounds, angle, padding, animationSpec) }
+    }
+
+    internal suspend fun runAnimationRequests() = snapshotFlow { animationRequest }.filterNotNull().collectLatest {
+        animationRequest = null
+        it()
     }
 
     private var pendingFit: Pair<DpRect, Dp>? = null

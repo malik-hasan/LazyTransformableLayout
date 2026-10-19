@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.layout.LazyLayout
 import androidx.compose.foundation.overscroll
 import androidx.compose.foundation.rememberOverscrollEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.referentialEqualityPolicy
@@ -65,6 +66,7 @@ fun LazyTransformableLayout(
     }
 
     val scope = rememberCoroutineScope()
+    LaunchedEffect(state) { state.runAnimationRequests() }
 
     LazyLayout(
         itemProvider = remember {
