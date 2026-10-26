@@ -54,7 +54,7 @@ fun ThousandBoxes() {
         LazyTransformableLayout(
             modifier = Modifier.padding(scaffoldPadding),
             state = rememberLazyTransformableLayoutState(
-                layoutBounds = DpRect(0.dp, 0.dp, LAYOUT_SIZE.dp, LAYOUT_SIZE.dp)
+                initialLayoutBounds = DpRect(0.dp, 0.dp, LAYOUT_SIZE.dp, LAYOUT_SIZE.dp)
             )
         ) {
             items(boxes, key = { it.id }) { box ->

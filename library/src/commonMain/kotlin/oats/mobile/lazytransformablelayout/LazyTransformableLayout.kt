@@ -17,7 +17,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Constraints
@@ -66,7 +65,7 @@ fun LazyTransformableLayout(
     }
 
     val scope = rememberCoroutineScope()
-    LaunchedEffect(state) { state.runAnimationRequests() }
+    LaunchedEffect(state) { state.runPendingAnimations() }
 
     LazyLayout(
         itemProvider = remember {
@@ -103,57 +102,35 @@ fun LazyTransformableLayout(
                 detectTapGestures(
                     onPress = { state.cancelFling() },
                     onDoubleTap = { position ->
-                        scope.launch { state.animateZoom(position, TAP_ZOOM_FACTOR) }
+                        scope.launch {
+                            state.animateZoom(TAP_ZOOM_FACTOR, position)
+                        }
                     }
                 )
             }.pointerInput(state) {
                 detectTwoFingerTapGestures {
-                    state.contentCenter?.let { centroid ->
-                        scope.launch { state.animateZoom(centroid, 1 / TAP_ZOOM_FACTOR) }
+                    scope.launch {
+                        state.animateZoom(1 / TAP_ZOOM_FACTOR)
                     }
                 }
             }.pointerInput(state) {
                 detectDoubleTapDragGestures(
                     onDoubleTapDragStopped = { logZoomVelocity ->
-                        state.contentCenter?.let { centroid ->
-                            scope.launch {
-                                state.fling(
-                                    centroid = centroid,
-                                    initialRotationVelocity = 0f,
-                                    initialLogZoomVelocity = logZoomVelocity,
-                                    initialPanVelocity = Velocity.Zero
-                                )
-                            }
+                        scope.launch {
+                            state.fling(
+                                initialRotationVelocity = 0f,
+                                initialLogZoomVelocity = logZoomVelocity,
+                                initialPanVelocity = Velocity.Zero
+                            )
                         }
-                    }
-                ) { zoomFactor ->
-                    state.contentCenter?.let { centroid ->
-                        state.transform(centroid = centroid, zoomFactor = zoomFactor)
-                    }
-                }
+                    },
+                    onDoubleTapDrag = state::zoomBy
+                )
             }
     ) { constraints ->
-        val contentLeft = contentPadding.calculateLeftPadding(layoutDirection).toPx()
-        val contentTop = contentPadding.calculateTopPadding().toPx()
-        state.measure(
-            constraints = constraints,
-            density = this,
-            contentBounds = Rect(
-                left = contentLeft,
-                top = contentTop,
-                right = maxOf(
-                    contentLeft,
-                    constraints.maxWidth - contentPadding.calculateRightPadding(layoutDirection).toPx()
-                ),
-                bottom = maxOf(
-                    contentTop,
-                    constraints.maxHeight - contentPadding.calculateBottomPadding().toPx()
-                )
-            )
-        )
+        state.measure(constraints, contentPadding)
 
         val (minItemDimension, viewportBounds) = state.compositionBounds
-            ?: return@LazyLayout layout(constraints.maxWidth, constraints.maxHeight) {}
 
         val itemsToCompose = mutableListOf<Item>()
         content.intervals.takeIf { it.size > 0 }?.forEach { interval ->
@@ -205,8 +182,8 @@ fun LazyTransformableLayout(
                     ) {
                         transformOrigin = TransformOrigin(0f, 0f)
                         val offset = state.offset
-                        val angle = state.angle
-                        val scale = state.scale
+                        val angle = state.rotationAngle
+                        val scale = state.zoomScale
                         scaleX = scale
                         scaleY = scale
                         rotationZ = angle

@@ -31,7 +31,7 @@ fun Quadrants() {
         LazyTransformableLayout(
             modifier = Modifier.padding(scaffoldPadding),
             state = rememberLazyTransformableLayoutState(
-                layoutBounds = DpRect(0.dp, 0.dp, layoutSize.dp, layoutSize.dp)
+                initialLayoutBounds = DpRect(0.dp, 0.dp, layoutSize.dp, layoutSize.dp)
             )
         ) {
             itemsIndexed(

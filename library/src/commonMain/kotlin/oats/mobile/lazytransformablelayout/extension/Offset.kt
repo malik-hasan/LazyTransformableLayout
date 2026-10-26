@@ -1,6 +1,8 @@
 package oats.mobile.lazytransformablelayout.extension
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.DpOffset
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -43,4 +45,9 @@ fun Offset.transform(
             }
         }
     )
+}
+
+context(density: Density)
+fun Offset.toDp() = with(density) {
+    DpOffset(x.toDp(), y.toDp())
 }

@@ -130,7 +130,7 @@ private fun TiledWallpaper(wallpaper: Wallpaper) {
             }
         }
 
-        IconButton({ layoutState.set(angle = 0f) }) {
+        IconButton({ layoutState.snapTo(rotationAngle = 0f) }) {
             Icon(painterResource(Res.drawable.home), "Home")
         }
     }

@@ -41,7 +41,7 @@ class LazyTransformableLayoutStateTest {
         for (angle in listOf(0f, 30f, 90f, -135f, 200f)) {
             for (scale in listOf(0.2f, 1f, 3f)) {
                 val state = state()
-                state.set(angle = angle, scale = scale, offset = Offset(1_000f, 1_000f))
+                state.setPosition(rotationAngle = angle, zoomScale = scale, offset = Offset(1_000f, 1_000f))
                 val (offset, actualAngle, actualScale) = state
                 val region = state.compositionBounds!!.second
 
@@ -80,7 +80,7 @@ class LazyTransformableLayoutStateTest {
     fun compositionBoundsContainTheRequeryMargin() {
         for (angle in listOf(0f, 45f, -100f)) {
             val state = state()
-            state.set(angle = angle, scale = 1f, offset = Offset(2_000f, 2_000f))
+            state.setPosition(rotationAngle = angle, zoomScale = 1f, offset = Offset(2_000f, 2_000f))
             assertTrue(state.viewportBounds(128f) in state.compositionBounds!!.second)
         }
     }
@@ -127,17 +127,17 @@ class LazyTransformableLayoutStateTest {
 
         for (angle in angles) {
             for (scale in listOf(0.3f, 1f, 4f)) {
-                state.set(angle = angle, scale = scale)
-                val reference = referencePanningBounds(layoutBounds, state.scale, state.angle)
+                state.setPosition(rotationAngle = angle, zoomScale = scale)
+                val reference = referencePanningBounds(layoutBounds, state.zoomScale, state.rotationAngle)
 
                 repeat(50) {
                     val target = Offset(
                         random.nextFloat() * 60_000f - 30_000f,
                         random.nextFloat() * 60_000f - 30_000f
                     )
-                    state.set(offset = target)
+                    state.setFocusedItem(offset = target)
                     val expected = reference.clamp(target)
-                    val tolerance = 1e-3f * layoutBounds.maxDimension * state.scale
+                    val tolerance = 1e-3f * layoutBounds.maxDimension * state.zoomScale
                     assertTrue(
                         (state.offset - expected).getDistance() <= tolerance,
                         "angle=$angle scale=$scale target=$target: ${state.offset} != $expected"
@@ -156,30 +156,30 @@ class LazyTransformableLayoutStateTest {
         val layoutBounds = Rect(0f, 0f, 10_000f, 6_000f)
         val state = LazyTransformableLayoutState(layoutBounds).apply {
             measure(Constraints.fixed(width, height))
-            set(angle = 30f, scale = 1e-6f)
+            setPosition(rotationAngle = 30f, zoomScale = 1e-6f)
         }
 
-        val transformed = layoutBounds.vertices.map { it.transform(state.scale, state.angle) }
+        val transformed = layoutBounds.vertices.map { it.transform(state.zoomScale, state.rotationAngle) }
         val left = transformed.minOf { it.x }
         val top = transformed.minOf { it.y }
         val bottom = transformed.maxOf { it.y } - height
         assertTrue(bottom - top > 100f, "expected room to pan vertically, got ${bottom - top}")
 
-        state.set(offset = Offset(left, 1e6f))
+        state.setFocusedItem(offset = Offset(left, 1e6f))
         assertTrue((state.offset - Offset(left, bottom)).getDistance() < 1f, "${state.offset} != ${Offset(left, bottom)}")
 
-        state.set(offset = Offset(left, -1e6f))
+        state.setFocusedItem(offset = Offset(left, -1e6f))
         assertTrue((state.offset - Offset(left, top)).getDistance() < 1f, "${state.offset} != ${Offset(left, top)}")
     }
 
     @Test
     fun compositionBoundsOnlyChangeWhenTheViewportNearsTheirEdgeOrZoomsIn() {
         val state = state()
-        state.set(angle = 30f, scale = 1f, offset = Offset(2_000f, 2_000f))
+        state.setPosition(rotationAngle = 30f, zoomScale = 1f, offset = Offset(2_000f, 2_000f))
         val initial = state.compositionBounds!!
 
         // well inside the 128px requery margin
-        state.set(offset = state.offset + Offset(50f, -50f))
+        state.setFocusedItem(offset = state.offset + Offset(50f, -50f))
         assertSame(initial, state.compositionBounds)
 
         // zooming in about the viewport center, less than the requery factor
@@ -188,7 +188,7 @@ class LazyTransformableLayoutStateTest {
         assertSame(initial, state.compositionBounds)
 
         // past the requery margin
-        state.set(offset = state.offset + Offset(300f, 0f))
+        state.setFocusedItem(offset = state.offset + Offset(300f, 0f))
         val panned = state.compositionBounds!!
         assertNotSame(initial, panned)
 
@@ -201,19 +201,19 @@ class LazyTransformableLayoutStateTest {
     fun coveringTheViewportWinsOverMaxZoom() {
         // even max zoom leaves the 500x500 layout smaller than the 1080x2000 viewport
         val state = LazyTransformableLayoutState(
-            layoutBounds = Rect(0f, 0f, 500f, 500f),
-            zoomBounds = 0.1f..1f
+            initialLayoutBounds = Rect(0f, 0f, 500f, 500f),
+            initialZoomBounds = 0.1f..1f
         )
         state.measure(Constraints.fixed(viewportWidth, viewportHeight))
 
         val coveringScale = maxOf(viewportWidth / 500f, viewportHeight / 500f)
-        assertEquals(coveringScale, state.scale)
+        assertEquals(coveringScale, state.zoomScale)
 
         val center = Offset(viewportWidth / 2f, viewportHeight / 2f)
         state.transform(rotationDelta = 0f, zoomFactor = 2f, panDelta = Offset.Zero, centroid = center)
-        assertEquals(coveringScale, state.scale)
+        assertEquals(coveringScale, state.zoomScale)
 
         state.transform(rotationDelta = 0f, zoomFactor = 0.5f, panDelta = Offset.Zero, centroid = center)
-        assertEquals(coveringScale, state.scale)
+        assertEquals(coveringScale, state.zoomScale)
     }
 }

@@ -81,7 +81,7 @@ class LazyTransformableLayoutContentChangeTest {
     }
 
     private fun ComposeUiTest.setLayout(items: () -> List<TestItem>, colors: Map<String, Color> = emptyMap()) {
-        val state = LazyTransformableLayoutState(layoutBounds = Rect(0f, 0f, 2000f, 2000f))
+        val state = LazyTransformableLayoutState(initialLayoutBounds = Rect(0f, 0f, 2000f, 2000f))
         setContent {
             CompositionLocalProvider(LocalDensity provides Density(1f)) {
                 Box(Modifier.size(500.dp)) {
@@ -166,7 +166,7 @@ class LazyTransformableLayoutContentChangeTest {
         key: (T) -> String,
         items: @Composable () -> List<T>
     ) {
-        val state = LazyTransformableLayoutState(layoutBounds = Rect(0f, 0f, 2000f, 2000f))
+        val state = LazyTransformableLayoutState(initialLayoutBounds = Rect(0f, 0f, 2000f, 2000f))
         setContent {
             val list = items()
             CompositionLocalProvider(LocalDensity provides Density(1f)) {
@@ -241,7 +241,7 @@ class LazyTransformableLayoutContentChangeTest {
         val onScreen = MovableItem(DpRect(DpOffset(10.dp, 10.dp), DpSize(50.dp, 50.dp)))
         val offScreen = MovableItem(DpRect(DpOffset(1000.dp, 1000.dp), DpSize(50.dp, 50.dp)))
         var builds = 0
-        val state = LazyTransformableLayoutState(layoutBounds = Rect(0f, 0f, 2000f, 2000f))
+        val state = LazyTransformableLayoutState(initialLayoutBounds = Rect(0f, 0f, 2000f, 2000f))
         setContent {
             CompositionLocalProvider(LocalDensity provides Density(1f)) {
                 Box(Modifier.size(500.dp)) {
@@ -271,7 +271,7 @@ class LazyTransformableLayoutContentChangeTest {
     @Test
     fun emptyContentDoesNotCrash() = runComposeUiTest {
         var empty by mutableStateOf(true)
-        val state = LazyTransformableLayoutState(layoutBounds = Rect(0f, 0f, 2000f, 2000f))
+        val state = LazyTransformableLayoutState(initialLayoutBounds = Rect(0f, 0f, 2000f, 2000f))
         setContent {
             CompositionLocalProvider(LocalDensity provides Density(1f)) {
                 Box(Modifier.size(500.dp)) {
@@ -294,7 +294,7 @@ class LazyTransformableLayoutContentChangeTest {
 
     @Test
     fun itemIsPlacedAtItsBoundsInPixelsWithItsBoundsSize() = runComposeUiTest {
-        val state = LazyTransformableLayoutState(layoutBounds = Rect(0f, 0f, 2000f, 2000f))
+        val state = LazyTransformableLayoutState(initialLayoutBounds = Rect(0f, 0f, 2000f, 2000f))
         setContent {
             CompositionLocalProvider(LocalDensity provides Density(1.5f)) {
                 Box(Modifier.size(500.dp)) {
@@ -322,7 +322,7 @@ class LazyTransformableLayoutContentChangeTest {
     @Test
     fun densityChangeMovesItemsOnTheNextFrame() = runComposeUiTest {
         var density by mutableStateOf(Density(1f))
-        val state = LazyTransformableLayoutState(layoutBounds = Rect(0f, 0f, 2000f, 2000f))
+        val state = LazyTransformableLayoutState(initialLayoutBounds = Rect(0f, 0f, 2000f, 2000f))
         setContent {
             CompositionLocalProvider(LocalDensity provides density) {
                 Box(Modifier.size(500.dp)) {
@@ -364,7 +364,7 @@ class LazyTransformableLayoutContentChangeTest {
             TestItem("thin", DpOffset(100.dp, 0.dp), DpSize(60.dp, 1.dp)),
             TestItem("small", DpOffset(0.dp, 100.dp), DpSize(40.dp, 40.dp))
         )
-        val state = LazyTransformableLayoutState(layoutBounds = Rect(0f, 0f, 100_000f, 100_000f), initialScale = 0.01f)
+        val state = LazyTransformableLayoutState(initialLayoutBounds = Rect(0f, 0f, 100_000f, 100_000f), initialZoomScale = 0.01f)
         setContent {
             CompositionLocalProvider(LocalDensity provides Density(1f)) {
                 Box(Modifier.size(500.dp)) {
@@ -389,10 +389,10 @@ class LazyTransformableLayoutContentChangeTest {
 
         assertComposed("large", "thin")
 
-        state.set(scale = 1f)
+        state.setPosition(zoomScale = 1f)
         assertComposed("large", "thin", "small")
 
-        state.set(scale = 0.01f)
+        state.setPosition(zoomScale = 0.01f)
         assertComposed("large", "thin")
     }
 
@@ -408,7 +408,7 @@ class LazyTransformableLayoutContentChangeTest {
     }
 
     private fun ComposeUiTest.setGridLayout(): GridProbe {
-        val probe = GridProbe(LazyTransformableLayoutState(layoutBounds = Rect(0f, 0f, 5000f, 5000f)))
+        val probe = GridProbe(LazyTransformableLayoutState(initialLayoutBounds = Rect(0f, 0f, 5000f, 5000f)))
         setContent {
             CompositionLocalProvider(LocalDensity provides probe.density) {
                 Box(Modifier.size(500.dp)) {
@@ -486,7 +486,7 @@ class LazyTransformableLayoutContentChangeTest {
             Offset(300f, 0f),
             Offset(0f, 0f)
         ).forEach { offset ->
-            assertGridAfter(probe) { probe.state.set(offset = offset) }
+            assertGridAfter(probe) { probe.state.setFocusedItem(offset = offset) }
         }
     }
 
@@ -529,7 +529,7 @@ class LazyTransformableLayoutContentChangeTest {
             TestItem("c", DpOffset(0.dp, 150.dp), DpSize(100.dp, 100.dp)),
             TestItem("d", DpOffset(300.dp, 300.dp), DpSize(100.dp, 100.dp))
         )
-        val state = LazyTransformableLayoutState(layoutBounds = Rect(0f, 0f, 2000f, 2000f))
+        val state = LazyTransformableLayoutState(initialLayoutBounds = Rect(0f, 0f, 2000f, 2000f))
         setContent {
             CompositionLocalProvider(LocalDensity provides Density(1f)) {
                 Box(Modifier.size(500.dp)) {
