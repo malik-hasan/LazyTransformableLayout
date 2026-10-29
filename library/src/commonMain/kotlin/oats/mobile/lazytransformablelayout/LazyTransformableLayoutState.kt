@@ -148,7 +148,10 @@ class LazyTransformableLayoutState(
             }
         }
 
-        val viewport = Viewport(measureScope, constraints, contentBounds)
+        val viewport = with(measureScope) {
+            Viewport(density, fontScale, constraints, contentBounds)
+        }
+
         if (this.viewport != viewport) {
             this.viewport = viewport
 
@@ -284,9 +287,7 @@ class LazyTransformableLayoutState(
             }
         }
 
-    private fun clampCenterOffset(center: Offset) = viewport?.let {
-        panningBounds.clamp(center)
-    } ?: center
+    private fun clampCenterOffset(center: Offset) = panningBounds.clamp(center)
 
     private fun Offset.toViewportSpace() = transform(zoomScale, rotationAngle)
 
@@ -458,7 +459,7 @@ class LazyTransformableLayoutState(
      *
      * @param rotationAngle rotation angle in degrees
      * @param zoomScale zoom scale
-     * @param centerOffset point of the layoutc to place at the center of the viewport
+     * @param centerOffset point of the layout to place at the center of the viewport
      * @param animationSpec the spec animating progress from 0 to 1
      * @return for rotation angle, zoom scale and center offset, whether the value was within bounds, or null if it was not updated
      */
@@ -521,7 +522,7 @@ class LazyTransformableLayoutState(
      * rotation angle. Interpolates and clamps like [animateTo]. Suspends until the layout is first measured,
      * since the fitting zoom scale depends on the viewport size.
      *
-     * @param bounds area of the layout, in the same space as the items' bounds, to fit in the viewport
+     * @param bounds area of the layout to fit in the viewport
      * @param rotationAngle rotation angle in degrees, or null to keep the current rotation angle
      * @param margin space to keep between [bounds] and each edge of the viewport
      * @param animationSpec the spec animating progress from 0 to 1
@@ -551,7 +552,7 @@ class LazyTransformableLayoutState(
      *
      * @param rotationAngle rotation angle in degrees
      * @param zoomScale zoom scale
-     * @param centerOffset point of the layout, in the same space as the items' bounds, to place at the center of the viewport
+     * @param centerOffset point of the layout to place at the center of the viewport
      * @param animationSpec the spec animating progress from 0 to 1
      */
     fun requestAnimateTo(
@@ -566,7 +567,7 @@ class LazyTransformableLayoutState(
     /**
      * Requests the same animation as [animateToBounds] without suspending. Runs like [requestAnimateTo].
      *
-     * @param bounds area of the layout, in the same space as the items' bounds, to fit in the viewport
+     * @param bounds area of the layout to fit in the viewport
      * @param rotationAngle rotation angle in degrees, or null to keep the current rotation angle
      * @param margin space to keep between [bounds] and each edge of the viewport
      * @param animationSpec the spec animating progress from 0 to 1
@@ -591,10 +592,11 @@ class LazyTransformableLayoutState(
         val angleRadians = rotationAngle.radians
         val cos = abs(cos(angleRadians))
         val sin = abs(sin(angleRadians))
-        val (width, height) = bounds.toRect().inflate(margin.toPx()).size
+        val (width, height) = bounds.toRect().size
+        val totalMargin = 2 * margin.toPx()
         minOf(
-            contentBounds.width / (width * cos + height * sin),
-            contentBounds.height / (width * sin + height * cos)
+            (contentBounds.width - totalMargin) / (width * cos + height * sin),
+            (contentBounds.height - totalMargin) / (width * sin + height * cos)
         )
     }
 
@@ -611,7 +613,7 @@ class LazyTransformableLayoutState(
     private var fling: Job? = null
 
     /**
-     * Cancels any ongoing fling or animation of the camera, leaving it where it is
+     * Cancels any ongoing fling or animation, leaving the state where it is
      */
     fun cancelFling() = fling?.cancel()
 
@@ -720,8 +722,8 @@ class LazyTransformableLayoutState(
         private const val MIN_PAN_FLING_PROGRESS = 0.1f
 
         /**
-         * A saver that saves the bounds and camera of a [LazyTransformableLayoutState]. The decay specs are not saved,
-         * so restoring uses the ones given here.
+         * A saver that saves the bounds, rotation angle, zoom scale and center offset of a [LazyTransformableLayoutState].
+         * The decay specs are not saved, so restoring uses the ones given here.
          *
          * @param panFlingDecay decay animation spec for panning fling velocity
          * @param rotationFlingDecay decay animation spec for rotation fling velocity in degrees

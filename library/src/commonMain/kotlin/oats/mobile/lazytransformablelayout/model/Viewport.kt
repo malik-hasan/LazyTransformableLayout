@@ -5,7 +5,8 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
 
 internal data class Viewport(
-    private val densityDelegate: Density,
+    override val density: Float,
+    override val fontScale: Float,
     val size: IntSize,
     val contentBounds: Rect
-): Density by densityDelegate
+): Density
