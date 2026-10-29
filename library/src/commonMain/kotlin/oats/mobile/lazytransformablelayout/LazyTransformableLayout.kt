@@ -21,7 +21,6 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachIndexed
 import androidx.compose.ui.util.fastMap
@@ -65,6 +64,7 @@ fun LazyTransformableLayout(
     }
 
     val scope = rememberCoroutineScope()
+
     LaunchedEffect(state) { state.runPendingAnimations() }
 
     LazyLayout(
@@ -117,11 +117,7 @@ fun LazyTransformableLayout(
                 detectDoubleTapDragGestures(
                     onDoubleTapDragStopped = { logZoomVelocity ->
                         scope.launch {
-                            state.fling(
-                                initialRotationVelocity = 0f,
-                                initialLogZoomVelocity = logZoomVelocity,
-                                initialPanVelocity = Velocity.Zero
-                            )
+                            state.fling(initialLogZoomVelocity = logZoomVelocity)
                         }
                     },
                     onDoubleTapDrag = state::zoomBy
@@ -181,13 +177,15 @@ fun LazyTransformableLayout(
                         zIndex = item.zIndex
                     ) {
                         transformOrigin = TransformOrigin(0f, 0f)
-                        val offset = state.offset
-                        val angle = state.rotationAngle
+
                         val scale = state.zoomScale
                         scaleX = scale
                         scaleY = scale
+
+                        val angle = state.rotationAngle
                         rotationZ = angle
-                        val translation = itemPosition.transform(scale, angle, offset)
+
+                        val translation = itemPosition.transform(scale, angle, state.translation)
                         translationX = translation.x
                         translationY = translation.y
                     }

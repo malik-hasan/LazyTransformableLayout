@@ -5,8 +5,8 @@ import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.AnimationState
 import androidx.compose.animation.core.FloatDecayAnimationSpec
 import androidx.compose.animation.core.FloatExponentialDecaySpec
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDecay
-import androidx.compose.animation.core.animateTo
 import androidx.compose.animation.core.generateDecayAnimationSpec
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.OverscrollEffect
@@ -61,9 +61,11 @@ import kotlin.math.sin
 /**
  * The state of the LazyTransformableLayout
  *
- * @param initialLayoutBounds The bounds of the layout which can be panned into view, in the same space as the items' bounds
- * @param initialRotationBounds min and max angle bounds in degrees
- * @param initialZoomBounds min and max scale bounds
+ * @param initialLayoutBounds The bounds of the layout which can be panned into view.
+ * The bounds are in the same space as the Positionable items' bounds.
+ * Positionables are permitted to be placed outside of these bounds.
+ * @param initialRotationBounds min and max rotation angle bounds in degrees
+ * @param initialZoomBounds min and max zoom scale bounds
  * @param initialCenterOffset initial point of the layout at the center of the viewport's content area, defaulting to the
  * center of [initialLayoutBounds]
  * @param initialRotationAngle initial rotation angle in degrees
@@ -150,16 +152,15 @@ class LazyTransformableLayoutState(
         if (this.viewport != viewport) {
             this.viewport = viewport
 
-            val zoomScale = pendingFitBounds?.let { (bounds, margin) ->
-                boundsFitScale(bounds, rotationAngle, margin)
-            } ?: zoomScale
-            pendingFitBounds = null
-
             clampAndSet(
                 rotationAngle = rotationAngle,
-                zoomScale = zoomScale,
+                zoomScale = pendingFitBounds?.let { (bounds, margin) ->
+                    boundsFitScale(bounds, rotationAngle, margin)
+                } ?: zoomScale,
                 centerOffset = centerOffset
             )
+
+            pendingFitBounds = null
         }
     }
 
@@ -179,7 +180,7 @@ class LazyTransformableLayoutState(
         .run {
             Parallelogram(
                 vertices.map {
-                    (it + offset).transform(scale = 1 / zoomScale, angle = -rotationAngle)
+                    (it + translation).toContentSpace()
                 }
             )
         }
@@ -212,7 +213,7 @@ class LazyTransformableLayoutState(
         val startIndex = (-floor(rotationAngle / 90f).toInt() - 1).mod(4)
         fun vertex(index: Int) = layoutBounds
             .vertices[(startIndex + index) % 4]
-            .transform(zoomScale, rotationAngle)
+            .toViewportSpace()
 
         val leftmost = vertex(0)
         val topmost = vertex(1)
@@ -231,7 +232,7 @@ class LazyTransformableLayoutState(
                 Offset((topmost.x - width / 2).coerceIn(left, right), top),
                 Offset(right, (rightmost.y - height / 2).coerceIn(top, bottom)),
                 Offset((bottommost.x - width / 2).coerceIn(left, right), bottom)
-            ).map { (it + contentCenter).transform(scale = 1 / zoomScale, angle = -rotationAngle) }
+            ).map { (it + contentCenter).toContentSpace() }
         )
     }
 
@@ -268,7 +269,7 @@ class LazyTransformableLayoutState(
     }
 
     /**
-     * The point of the layout, in the same space as the items' bounds, at the center of the viewport's content area
+     * The point of the layout currently at the center of the viewport's content area
      */
     var centerOffset by mutableStateOf(initialCenterOffset)
         private set
@@ -287,12 +288,22 @@ class LazyTransformableLayoutState(
         panningBounds.clamp(center)
     } ?: center
 
-    internal val offset by derivedStateOf {
-        centerOffsetPx.transform(zoomScale, rotationAngle) - contentCenter
+    private fun Offset.toViewportSpace() = transform(zoomScale, rotationAngle)
+
+    private fun Offset.toContentSpace(
+        scale: Float = zoomScale,
+        angle: Float = rotationAngle
+    ) = transform(
+        scale = 1 / scale,
+        angle = -angle
+    )
+
+    internal val translation by derivedStateOf {
+        centerOffsetPx.toViewportSpace() - contentCenter
     }
 
     /**
-     * The rotation angle of the camera in degrees, clockwise
+     * The rotation angle of the layout in degrees, clockwise
      */
     var rotationAngle by mutableFloatStateOf(clampRotationAngle(initialRotationAngle))
         private set
@@ -300,7 +311,7 @@ class LazyTransformableLayoutState(
     private fun clampRotationAngle(rotationAngle: Float) = rotationAngle.coerceIn(rotationBounds)
 
     /**
-     * The zoom scale of the camera, where 1 shows the layout at its size in dp
+     * The zoom scale of the layout, where 1 shows the layout at its size in dp
      */
     var zoomScale by mutableFloatStateOf(clampZoomScale(initialZoomScale))
         private set
@@ -330,11 +341,9 @@ class LazyTransformableLayoutState(
         if (rotationAngle != null || zoomScale != null || centerOffset != null) {
             viewport?.run {
                 val targetCenter = centerOffset ?: this@LazyTransformableLayoutState.centerOffset
-                val targetCenterPx = targetCenter.toPx()
-                val clampedCenterPx = clampCenterOffset(targetCenterPx)
-                val inBounds = clampedCenterPx == targetCenterPx
-                this@LazyTransformableLayoutState.centerOffset = if (inBounds) targetCenter else clampedCenterPx.toDp()
-                clamped[2] = inBounds
+                val clampedCenter = panningBounds.clamp(targetCenter)
+                this@LazyTransformableLayoutState.centerOffset = clampedCenter
+                clamped[2] = clampedCenter == targetCenter
             } ?: centerOffset?.let {
                 this.centerOffset = it
             }
@@ -344,16 +353,19 @@ class LazyTransformableLayoutState(
     }
 
     /**
-     * Rotates and zooms the camera about [centroid], then pans it, like a transform gesture. Each value is clamped
-     * to its bounds. Cancels any ongoing fling or animation. Has no effect before the layout is first measured,
-     * since the deltas are relative to the screen; use [snapTo] or [animateTo] to set an initial camera.
+     * Rotates and zooms the layout about [centroid], then pans it, like a transform gesture. Each value is clamped
+     * to its bounds. Cancels any ongoing fling or animation. Has no effect before the layout is first measured.
+     *
+     * This is meant for using continuous input such as gestures to control the layout state.
+     * See [snapTo] or [animateTo] for one-off state transformations
      *
      * @param centroid point in the layout's own coordinates, in pixels, that stays fixed while rotating and zooming
      * @param rotationDelta change in rotation angle in degrees
      * @param zoomFactor factor to multiply the zoom scale by
      * @param panDelta distance in pixels to move the content on screen
-     * @param overscrollEffect the effect to apply any pan that goes past the panning bounds to
-     * @param nestedScrollSource the source reported to [overscrollEffect]
+     * @param overscrollEffect the effect to apply any pan that goes past the panning bounds to.
+     * This should be the same instance passed to the [LazyTransformableLayout] Composable, or null if no effect is desired.
+     * @param nestedScrollSource the source of the transformation, reported to [overscrollEffect]
      */
     fun transform(
         centroid: Offset,
@@ -363,23 +375,24 @@ class LazyTransformableLayoutState(
         overscrollEffect: OverscrollEffect? = null,
         nestedScrollSource: NestedScrollSource = NestedScrollSource.UserInput
     ) {
-        if (viewport == null) return
-        cancelFling()
+        viewport?.let {
+            cancelFling()
 
-        val scaledPanDelta = panDelta / zoomFactor
-        overscrollEffect?.applyToScroll(scaledPanDelta, nestedScrollSource) { scrollDelta ->
-            transform(
+            val scaledPanDelta = panDelta / zoomFactor
+            overscrollEffect?.applyToScroll(scaledPanDelta, nestedScrollSource) { scrollDelta ->
+                transform(
+                    centroid = centroid,
+                    rotationDelta = rotationDelta,
+                    zoomFactor = zoomFactor,
+                    panDelta = scrollDelta
+                )
+            } ?: transform(
                 centroid = centroid,
                 rotationDelta = rotationDelta,
                 zoomFactor = zoomFactor,
-                panDelta = scrollDelta
+                panDelta = scaledPanDelta
             )
-        } ?: transform(
-            centroid = centroid,
-            rotationDelta = rotationDelta,
-            zoomFactor = zoomFactor,
-            panDelta = scaledPanDelta
-        )
+        }
     }
 
     private fun transform(
@@ -399,21 +412,32 @@ class LazyTransformableLayoutState(
         val centroidFromCenter = centroid - contentCenter
         centerOffsetPx = clampCenterOffset(
             centerOffsetPx
-                    + centroidFromCenter.transform(scale = 1 / previousScale, angle = -previousAngle)
-                    - centroidFromCenter.transform(scale = 1 / newScale, angle = -newAngle)
+                + centroidFromCenter.toContentSpace(previousScale, previousAngle)
+                - centroidFromCenter.toContentSpace()
         )
 
         return panBy(-panDelta)
     }
 
+    private fun panBy(delta: Offset): Offset {
+        val previousCenter = centerOffsetPx
+        val newCenter = clampCenterOffset(
+            previousCenter + delta.toContentSpace()
+        )
+        centerOffsetPx = newCenter
+        return (newCenter - previousCenter).toViewportSpace()
+    }
+
+    internal fun zoomBy(zoomFactor: Float) = transform(centroid = contentCenter, zoomFactor = zoomFactor)
+
     /**
-     * Snaps the camera to the given values, clamped to their bounds. A null value keeps its current value,
+     * Snaps the state to the given values, clamped to their bounds. A null value keeps its current value,
      * so changing only the rotation angle or zoom scale rotates or zooms about the center of the viewport.
      * Cancels any ongoing fling or animation.
      *
      * @param rotationAngle rotation angle in degrees
      * @param zoomScale zoom scale
-     * @param centerOffset point of the layout, in the same space as the items' bounds, to place at the center of the viewport
+     * @param centerOffset point of the layout to place at the center of the viewport
      * @return for rotation angle, zoom scale and center offset, whether the value was within bounds, or null if it was not updated
      */
     fun snapTo(rotationAngle: Float? = null, zoomScale: Float? = null, centerOffset: DpOffset? = null): Array<Boolean?> {
@@ -427,14 +451,14 @@ class LazyTransformableLayoutState(
     }
 
     /**
-     * Animates the camera to the given values, clamped to their bounds. Each frame interpolates the rotation angle
+     * Animates the state to the given values, clamped to their bounds. Each frame interpolates the rotation angle
      * linearly, the zoom scale in log space, and the center offset linearly in layout space, then applies them like
      * [snapTo]. A null value keeps its current value, so changing only the rotation angle or zoom scale rotates or
      * zooms about the center of the viewport. Cancels any ongoing fling or animation, and is cancelled by touch input.
      *
      * @param rotationAngle rotation angle in degrees
      * @param zoomScale zoom scale
-     * @param centerOffset point of the layout, in the same space as the items' bounds, to place at the center of the viewport
+     * @param centerOffset point of the layoutc to place at the center of the viewport
      * @param animationSpec the spec animating progress from 0 to 1
      * @return for rotation angle, zoom scale and center offset, whether the value was within bounds, or null if it was not updated
      */
@@ -455,17 +479,15 @@ class LazyTransformableLayoutState(
 
         val targetAngle = clampRotationAngle(rotationAngle ?: startAngle)
         val targetScale = (zoomScale ?: startScale).coerceIn(scaleBoundsAt(targetAngle))
-        val targetCenter = (centerOffset ?: startCenter).let {
-            val centerPx = with(viewport) { it.toPx() }
-            val clampedCenter = panningBoundsAt(targetAngle, targetScale).clamp(centerPx)
-            if (clampedCenter == centerPx) it else with(viewport) { clampedCenter.toDp() }
+        val targetCenter = with(viewport) {
+            panningBoundsAt(targetAngle, targetScale)
+                .clamp(centerOffset ?: startCenter)
         }
-        val logZoom = ln(targetScale / startScale)
 
-        AnimationState(0f).animateTo(1f, animationSpec) {
+        animate(0f, 1f, animationSpec = animationSpec) { value, _ ->
             clampAndSet(
                 rotationAngle = lerp(startAngle, targetAngle, value),
-                zoomScale = startScale * exp(logZoom * value),
+                zoomScale = startScale * exp(ln(targetScale / startScale) * value),
                 centerOffset = lerp(startCenter, targetCenter, value)
             )
         }
@@ -473,26 +495,29 @@ class LazyTransformableLayoutState(
         return clampAndSet(rotationAngle, zoomScale, centerOffset)
     }
 
+    private var pendingFitBounds: Pair<DpRect, Dp>? = null
+
     /**
-     * Snaps the camera to center [bounds] in the viewport, at the largest zoom scale that fits them at the target
-     * rotation angle. The values are clamped to their bounds like [snapTo].
+     * Snaps to center [bounds] in the viewport, at the largest zoom scale that fits it at the target
+     * rotation angle, with [margin] to spare. The values are clamped to their bounds.
      *
-     * @param bounds area of the layout, in the same space as the items' bounds, to fit in the viewport
+     * @param bounds area of the layout to fit in the viewport
      * @param rotationAngle rotation angle in degrees, or null to keep the current rotation angle
      * @param margin space to keep between [bounds] and each edge of the viewport
      * @return for rotation angle, zoom scale and center offset, whether the value was within bounds, or null if it was not updated
      */
-    fun snapToBounds(bounds: DpRect, rotationAngle: Float? = null, margin: Dp = 0.dp): Array<Boolean?> {
-        if (viewport == null) return snapTo(rotationAngle, centerOffset = bounds.center).also {
-            pendingFitBounds = bounds to margin
-        }
-
-        val zoomScale = boundsFitScale(bounds, clampRotationAngle(rotationAngle ?: this.rotationAngle), margin)
-        return snapTo(rotationAngle, zoomScale, bounds.center)
+    fun snapToBounds(bounds: DpRect, rotationAngle: Float? = null, margin: Dp = 0.dp) = viewport?.let {
+        snapTo(
+            rotationAngle = rotationAngle,
+            zoomScale = boundsFitScale(bounds, clampRotationAngle(rotationAngle ?: this.rotationAngle), margin),
+            centerOffset = bounds.center
+        )
+    } ?: snapTo(rotationAngle, centerOffset = bounds.center).also {
+        pendingFitBounds = bounds to margin
     }
 
     /**
-     * Animates the camera to center [bounds] in the viewport, at the largest zoom scale that fits them at the target
+     * Animates to center [bounds] in the viewport, at the largest zoom scale that fits them at the target
      * rotation angle. Interpolates and clamps like [animateTo]. Suspends until the layout is first measured,
      * since the fitting zoom scale depends on the viewport size.
      *
@@ -509,8 +534,12 @@ class LazyTransformableLayoutState(
         animationSpec: AnimationSpec<Float> = spring()
     ): Array<Boolean?> {
         snapshotFlow { viewport }.filterNotNull().first()
-        val zoomScale = boundsFitScale(bounds, clampRotationAngle(rotationAngle ?: this.rotationAngle), margin)
-        return animateTo(rotationAngle, zoomScale, bounds.center, animationSpec)
+        return animateTo(
+            rotationAngle = rotationAngle,
+            zoomScale = boundsFitScale(bounds, clampRotationAngle(rotationAngle ?: this.rotationAngle), margin),
+            centerOffset = bounds.center,
+            animationSpec = animationSpec
+        )
     }
 
     private var pendingAnimation by mutableStateOf<(suspend () -> Unit)?>(null)
@@ -551,43 +580,32 @@ class LazyTransformableLayoutState(
         pendingAnimation = { animateToBounds(bounds, rotationAngle, margin, animationSpec) }
     }
 
-    internal suspend fun runPendingAnimations() = snapshotFlow { pendingAnimation }.filterNotNull().collectLatest {
-        pendingAnimation = null
-        it()
-    }
-
-    private var pendingFitBounds: Pair<DpRect, Dp>? = null
+    internal suspend fun runPendingAnimations() = snapshotFlow { pendingAnimation }
+        .filterNotNull()
+        .collectLatest {
+            pendingAnimation = null
+            it()
+        }
 
     private fun boundsFitScale(bounds: DpRect, rotationAngle: Float, margin: Dp) = with(measured) {
         val angleRadians = rotationAngle.radians
         val cos = abs(cos(angleRadians))
         val sin = abs(sin(angleRadians))
-        val (width, height) = bounds.toRect().size
-        val totalMargin = 2 * margin.toPx()
+        val (width, height) = bounds.toRect().inflate(margin.toPx()).size
         minOf(
-            (contentBounds.width - totalMargin) / (width * cos + height * sin),
-            (contentBounds.height - totalMargin) / (width * sin + height * cos)
+            contentBounds.width / (width * cos + height * sin),
+            contentBounds.height / (width * sin + height * cos)
         )
     }
-
-    private fun panBy(screenDelta: Offset): Offset {
-        val previousCenter = centerOffsetPx
-        val newCenter = clampCenterOffset(previousCenter + screenDelta.transform(scale = 1 / zoomScale, angle = -rotationAngle))
-        centerOffsetPx = newCenter
-        return (newCenter - previousCenter).transform(zoomScale, rotationAngle)
-    }
-
-    internal fun zoomBy(zoomFactor: Float) = transform(centroid = contentCenter, zoomFactor = zoomFactor)
 
     internal suspend fun animateZoom(zoomFactor: Float, centroid: Offset = contentCenter) {
         claimFling()
 
         var previousLogZoom = 0f
-        AnimationState(0f)
-            .animateTo(ln(clampZoomScale(zoomScale * zoomFactor) / zoomScale)) {
-                transform(centroid = centroid, zoomFactor = exp(value - previousLogZoom))
-                previousLogZoom = value
-            }
+        animate(0f, ln(clampZoomScale(zoomScale * zoomFactor) / zoomScale)) { value, _ ->
+            transform(centroid = centroid, zoomFactor = exp(value - previousLogZoom))
+            previousLogZoom = value
+        }
     }
 
     private var fling: Job? = null
@@ -605,9 +623,9 @@ class LazyTransformableLayoutState(
     }
 
     internal suspend fun fling(
-        initialRotationVelocity: Float,
-        initialLogZoomVelocity: Float,
-        initialPanVelocity: Velocity,
+        initialRotationVelocity: Float = 0f,
+        initialLogZoomVelocity: Float = 0f,
+        initialPanVelocity: Velocity = Velocity.Zero,
         centroid: Offset = contentCenter,
         overscrollEffect: OverscrollEffect? = null
     ) {
