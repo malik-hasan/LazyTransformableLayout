@@ -3,7 +3,7 @@ android-minSdk = "24"
 android-targetSdk = "37"
 
 android = "9.3.1" # https://kotlinlang.org/docs/multiplatform-compatibility-guide.html#version-compatibility
-compose = "1.12.1"
+compose = "1.12.2"
 kotlin = "2.4.21"
 maven-publish = "0.37.0"
 
@@ -11,7 +11,7 @@ activity-compose = "1.13.0"
 compose-material3 = "1.9.0"
 kermit = "2.2.0"
 kotlinx-coroutines = "1.11.0"
-navigation3 = "1.1.2"
+navigation3 = "1.2.0"
 zoomimage = "1.7.0"
 
 [plugins]
