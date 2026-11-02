@@ -20,14 +20,14 @@ class ParallelogramTest {
     )
 
     @Test
-    fun boundsCoverAllVertices() {
+    fun `given a parallelogram should have bounds covering all vertices`() {
         assertEquals(Rect(-1f, -1f, 1f, 1f), diamond.axisAlignedBoundingBox)
     }
 
     private val inner = Parallelogram(Offset(-0.5f, 0f), Offset(0f, -0.5f), Offset(0.5f, 0f), Offset(0f, 0.5f))
 
     @Test
-    fun containsParallelogram() {
+    fun `given a parallelogram inside another when checking containment should contain it`() {
         val shifted = Parallelogram(Offset(0f, 0f), Offset(1f, -1f), Offset(2f, 0f), Offset(1f, 1f))
         assertTrue(inner in diamond)
         assertFalse(diamond in inner)
@@ -35,33 +35,33 @@ class ParallelogramTest {
     }
 
     @Test
-    fun containsItself() {
+    fun `given a parallelogram when checking containment of itself should contain it`() {
         assertTrue(diamond in diamond)
     }
 
     @Test
-    fun containsRequiresEveryVertex() {
+    fun `given a parallelogram with a vertex outside when checking containment should not contain it`() {
         // three vertices inside the diamond, one past its edge
         val straddling = Parallelogram(Offset(0f, 0f), Offset(0.4f, 0f), Offset(0.8f, 0.4f), Offset(0.4f, 0.4f))
         assertFalse(straddling in diamond)
     }
 
     @Test
-    fun containsIgnoresWindingDirection() {
+    fun `given a parallelogram with reversed winding when checking containment should ignore the winding direction`() {
         val counterClockwise = Parallelogram(diamond[0], diamond[3], diamond[2], diamond[1])
         assertTrue(inner in counterClockwise)
         assertFalse(diamond in inner)
     }
 
     @Test
-    fun degenerateContainsNothing() {
+    fun `given a degenerate parallelogram when checking containment should contain nothing`() {
         val line = Parallelogram(Offset(0f, 0f), Offset(1f, 1f), Offset(2f, 2f), Offset(1f, 1f))
         val point = Offset(1f, 1f)
         assertFalse(Parallelogram(point, point, point, point) in line)
     }
 
     @Test
-    fun intersectsRect() {
+    fun `given a parallelogram and a rect when checking intersection should detect overlap with the rect`() {
         // inside the bounds but past the diagonal edge
         assertFalse(diamond.intersects(Rect(0.6f, 0.6f, 1f, 1f)))
         // crosses the diagonal edge
@@ -75,7 +75,7 @@ class ParallelogramTest {
     }
 
     @Test
-    fun intersectsMatchesPolygonOverlap() {
+    fun `given two parallelograms when checking intersection should match polygon overlap`() {
         val random = Random(0)
         repeat(20_000) {
             val origin = Offset(random.nextFloat() * 10 - 5, random.nextFloat() * 10 - 5)

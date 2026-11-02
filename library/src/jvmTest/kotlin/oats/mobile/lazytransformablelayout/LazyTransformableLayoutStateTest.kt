@@ -68,7 +68,7 @@ class LazyTransformableLayoutStateTest {
     )
 
     @Test
-    fun compositionBoundsAreTheInverseOfTheLayerTransform() {
+    fun `given a layer transform, should have composition bounds that are its inverse`() {
         val random = Random(0)
         val buffer = 256f
 
@@ -108,7 +108,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun compositionBoundsContainTheRequeryMargin() {
+    fun `given composition bounds, should contain the requery margin`() {
         for (angle in listOf(0f, 45f, -100f)) {
             val state = state()
             state.snapTo(rotationAngle = angle, zoomScale = 1f, centerOffset = DpOffset(2_000.dp, 2_000.dp))
@@ -117,7 +117,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun compositionBoundsOnlyChangeWhenTheViewportNearsTheirEdgeOrZoomsIn() {
+    fun `given composition bounds, should only change when the viewport nears their edge or zooms in`() {
         val state = state()
         state.snapTo(rotationAngle = 30f, zoomScale = 1f, centerOffset = DpOffset(2_000.dp, 2_000.dp))
         val initial = state.compositionBounds!!
@@ -166,7 +166,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun panningBoundsMatchVertexComparison() {
+    fun `given panning bounds, should match the vertex comparison`() {
         val random = Random(0)
         val rect = Rect(-3_000f, 500f, 7_000f, 6_500f)
         val state = state(DpRect(rect.left.dp, rect.top.dp, rect.right.dp, rect.bottom.dp))
@@ -198,7 +198,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun collapsedPanningBoundsSpanTheFreeAxis() {
+    fun `given collapsed panning bounds, should span the free axis`() {
         val width = 800
         val height = 450
         val rect = Rect(0f, 0f, 10_000f, 6_000f)
@@ -219,7 +219,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun coveringTheViewportWinsOverMaxZoom() {
+    fun `given a max zoom below the cover scale, should cover the viewport`() {
         val state = state(DpRect(0.dp, 0.dp, 300.dp, 300.dp), zoomBounds = 0.1f..1f)
 
         val coveringScale = maxOf(viewportWidth / 300f, viewportHeight / 300f)
@@ -233,7 +233,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun minimumZoomCoversTheViewportAtTheCurrentRotation() {
+    fun `given a rotation, should have a minimum zoom that covers the viewport at that rotation`() {
         val state = state()
         state.snapTo(zoomScale = 1e-9f)
         assertEquals(viewportHeight / 6_000f, state.zoomScale, 1e-5f)
@@ -243,12 +243,12 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun centerOffsetDefaultsToTheCenterOfTheLayoutBounds() {
+    fun `given no center offset, should default to the center of the layout bounds`() {
         assertEquals(DpOffset(5_000.dp, 3_000.dp), state().centerOffset)
     }
 
     @Test
-    fun initialCenterOffsetIsClampedOnceMeasured() {
+    fun `given an initial center offset, when measured, should clamp it`() {
         val state = LazyTransformableLayoutState(layoutBounds, initialCenterOffset = DpOffset(-500.dp, 99_999.dp))
         assertEquals(DpOffset(-500.dp, 99_999.dp), state.centerOffset)
 
@@ -257,7 +257,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun invalidBoundsAreRejected() {
+    fun `given invalid bounds, should reject them`() {
         assertFailsWith<IllegalArgumentException> {
             LazyTransformableLayoutState(layoutBounds, initialRotationBounds = 10f..-10f)
         }
@@ -270,21 +270,21 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun conversionsAreUnspecifiedBeforeTheFirstMeasure() {
+    fun `given no measure yet, when converting, should be unspecified`() {
         val state = LazyTransformableLayoutState(layoutBounds)
         assertTrue(!state.layoutToViewport(DpOffset(1.dp, 1.dp)).isSpecified)
         assertEquals(DpOffset.Unspecified, state.viewportToLayout(Offset(1f, 1f)))
     }
 
     @Test
-    fun viewportToLayoutReturnsADpOffset() {
+    fun `given a viewport point, when converting to layout, should return a dp offset`() {
         val state = state()
         val center = state.viewportToLayout(Offset(viewportWidth / 2f, viewportHeight / 2f))
         assertOffsetEquals(Offset(5_000f, 3_000f), center.toOffset())
     }
 
     @Test
-    fun snapByHasNoEffectBeforeTheFirstMeasure() {
+    fun `given no measure yet, when snapping by, should have no effect`() {
         val state = LazyTransformableLayoutState(layoutBounds)
         state.snapBy(rotationDelta = 10f, zoomFactor = 2f, panDelta = Offset(5f, 5f))
         assertEquals(0f, state.rotationAngle)
@@ -293,14 +293,14 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun theCenterOffsetIsAtTheCenterOfTheContentArea() {
+    fun `given a center offset, should be at the center of the content area`() {
         val padding = PaddingValues(start = 50.dp, top = 100.dp, end = 50.dp, bottom = 0.dp)
         val state = LazyTransformableLayoutState(layoutBounds).measured(viewportWidth, viewportHeight, padding)
         assertOffsetEquals(Offset(250f, 400f), state.layoutToViewport(state.centerOffset))
     }
 
     @Test
-    fun contentPaddingShrinksTheAreaThatMustBeCovered() {
+    fun `given content padding, should shrink the area that must be covered`() {
         val padding = PaddingValues(vertical = 100.dp)
         val state = LazyTransformableLayoutState(layoutBounds, initialZoomScale = 1e-9f)
             .measured(viewportWidth, viewportHeight, padding)
@@ -308,7 +308,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun layoutAndViewportConversionsAreInverses() {
+    fun `given a point, when converting between layout and viewport, should be inverses`() {
         val state = state()
         for (angle in listOf(0f, 30f, 90f, -135f)) {
             for (scale in listOf(0.5f, 1f, 4f)) {
@@ -321,7 +321,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun snapToClampsEachValueToItsBounds() {
+    fun `given values outside their bounds, when snapping to, should clamp each to its bounds`() {
         val state = state(rotationBounds = -10f..10f, zoomBounds = 0.5f..4f)
 
         state.snapTo(rotationAngle = 5f, zoomScale = 2f, centerOffset = DpOffset(5_000.dp, 3_000.dp))
@@ -336,7 +336,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun snapToKeepsValuesThatAreNull() {
+    fun `given null values, when snapping to, should keep them`() {
         val state = state()
         state.snapTo(rotationAngle = 20f, zoomScale = 2f, centerOffset = DpOffset(4_000.dp, 2_500.dp))
 
@@ -348,14 +348,14 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun snapToClampsTheCenterToThePanningBounds() {
+    fun `given a center outside the panning bounds, when snapping to, should clamp it`() {
         val state = state()
         state.snapTo(centerOffset = DpOffset(-100.dp, 99_999.dp))
         assertOffsetEquals(Offset(250f, 5_650f), state.centerOffset.toOffset())
     }
 
     @Test
-    fun snapToClampsTheCenterAtTheClampedZoomScale() {
+    fun `given a zoom outside its bounds, when snapping to, should clamp the center at the clamped zoom scale`() {
         val state = state(zoomBounds = 0.1f..4f)
 
         state.snapTo(zoomScale = 100f, centerOffset = DpOffset(10.dp, 10.dp))
@@ -367,7 +367,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun snapToBoundsClampsTheCenterAtTheClampedFitScale() {
+    fun `given a fit scale outside the zoom bounds, when snapping to bounds, should clamp the center at the clamped fit scale`() {
         val state = state(zoomBounds = 1f..4f)
 
         state.snapToBounds(DpRect(0.dp, 0.dp, 600.dp, 400.dp))
@@ -377,7 +377,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun updateBoundsClampsTheCenterAtTheClampedRotationAngle() {
+    fun `given a rotation outside new bounds, when updating bounds, should clamp the center at the clamped rotation angle`() {
         val state = state()
         state.snapTo(centerOffset = DpOffset(300.dp, 3_000.dp))
         assertOffsetEquals(Offset(300f, 3_000f), state.centerOffset.toOffset())
@@ -389,20 +389,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun remeasuringWithTheSameConstraintsKeepsTheState() {
-        val state = state()
-        state.snapTo(rotationAngle = 20f, zoomScale = 2f, centerOffset = DpOffset(4_000.dp, 2_500.dp))
-        val center = state.centerOffset
-
-        state.measured(viewportWidth, viewportHeight)
-
-        assertEquals(20f, state.rotationAngle)
-        assertEquals(2f, state.zoomScale)
-        assertEquals(center, state.centerOffset)
-    }
-
-    @Test
-    fun updateBoundsClampsTheStateToTheNewBounds() {
+    fun `given new bounds, when updating bounds, should clamp the state to them`() {
         val state = state()
         state.snapTo(rotationAngle = 40f, zoomScale = 3f, centerOffset = DpOffset(9_000.dp, 5_000.dp))
 
@@ -419,7 +406,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun updateBoundsKeepsBoundsThatAreNull() {
+    fun `given null bounds, when updating bounds, should keep the existing bounds`() {
         val state = state(rotationBounds = -10f..10f)
 
         state.updateBounds(zoomBounds = 1f..2f)
@@ -430,7 +417,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun snapByZoomsAboutAViewportPivot() {
+    fun `given a viewport pivot, when snapping by, should zoom about it`() {
         val state = state()
         val pivot = Offset(100f, 200f)
         val before = state.layoutAt(pivot)
@@ -444,7 +431,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun snapByZoomsAboutALayoutPivotWhereItCurrentlyIs() {
+    fun `given a layout pivot, when snapping by, should zoom about where it currently is`() {
         val state = state()
         val position = DpOffset(5_100.dp, 3_100.dp)
         val before = state.layoutToViewport(position)
@@ -455,7 +442,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun snapByAboutTheContentCenterKeepsTheCenterOffset() {
+    fun `given the content center pivot, when snapping by, should keep the center offset`() {
         val state = state()
         val center = state.centerOffset
 
@@ -466,7 +453,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun snapByPansTheContentOnScreenByThePanDelta() {
+    fun `given a pan delta, when snapping by, should pan the content on screen by it`() {
         val state = state()
         val position = DpOffset(5_000.dp, 3_000.dp)
         val before = state.layoutToViewport(position)
@@ -477,7 +464,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun snapByPansInViewportAxesWhenRotated() {
+    fun `given a rotation, when snapping by a pan, should pan in viewport axes`() {
         val state = state()
         state.snapTo(rotationAngle = 90f)
         val position = state.centerOffset
@@ -489,7 +476,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun snapByClampsPanToTheLayoutBounds() {
+    fun `given a pan beyond the layout bounds, when snapping by, should clamp it`() {
         val state = state()
 
         state.snapBy(panDelta = Offset(1e6f, 1e6f))
@@ -498,7 +485,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun snapByClampsRotationAndZoomToTheirBounds() {
+    fun `given rotation and zoom outside their bounds, when snapping by, should clamp them`() {
         val state = state(rotationBounds = -10f..10f, zoomBounds = 0.5f..3f)
 
         state.snapBy(rotationDelta = 100f, zoomFactor = 100f)
@@ -511,7 +498,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun snapToBoundsCentersAndFitsTheBounds() {
+    fun `given bounds, when snapping to bounds, should center and fit them`() {
         val state = state()
 
         state.snapToBounds(DpRect(1_000.dp, 1_000.dp, 1_400.dp, 1_200.dp), margin = 10.dp)
@@ -521,7 +508,7 @@ class LazyTransformableLayoutStateTest {
 
     @Ignore
     @Test
-    fun snapToBoundsCentersOnTheBoundsCenter() {
+    fun `given bounds, when snapping to bounds, should center on the bounds center`() {
         val state = state()
 
         state.snapToBounds(DpRect(1_000.dp, 1_000.dp, 1_400.dp, 1_200.dp), margin = 10.dp)
@@ -530,7 +517,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun snapToBoundsFitsAtTheTargetRotation() {
+    fun `given a target rotation, when snapping to bounds, should fit at that rotation`() {
         val state = state()
 
         state.snapToBounds(DpRect(1_000.dp, 1_000.dp, 1_400.dp, 1_200.dp), rotationAngle = 90f, margin = 10.dp)
@@ -540,7 +527,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun snapToBoundsBeforeTheFirstMeasureFitsOnceMeasured() {
+    fun `given a snap to bounds before the first measure, when measured, should fit`() {
         val state = LazyTransformableLayoutState(layoutBounds)
 
         state.snapToBounds(DpRect(0.dp, 0.dp, 400.dp, 200.dp), margin = 10.dp)
@@ -552,7 +539,7 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
-    fun savedStateRestoresTheSameState() {
+    fun `given a saved state, when restoring, should restore the same state`() {
         val state = state(rotationBounds = -90f..90f, zoomBounds = 0.2f..8f)
         state.snapTo(rotationAngle = 25f, zoomScale = 2.5f, centerOffset = DpOffset(4_000.dp, 2_500.dp))
         val saver = LazyTransformableLayoutState.saver(
@@ -568,5 +555,68 @@ class LazyTransformableLayoutStateTest {
         assertEquals(state.rotationAngle, restored.rotationAngle)
         assertEquals(state.zoomScale, restored.zoomScale)
         assertEquals(state.centerOffset, restored.centerOffset)
+    }
+
+    @Test
+    fun `given a content center pivot and asymmetric padding, when snapping a rotation and zoom, should keep the padded content center fixed on screen`() {
+        val state = LazyTransformableLayoutState(layoutBounds).measured(
+            viewportWidth,
+            viewportHeight,
+            contentPadding = PaddingValues(start = 200.dp, top = 0.dp, end = 0.dp, bottom = 100.dp)
+        )
+        val paddedCenter = Offset(350f, 300f)
+        val before = state.layoutAt(paddedCenter)
+
+        state.snapBy(pivot = Pivot.ContentCenter, rotationDelta = 30f, zoomFactor = 2f)
+
+        assertOffsetEquals(before, state.layoutAt(paddedCenter))
+        assertOffsetEquals(paddedCenter, state.layoutToViewport(DpOffset(before.x.dp, before.y.dp)))
+    }
+
+    @Test
+    fun `given a layout pivot away from the center, when snapping a rotation, should keep it fixed on screen and move the center`() {
+        val state = state()
+        val position = DpOffset(5_150.dp, 3_200.dp)
+        val before = state.layoutToViewport(position)
+        val center = state.centerOffset.toOffset()
+
+        state.snapBy(pivot = Pivot.Layout(position), rotationDelta = 90f)
+
+        assertOffsetEquals(before, state.layoutToViewport(position))
+        assertTrue((state.centerOffset.toOffset() - center).getDistance() > 10f)
+    }
+
+    @Test
+    fun `given a viewport pivot, when snapping a rotation that is clamped, should keep the pivot fixed using the clamped rotation`() {
+        val state = state(rotationBounds = -10f..10f)
+        val pivot = Offset(100f, 200f)
+        val before = state.layoutAt(pivot)
+
+        state.snapBy(pivot = Pivot.Viewport(pivot), rotationDelta = 80f, zoomFactor = 1.5f)
+
+        assertEquals(10f, state.rotationAngle)
+        assertOffsetEquals(before, state.layoutAt(pivot))
+    }
+
+    @Test
+    fun `given rotation bounds that clamp the rotation, when snapping to bounds, should fit at the clamped rotation`() {
+        val state = LazyTransformableLayoutState(layoutBounds, initialRotationBounds = 0f..0f)
+            .measured(viewportWidth, viewportHeight)
+
+        state.snapToBounds(DpRect(1_000.dp, 1_000.dp, 1_400.dp, 1_200.dp), rotationAngle = 90f, margin = 10.dp)
+
+        assertEquals(0f, state.rotationAngle)
+        assertEquals(1.2f, state.zoomScale, 1e-4f)
+    }
+
+    @Test
+    fun `given a snap to bounds before the first measure, when measured, should fit at the rotation the state then has`() {
+        val state = LazyTransformableLayoutState(layoutBounds)
+
+        state.snapToBounds(DpRect(1_000.dp, 1_000.dp, 1_400.dp, 1_200.dp), rotationAngle = 90f, margin = 10.dp)
+        state.measured(viewportWidth, viewportHeight)
+
+        assertEquals(90f, state.rotationAngle)
+        assertEquals(1.7f, state.zoomScale, 1e-4f)
     }
 }

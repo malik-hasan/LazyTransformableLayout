@@ -844,11 +844,12 @@ class LazyTransformableLayoutState(
                         initialVelocity = initialRotationVelocity
                     ) { rotationDelta ->
                         geometry?.run {
+                            val targetAngle = rotationAngle + rotationDelta
                             transform(
                                 pivot = pivotOrContentCenter(viewportPivot),
                                 rotationDelta = rotationDelta
                             )
-                            rotationAngle == rotationAngle + rotationDelta
+                            rotationAngle == targetAngle
                         } ?: false
                     }
                 } finally {
@@ -865,11 +866,12 @@ class LazyTransformableLayoutState(
                     ) { logDelta ->
                         geometry?.run {
                             val zoomFactor = exp(logDelta)
+                            val targetScale = zoomScale * zoomFactor
                             transform(
                                 pivot = pivotOrContentCenter(viewportPivot),
                                 zoomFactor = zoomFactor
                             )
-                            zoomScale == zoomScale * zoomFactor || rotationRunning
+                            zoomScale == targetScale || rotationRunning
                         } ?: false
                     }
                 } finally {

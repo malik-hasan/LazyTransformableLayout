@@ -2,6 +2,8 @@ package oats.mobile.lazytransformablelayout
 
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -46,7 +48,7 @@ class LazyTransformableLayoutGestureTest {
     private val layoutBounds = DpRect(0.dp, 0.dp, 10_000.dp, 6_000.dp)
 
     @Test
-    fun draggingPansTheContentWithThePointer() = runComposeUiTest {
+    fun `given a drag, should pan the content with the pointer`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val before = state.centerOffset
@@ -60,7 +62,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun pinchingOutZoomsIn() = runComposeUiTest {
+    fun `given a pinch out, should zoom in`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
 
@@ -79,7 +81,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun pinchingInZoomsOut() = runComposeUiTest {
+    fun `given a pinch in, should zoom out`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds, initialZoomScale = 2f)
         setMeasuredLayout(state, 500, 700)
 
@@ -98,7 +100,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun twistingTwoFingersRotates() = runComposeUiTest {
+    fun `given two fingers twisting, should rotate`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
 
@@ -117,7 +119,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun plusKeyZoomsIn() = runComposeUiTest {
+    fun `given the plus key, when pressed, should zoom in`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val node = onNodeWithTag("layout")
@@ -138,7 +140,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun pageUpZoomsInLikePlus() = runComposeUiTest {
+    fun `given the page up key, when pressed, should zoom in as the plus key does`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val node = focusLayout()
@@ -150,7 +152,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun pageDownZoomsOutLikeMinus() = runComposeUiTest {
+    fun `given the page down key, when pressed, should zoom out as the minus key does`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds, initialZoomScale = 2f)
         setMeasuredLayout(state, 500, 700)
         val node = focusLayout()
@@ -162,7 +164,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun minusKeyZoomsOut() = runComposeUiTest {
+    fun `given the minus key, when pressed, should zoom out`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds, initialZoomScale = 2f)
         setMeasuredLayout(state, 500, 700)
         val node = focusLayout()
@@ -174,7 +176,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun equalsAndNumPadKeysZoom() = runComposeUiTest {
+    fun `given the equals and numpad keys, when pressed, should zoom`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val node = focusLayout()
@@ -193,7 +195,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun arrowKeyPansByAFixedStepOf100Dp() = runComposeUiTest {
+    fun `given an arrow key, when pressed, should pan by a fixed step of 100dp`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val node = focusLayout()
@@ -207,7 +209,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun keysAreIgnoredWhileInputIsBlocked() = runComposeUiTest {
+    fun `given blocked input, when keys are pressed, should ignore them`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val node = focusLayout()
@@ -228,7 +230,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun keysWorkAfterABlockingAnimationEnds() = runComposeUiTest {
+    fun `given a blocking animation that ended, when keys are pressed, should work`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val node = focusLayout()
@@ -246,7 +248,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun doubleTapZoomsIn() = runComposeUiTest {
+    fun `given a double tap, should zoom in`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
 
@@ -257,7 +259,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun hoveringTheMouseWithoutPressingDoesNotStartAGesture() = runComposeUiTest {
+    fun `given a hovering mouse, when not pressing, should not start a gesture`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val before = Triple(state.rotationAngle, state.zoomScale, state.centerOffset)
@@ -273,7 +275,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun hoveringWithShiftHeldDoesNotRotate() = runComposeUiTest {
+    fun `given shift held, when hovering, should not rotate`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val before = Triple(state.rotationAngle, state.zoomScale, state.centerOffset)
@@ -289,7 +291,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun draggingTheMouseWithThePrimaryButtonPans() = runComposeUiTest {
+    fun `given the primary mouse button, when dragging, should pan`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val before = state.centerOffset
@@ -309,7 +311,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun draggingTheMouseWithTheSecondaryButtonDoesNotPan() = runComposeUiTest {
+    fun `given the secondary mouse button, when dragging, should not pan`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val before = state.centerOffset
@@ -327,7 +329,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun shiftHeldAtPressTimeRotates() = runComposeUiTest {
+    fun `given shift held at press time, when dragging, should rotate`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val node = onNodeWithTag("layout")
@@ -349,7 +351,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun shiftReleasedBeforePressDoesNotRotate() = runComposeUiTest {
+    fun `given shift released before press, when dragging, should not rotate`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val node = onNodeWithTag("layout")
@@ -370,7 +372,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun shiftDragRotatesAboutTheContentCenterWithAsymmetricPadding() = runComposeUiTest {
+    fun `given asymmetric padding, when dragging with shift, should rotate about the content center`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(
             state,
@@ -403,7 +405,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun aFocusedChildThatConsumesKeysWinsOverTheLayout() = runComposeUiTest {
+    fun `given a focused child that consumes keys, when keys are pressed, should win over the layout`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         val childFocus = FocusRequester()
         setContent {
@@ -445,7 +447,7 @@ class LazyTransformableLayoutGestureTest {
         viewportToLayout(position).let { Offset(it.x.value, it.y.value) }
 
     @Test
-    fun wheelScrollingUpZoomsInAboutTheCursor() = runComposeUiTest {
+    fun `given wheel scrolling up, should zoom in about the cursor`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val cursor = Offset(100f, 200f)
@@ -464,7 +466,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun wheelScrollingDownZoomsOutAboutTheCursor() = runComposeUiTest {
+    fun `given wheel scrolling down, should zoom out about the cursor`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds, initialZoomScale = 2f)
         setMeasuredLayout(state, 500, 700)
         val cursor = Offset(400f, 500f)
@@ -483,7 +485,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun wheelScrollZoomsByAFixedFactorPerNotch() = runComposeUiTest {
+    fun `given a wheel notch, when scrolling, should zoom by a fixed factor`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
 
@@ -493,11 +495,141 @@ class LazyTransformableLayoutGestureTest {
         }
         waitForIdle()
 
-        assertEquals(1.09f, state.zoomScale, 1e-3f)
+        assertEquals(1.1f, state.zoomScale, 1e-3f)
     }
 
     @Test
-    fun wheelScrollingIsIgnoredWhileInputIsBlocked() = runComposeUiTest {
+    fun `given a wheel zoom, should animate about the cursor and end at the target scale`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+        val cursor = Offset(100f, 200f)
+        val before = state.layoutAt(cursor)
+        mainClock.autoAdvance = false
+
+        onNodeWithTag("layout").performMouseInput {
+            moveTo(cursor)
+            scroll(-2f)
+        }
+        var partway = false
+        repeat(300) {
+            mainClock.advanceTimeByFrame()
+            val after = state.layoutAt(cursor)
+            assertEquals(before.x, after.x, 0.1f)
+            assertEquals(before.y, after.y, 0.1f)
+            if (state.zoomScale > 1.001f && state.zoomScale < 1.1f.pow(2) - 0.001f) partway = true
+        }
+
+        assertTrue(partway, "zoom jumped straight to ${state.zoomScale}")
+        assertEquals(1.1f.pow(2), state.zoomScale, 1e-3f)
+    }
+
+    @Test
+    fun `given a wheel zoom, before the first frame, should not have changed the scale`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+        mainClock.autoAdvance = false
+
+        onNodeWithTag("layout").performMouseInput {
+            moveTo(Offset(100f, 200f))
+            scroll(-1f)
+        }
+
+        assertEquals(1f, state.zoomScale)
+    }
+
+    @Test
+    fun `given several wheel notches, when scrolling, should zoom by the factor to the power of the notches`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+
+        onNodeWithTag("layout").performMouseInput {
+            moveTo(Offset(250f, 350f))
+            scroll(-3f)
+        }
+        waitForIdle()
+
+        assertEquals(1.1f.pow(3), state.zoomScale, 1e-3f)
+    }
+
+    @Test
+    fun `given fractional wheel deltas from a trackpad, should zoom proportionally`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+
+        onNodeWithTag("layout").performMouseInput {
+            moveTo(Offset(250f, 350f))
+            scroll(-0.25f)
+        }
+        waitForIdle()
+
+        assertEquals(1.1f.pow(0.25f), state.zoomScale, 1e-3f)
+    }
+
+    @Test
+    fun `given a wheel event consumed by a child, should not zoom`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setContent {
+            CompositionLocalProvider(LocalDensity provides Density(1f)) {
+                Box(Modifier.size(500.dp, 700.dp)) {
+                    LazyTransformableLayout(state, modifier = Modifier.testTag("layout"), overscrollEffect = null) {
+                        item(DpRect(4_000.dp, 2_000.dp, 6_000.dp, 4_000.dp)) {
+                            Box(
+                                Modifier.fillMaxSize().pointerInput(Unit) {
+                                    awaitPointerEventScope {
+                                        while (true) awaitPointerEvent().changes.forEach { it.consume() }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        waitForIdle()
+
+        onNodeWithTag("layout").performMouseInput {
+            moveTo(Offset(250f, 350f))
+            scroll(-1f)
+        }
+        waitForIdle()
+
+        assertEquals(1f, state.zoomScale)
+    }
+
+    @Test
+    fun `given a shift drag rotation that flings, should stay finite and keep the content center fixed`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(
+            state,
+            500,
+            700,
+            contentPadding = PaddingValues(start = 200.dp, top = 0.dp, end = 0.dp, bottom = 100.dp)
+        )
+        val node = onNodeWithTag("layout")
+        val center = state.centerOffset
+
+        node.performKeyInput { keyDown(Key.ShiftLeft) }
+        node.performMouseInput {
+            moveTo(Offset(450f, 300f))
+            press(MouseButton.Primary)
+            moveTo(Offset(400f, 300f))
+            moveTo(Offset(300f, 300f))
+            moveTo(Offset(100f, 300f))
+            release(MouseButton.Primary)
+        }
+        node.performKeyInput { keyUp(Key.ShiftLeft) }
+        waitForIdle()
+        mainClock.advanceTimeBy(5_000)
+
+        assertTrue(state.rotationAngle.isFinite() && state.rotationAngle != 0f, "angle was ${state.rotationAngle}")
+        assertTrue(state.zoomScale.isFinite())
+        val after = state.layoutToViewport(center)
+        assertEquals(350f, after.x, 0.5f)
+        assertEquals(300f, after.y, 0.5f)
+    }
+
+    @Test
+    fun `given blocked input, when wheel scrolling, should ignore it`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         mainClock.autoAdvance = false
@@ -518,7 +650,7 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun aVerticalSwipePansWithoutZooming() = runComposeUiTest {
+    fun `given a vertical swipe, should pan without zooming`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val before = state.centerOffset

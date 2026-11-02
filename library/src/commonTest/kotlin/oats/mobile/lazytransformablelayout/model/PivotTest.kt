@@ -21,7 +21,7 @@ class PivotTest {
     private val center = DpOffset(300.dp, 400.dp)
 
     @Test
-    fun viewportPivotIsItsPositionRegardlessOfTheTransform() {
+    fun `given a viewport pivot when resolving it should be its position regardless of the transform`() {
         with(geometry) {
             val pivot = Pivot.Viewport(Offset(123f, 456f))
             assertEquals(Offset(123f, 456f), pivot.viewportPosition(0f, 1f, center))
@@ -30,14 +30,14 @@ class PivotTest {
     }
 
     @Test
-    fun contentCenterPivotIsTheCenterOfTheContentArea() {
+    fun `given a content center pivot when resolving it should be the center of the content area`() {
         with(geometry) {
             assertEquals(Offset(500f, 1_000f), Pivot.ContentCenter.viewportPosition(45f, 2f, center))
         }
     }
 
     @Test
-    fun layoutPivotIsWhereItsPositionCurrentlyIsInTheViewport() {
+    fun `given a layout pivot when resolving it should be where its position currently is in the viewport`() {
         with(geometry) {
             val pivot = Pivot.Layout(DpOffset(310.dp, 420.dp))
             val position = pivot.viewportPosition(0f, 2f, center)
@@ -47,7 +47,7 @@ class PivotTest {
     }
 
     @Test
-    fun layoutPivotAtTheCenterOffsetIsTheContentCenter() {
+    fun `given a layout pivot at the center offset when resolving it should be the content center`() {
         with(geometry) {
             val position = Pivot.Layout(center).viewportPosition(60f, 3f, center)
             assertEquals(500f, position.x, 1e-3f)
@@ -56,7 +56,7 @@ class PivotTest {
     }
 
     @Test
-    fun pivotsCompareByValue() {
+    fun `given equal pivots when comparing should compare by value`() {
         assertEquals(Pivot.Viewport(Offset(1f, 2f)), Pivot.Viewport(Offset(1f, 2f)))
         assertNotEquals<Pivot>(Pivot.Viewport(Offset(1f, 2f)), Pivot.Viewport(Offset(2f, 1f)))
         assertEquals(Pivot.Layout(DpOffset(1.dp, 2.dp)), Pivot.Layout(DpOffset(1.dp, 2.dp)))

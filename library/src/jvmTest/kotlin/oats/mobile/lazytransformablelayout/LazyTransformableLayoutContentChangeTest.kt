@@ -104,7 +104,7 @@ class LazyTransformableLayoutContentChangeTest {
     }
 
     @Test
-    fun changedContentIsDisplayedOnTheNextFrame() = runComposeUiTest {
+    fun `given changed content, should display it on the next frame`() = runComposeUiTest {
         var items by mutableStateOf(manyItems)
         setLayout({ items })
 
@@ -124,7 +124,7 @@ class LazyTransformableLayoutContentChangeTest {
     private fun ComposeUiTest.colorAt(x: Int, y: Int) = onRoot().captureToImage().toPixelMap()[x, y]
 
     @Test
-    fun itemsWithEqualZIndexAreDrawnInIndexOrder() = runComposeUiTest {
+    fun `given items with equal z index, should draw them in index order`() = runComposeUiTest {
         setLayout(
             items = {
                 listOf(
@@ -139,7 +139,7 @@ class LazyTransformableLayoutContentChangeTest {
     }
 
     @Test
-    fun higherZIndexIsDrawnAboveRegardlessOfIndex() = runComposeUiTest {
+    fun `given a higher z index, should draw above regardless of index`() = runComposeUiTest {
         setLayout(
             items = {
                 listOf(
@@ -214,17 +214,17 @@ class LazyTransformableLayoutContentChangeTest {
     }
 
     @Test
-    fun inPlaceMutatedStateListPassedToItemsIsDisplayed() = runComposeUiTest {
+    fun `given an in place mutated state list passed to items, should display it`() = runComposeUiTest {
         mutatesStateListInPlace(indexed = false)
     }
 
     @Test
-    fun inPlaceMutatedStateListPassedToItemsIndexedIsDisplayed() = runComposeUiTest {
+    fun `given an in place mutated state list passed to items indexed, should display it`() = runComposeUiTest {
         mutatesStateListInPlace(indexed = true)
     }
 
     @Test
-    fun stateBackedBoundsChangeMovesItem() = runComposeUiTest {
+    fun `given state backed bounds, when they change, should move the item`() = runComposeUiTest {
         val movable = MovableItem(DpRect(DpOffset(10.dp, 10.dp), DpSize(50.dp, 50.dp)))
         val list = listOf(movable)
         setPositionableLayout(indexed = true, key = { "movable" }) { list }
@@ -238,7 +238,7 @@ class LazyTransformableLayoutContentChangeTest {
     }
 
     @Test
-    fun stateBackedBoundsChangeComposesOffscreenItemWithoutRebuildingContent() = runComposeUiTest {
+    fun `given state backed bounds, when they bring an offscreen item into view, should compose it without rebuilding content`() = runComposeUiTest {
         val onScreen = MovableItem(DpRect(DpOffset(10.dp, 10.dp), DpSize(50.dp, 50.dp)))
         val offScreen = MovableItem(DpRect(DpOffset(1000.dp, 1000.dp), DpSize(50.dp, 50.dp)))
         var builds = 0
@@ -270,7 +270,7 @@ class LazyTransformableLayoutContentChangeTest {
     }
 
     @Test
-    fun emptyContentDoesNotCrash() = runComposeUiTest {
+    fun `given empty content, should not crash`() = runComposeUiTest {
         var empty by mutableStateOf(true)
         val state = LazyTransformableLayoutState(initialLayoutBounds = DpRect(0.dp, 0.dp, 2000.dp, 2000.dp), initialCenterOffset = DpOffset(250.dp, 250.dp))
         setContent {
@@ -294,7 +294,7 @@ class LazyTransformableLayoutContentChangeTest {
     }
 
     @Test
-    fun itemIsPlacedAtItsBoundsInPixelsWithItsBoundsSize() = runComposeUiTest {
+    fun `given an item with bounds, should place it at its bounds in pixels with its bounds size`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(initialLayoutBounds = DpRect(0.dp, 0.dp, 2000.dp, 2000.dp), initialCenterOffset = DpOffset(250.dp, 250.dp))
         setContent {
             CompositionLocalProvider(LocalDensity provides Density(1.5f)) {
@@ -321,7 +321,7 @@ class LazyTransformableLayoutContentChangeTest {
         assertEquals(Offset(x, y), onNodeWithTag(tag).fetchSemanticsNode().positionInRoot)
 
     @Test
-    fun densityChangeMovesItemsOnTheNextFrame() = runComposeUiTest {
+    fun `given a density change, should move items on the next frame`() = runComposeUiTest {
         var density by mutableStateOf(Density(1f))
         val state = LazyTransformableLayoutState(initialLayoutBounds = DpRect(0.dp, 0.dp, 2000.dp, 2000.dp), initialCenterOffset = DpOffset(250.dp, 150.dp))
         setContent {
@@ -359,7 +359,7 @@ class LazyTransformableLayoutContentChangeTest {
     }
 
     @Test
-    fun itemsSmallerThanHalfAPixelOnScreenAreNotComposed() = runComposeUiTest {
+    fun `given items smaller than half a pixel on screen, should not compose them`() = runComposeUiTest {
         val items = listOf(
             TestItem("large", DpOffset(0.dp, 0.dp), DpSize(60.dp, 60.dp)),
             TestItem("thin", DpOffset(100.dp, 0.dp), DpSize(60.dp, 1.dp)),
@@ -471,7 +471,7 @@ class LazyTransformableLayoutContentChangeTest {
     }
 
     @Test
-    fun cameraMovesShowVisibleItemsAndKeepTheirState() = runComposeUiTest {
+    fun `given camera moves, should show visible items and keep their state`() = runComposeUiTest {
         val probe = setGridLayout()
         assertGridAfter(probe) {}
         listOf(
@@ -492,7 +492,7 @@ class LazyTransformableLayoutContentChangeTest {
     }
 
     @Test
-    fun cameraTransformsShowVisibleItemsAndKeepTheirState() = runComposeUiTest {
+    fun `given camera transforms, should show visible items and keep their state`() = runComposeUiTest {
         val probe = setGridLayout()
         assertGridAfter(probe) {}
         listOf(
@@ -509,7 +509,7 @@ class LazyTransformableLayoutContentChangeTest {
     }
 
     @Test
-    fun densityChangesShowVisibleItemsAndKeepTheirState() = runComposeUiTest {
+    fun `given density changes, should show visible items and keep their state`() = runComposeUiTest {
         val probe = setGridLayout()
         assertGridAfter(probe) {}
         assertGridAfter(probe) { probe.density = Density(2f) }
@@ -520,7 +520,7 @@ class LazyTransformableLayoutContentChangeTest {
     }
 
     @Test
-    fun itemContentResizeKeepsOtherItemsPlacedAndTheirState() = runComposeUiTest {
+    fun `given an item content resize, should keep other items placed and keep their state`() = runComposeUiTest {
         val creations = HashMap<String, Int>()
         val disposals = HashMap<String, Int>()
         var resizedSize by mutableStateOf(20.dp)

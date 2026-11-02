@@ -23,6 +23,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
+import oats.mobile.lazytransformablelayout.model.Positionable
 import androidx.compose.ui.test.ComposeUiTest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -48,7 +50,7 @@ class LazyTransformableLayoutAnimationTest {
     private fun LazyTransformableLayoutState.layoutAt(position: Offset) = viewportToLayout(position).toOffset()
 
     @Test
-    fun requestAnimateToReachesTheTarget() = runComposeUiTest {
+    fun `given an animate request, when animating to a target, should reach the target`() = runComposeUiTest {
         val state = state()
         setMeasuredLayout(state, viewportWidth, viewportHeight)
 
@@ -67,7 +69,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun requestAnimateToClampsTheTarget() = runComposeUiTest {
+    fun `given a target outside the bounds, when animating to it, should clamp the target`() = runComposeUiTest {
         val state = state(zoomBounds = 0.5f..5f)
         setMeasuredLayout(state, viewportWidth, viewportHeight)
 
@@ -78,7 +80,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun animationInterpolatesZoomInLogSpace() = runComposeUiTest {
+    fun `given a zoom animation, should interpolate zoom in log space`() = runComposeUiTest {
         val state = state()
         setMeasuredLayout(state, viewportWidth, viewportHeight)
         mainClock.autoAdvance = false
@@ -94,7 +96,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun requestAnimateByKeepsTheViewportPivotFixed() = runComposeUiTest {
+    fun `given a viewport pivot, when animating by a zoom factor, should keep the pivot fixed`() = runComposeUiTest {
         val state = state()
         setMeasuredLayout(state, viewportWidth, viewportHeight)
         val pivot = Offset(100f, 200f)
@@ -116,7 +118,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun requestAnimateByPansByThePanDelta() = runComposeUiTest {
+    fun `given a pan delta, when animating by it, should pan by the pan delta`() = runComposeUiTest {
         val state = state()
         setMeasuredLayout(state, viewportWidth, viewportHeight)
         val position = state.centerOffset
@@ -131,7 +133,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun requestsRestartFromTheCurrentState() = runComposeUiTest {
+    fun `given a running animation, when a new request arrives, should restart from the current state`() = runComposeUiTest {
         val state = state()
         setMeasuredLayout(state, viewportWidth, viewportHeight)
         mainClock.autoAdvance = false
@@ -148,7 +150,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun snapByBeforeTheRequestStartsDiscardsIt() = runComposeUiTest {
+    fun `given a pending request, when snapping by before it starts, should discard the request`() = runComposeUiTest {
         val state = state()
         setMeasuredLayout(state, viewportWidth, viewportHeight)
 
@@ -160,7 +162,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun snapToBeforeTheRequestStartsDiscardsIt() = runComposeUiTest {
+    fun `given a pending request, when snapping to before it starts, should discard the request`() = runComposeUiTest {
         val state = state()
         setMeasuredLayout(state, viewportWidth, viewportHeight)
 
@@ -173,7 +175,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun cancelAnimationLeavesTheStateWhereItIs() = runComposeUiTest {
+    fun `given a running animation, when canceling it, should leave the state where it is`() = runComposeUiTest {
         val state = state()
         setMeasuredLayout(state, viewportWidth, viewportHeight)
         mainClock.autoAdvance = false
@@ -190,7 +192,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun snapByCancelsARunningAnimation() = runComposeUiTest {
+    fun `given a running animation, when snapping by, should cancel the animation`() = runComposeUiTest {
         val state = state()
         setMeasuredLayout(state, viewportWidth, viewportHeight)
         mainClock.autoAdvance = false
@@ -206,7 +208,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun preventUserInputIgnoresDefaultPriorityChangesWhileTheAnimationRuns() = runComposeUiTest {
+    fun `given a prevent user input animation, when default priority changes arrive, should ignore them while it runs`() = runComposeUiTest {
         val state = state()
         setMeasuredLayout(state, viewportWidth, viewportHeight)
         mainClock.autoAdvance = false
@@ -228,7 +230,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun defaultPriorityAnimationsAreInterruptedByDefaultPriorityChanges() = runComposeUiTest {
+    fun `given a default priority animation, when a default priority change arrives, should interrupt the animation`() = runComposeUiTest {
         val state = state()
         setMeasuredLayout(state, viewportWidth, viewportHeight)
         mainClock.autoAdvance = false
@@ -243,7 +245,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun requestAnimateToBoundsFitsTheBounds() = runComposeUiTest {
+    fun `given bounds, when animating to bounds, should fit the bounds`() = runComposeUiTest {
         val state = state()
         setMeasuredLayout(state, viewportWidth, viewportHeight)
 
@@ -262,7 +264,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun animationClampsEachFrameToTheCurrentGeometry() = runComposeUiTest {
+    fun `given a running animation, should clamp each frame to the current geometry`() = runComposeUiTest {
         val state = state()
         var startPadding by mutableStateOf(300.dp)
         setContent {
@@ -336,7 +338,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun retargetedAnimateByContinuesTheRunningVelocity() {
+    fun `given a running animate by, when retargeting it, should continue the running velocity`() {
         val (scale, continued) = logZoomAfterOneFrame(
             initialScale = 1f,
             start = { requestAnimateBy(zoomFactor = 2f) },
@@ -349,7 +351,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun retargetedAnimateToContinuesTheRunningVelocity() {
+    fun `given a running animate to, when retargeting it, should continue the running velocity`() {
         val (scale, continued) = logZoomAfterOneFrame(
             initialScale = 1f,
             start = { requestAnimateTo(zoomScale = 2f) },
@@ -362,7 +364,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun animateByMovesTheContentLikeSnapByForTheSameZoomFactorAndPanDelta() {
+    fun `given the same zoom factor and pan delta, when animating by, should move the content as snap by does`() {
         for (pivot in listOf(Pivot.ContentCenter, Pivot.Viewport(Offset(100f, 200f)))) {
             val snapped = state().measured(viewportWidth, viewportHeight)
             snapped.snapBy(pivot = pivot, zoomFactor = 2f, panDelta = Offset(60f, -40f))
@@ -397,7 +399,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun animateToClampsRotationAndZoomToTheirBounds() = runComposeUiTest {
+    fun `given rotation and zoom outside their bounds, when animating to, should clamp them to their bounds`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(
             layoutBounds,
             initialRotationBounds = -10f..10f,
@@ -413,7 +415,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun animateToClampsTheCenter() = runComposeUiTest {
+    fun `given a center outside the panning bounds, when animating to, should clamp the center`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         launchedIn(state) {
             state.animateTo(centerOffset = DpOffset(-100.dp, 3_000.dp), animationSpec = linear)
@@ -424,7 +426,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun snapToBoundsClampsTheFitToTheBounds() {
+    fun `given bounds the fit exceeds, when snapping to bounds, should clamp the fit to the bounds`() {
         val tooLarge = state().measured(viewportWidth, viewportHeight)
         tooLarge.snapToBounds(layoutBounds)
         assertEquals(700f / 6_000f, tooLarge.zoomScale, 1e-5f)
@@ -436,7 +438,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun animateToStartsFromTheClampedValuesWhenCalledBeforeTheFirstLayout() = runComposeUiTest {
+    fun `given a call before the first layout, when animating to, should start from the clamped values`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds, initialCenterOffset = DpOffset(-500.dp, 99_999.dp))
         setContent {
             LaunchedEffect(Unit) { state.animateTo(zoomScale = 2f, animationSpec = linear) }
@@ -452,7 +454,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun cancelAnimationDoesNotCancelTheCaller() = runComposeUiTest {
+    fun `given a running animation, when canceling it, should not cancel the caller`() = runComposeUiTest {
         val state = state()
         var reachedAfter = false
         launchedIn(state) {
@@ -469,7 +471,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun aZeroVelocityFlingDoesNotCancelARunningAnimation() = runComposeUiTest {
+    fun `given a running animation, when flinging with zero velocity, should not cancel the animation`() = runComposeUiTest {
         val state = state()
         lateinit var scope: CoroutineScope
         setMeasuredLayout(state, viewportWidth, viewportHeight, onScope = { scope = it })
@@ -486,7 +488,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun snapByDoesNotCancelTheCaller() = runComposeUiTest {
+    fun `given a caller, when snapping by, should not cancel the caller`() = runComposeUiTest {
         val state = state()
         var reachedAfter = false
         launchedIn(state) {
@@ -502,7 +504,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun aCanceledAnimateToDoesNotApplyItsTarget() = runComposeUiTest {
+    fun `given a canceled animate to, should not apply its target`() = runComposeUiTest {
         val state = state(zoomBounds = 0.5f..4f)
         launchedIn(state) {
             state.animateTo(zoomScale = 100f, animationSpec = linear)
@@ -518,7 +520,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun aCompletedAnimateToSnapsToTheClampedTarget() = runComposeUiTest {
+    fun `given a completed animate to, should snap to the clamped target`() = runComposeUiTest {
         val state = state()
         launchedIn(state) {
             state.animateTo(rotationAngle = 30f, zoomScale = 2f, animationSpec = linear)
@@ -537,7 +539,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun loweringZoomMaxMidAnimationClampsEveryFrameAndEndsAtTheNewMax() = runComposeUiTest {
+    fun `given a running animation, when lowering the zoom max, should clamp every frame and end at the new max`() = runComposeUiTest {
         val state = state(zoomBounds = 0.5f..8f)
         var completed = false
         launchedIn(state) {
@@ -559,7 +561,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun loweringZoomMaxMidRequestedAnimationEndsAtTheNewMax() = runComposeUiTest {
+    fun `given a requested animation, when lowering the zoom max midway, should end at the new max`() = runComposeUiTest {
         val state = state(zoomBounds = 0.5f..8f)
         setMeasuredLayout(state, viewportWidth, viewportHeight)
         mainClock.autoAdvance = false
@@ -575,7 +577,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun loweringRotationMaxMidAnimationClampsEveryFrameAndEndsAtTheNewMax() = runComposeUiTest {
+    fun `given a running animation, when lowering the rotation max, should clamp every frame and end at the new max`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds, initialRotationBounds = -90f..90f)
         var completed = false
         launchedIn(state) {
@@ -596,7 +598,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun shrinkingLayoutBoundsMidAnimationKeepsTheCenterInsideAndEndsClamped() = runComposeUiTest {
+    fun `given a running animation, when shrinking the layout bounds, should keep the center inside and end clamped`() = runComposeUiTest {
         val state = state()
         var completed = false
         launchedIn(state) {
@@ -618,7 +620,7 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
-    fun updateBoundsWithoutArgumentsLeavesARunningAnimationUntouched() = runComposeUiTest {
+    fun `given a running animation, when updating bounds without arguments, should leave the animation untouched`() = runComposeUiTest {
         val state = state()
         var completed = false
         launchedIn(state) {
@@ -638,5 +640,55 @@ class LazyTransformableLayoutAnimationTest {
         assertTrue(completed, "the animation did not finish")
         assertEquals(4f, state.zoomScale, 1e-3f)
         assertEquals(30f, state.rotationAngle, 1e-3f)
+    }
+
+    @Test
+    fun `given the same geometry, when remeasuring, should keep the state`() = runComposeUiTest {
+        val state = state()
+        var contentVersion by mutableStateOf(0)
+        val item = object : Positionable {
+            override val bounds = DpRect(4_900.dp, 2_900.dp, 5_100.dp, 3_100.dp)
+            override val zIndex = 0f
+        }
+        setContent {
+            CompositionLocalProvider(LocalDensity provides Density(1f)) {
+                Box(Modifier.size(viewportWidth.dp, viewportHeight.dp)) {
+                    LazyTransformableLayout(state, overscrollEffect = null) {
+                        items(
+                            items = listOf(item),
+                            key = { contentVersion }
+                        ) { Box(Modifier.fillMaxSize()) }
+                    }
+                }
+            }
+        }
+        waitForIdle()
+
+        state.snapTo(rotationAngle = 20f, zoomScale = 2f, centerOffset = DpOffset(4_000.dp, 2_500.dp))
+        val center = state.centerOffset
+        contentVersion++
+        waitForIdle()
+
+        assertEquals(20f, state.rotationAngle)
+        assertEquals(2f, state.zoomScale)
+        assertEquals(center, state.centerOffset)
+    }
+
+    @Test
+    fun `given rotation bounds, when animating to bounds at a rotation outside them, should fit at the clamped rotation`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds, initialRotationBounds = 0f..0f)
+        setMeasuredLayout(state, viewportWidth, viewportHeight)
+
+        state.requestAnimateToBounds(
+            bounds = DpRect(1_000.dp, 1_000.dp, 1_400.dp, 1_200.dp),
+            rotationAngle = 90f,
+            margin = 10.dp,
+            animationSpec = linear
+        )
+        waitForIdle()
+        mainClock.advanceTimeBy(2_000)
+
+        assertEquals(0f, state.rotationAngle)
+        assertEquals(1.2f, state.zoomScale, 1e-3f)
     }
 }

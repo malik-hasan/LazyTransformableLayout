@@ -91,7 +91,7 @@ class LazyTransformableLayoutFlingTest {
         zipWithNext().count { (previous, current) -> property(previous) != property(current) }
 
     @Test
-    fun rotationKeepsFlingingWhenZoomIsAtZoomBoundsMin() {
+    fun `given zoom at the zoom bounds min, when flinging, should keep rotating`() {
         val state = state(zoomBounds = 1f..5f, initialScale = 1f)
 
         val frames = state.runFling(rotationVelocity = 90f, logZoomVelocity = -2f)
@@ -102,7 +102,7 @@ class LazyTransformableLayoutFlingTest {
     }
 
     @Test
-    fun rotationKeepsFlingingWhenZoomIsAtViewportCoverMin() {
+    fun `given zoom at the viewport cover min, when flinging, should keep rotating`() {
         val state = state(initialScale = 0.0001f)
         val minScale = viewportHeight / layoutHeight
         assertEquals(minScale, state.zoomScale, 1e-5f)
@@ -114,7 +114,7 @@ class LazyTransformableLayoutFlingTest {
     }
 
     @Test
-    fun zoomKeepsFlingingWhenRotationIsAtBound() {
+    fun `given rotation at its bound, when flinging, should keep zooming`() {
         val state = state(rotationBounds = -10f..10f, initialAngle = 10f, zoomBounds = 1f..5f, initialScale = 1f)
 
         val frames = state.runFling(rotationVelocity = 90f, logZoomVelocity = 1f)
@@ -125,7 +125,7 @@ class LazyTransformableLayoutFlingTest {
     }
 
     @Test
-    fun rotationAndZoomRespectTheirOwnDecaySpecs() {
+    fun `given rotation and zoom flings, should respect their own decay specs`() {
         val state = state(
             zoomBounds = 0.5f..10f,
             initialScale = 1f,
@@ -145,7 +145,7 @@ class LazyTransformableLayoutFlingTest {
     }
 
     @Test
-    fun panFlingMovesAlongCollapsedBoundsAtMinScale() {
+    fun `given collapsed panning bounds at min scale, when flinging pan, should move along the collapsed bounds`() {
         val state = state(initialAngle = 30f, initialScale = 0.0001f, initialOffset = Offset(-10_000f, 0f))
         val segmentStart = state.translation
         state.snapToTranslation(Offset(10_000f, 0f))
@@ -164,7 +164,7 @@ class LazyTransformableLayoutFlingTest {
     }
 
     @Test
-    fun panFlingIntoEdgeStopsAtTheEdge() {
+    fun `given a pan fling toward an edge, should stop at the edge`() {
         val state = state(initialScale = 1f, initialOffset = Offset(0f, 1_000f))
         assertEquals(0f, state.translation.x, 0.01f)
         assertEquals(1_000f, state.translation.y, 0.01f)
@@ -176,7 +176,7 @@ class LazyTransformableLayoutFlingTest {
     }
 
     @Test
-    fun zeroVelocityFlingCompletesWithoutFrames() {
+    fun `given zero velocity, when flinging, should complete without frames`() {
         val state = state(initialAngle = 20f, initialScale = 2f)
         val before = Frame(state.translation, state.rotationAngle, state.zoomScale)
 
@@ -190,7 +190,7 @@ class LazyTransformableLayoutFlingTest {
     }
 
     @Test
-    fun panOnlyFlingDoesNotChangeAngleOrScale() {
+    fun `given a pan only fling, should not change angle or scale`() {
         val state = state(initialAngle = 20f, initialScale = 2f)
 
         val frames = state.runFling(panVelocity = Velocity(2_000f, -1_500f))
@@ -203,7 +203,7 @@ class LazyTransformableLayoutFlingTest {
     }
 
     @Test
-    fun horizontalPanFlingOnlyMovesHorizontally() {
+    fun `given a horizontal pan fling, should only move horizontally`() {
         val state = state()
         val before = state.translation
 
@@ -215,7 +215,7 @@ class LazyTransformableLayoutFlingTest {
     }
 
     @Test
-    fun verticalPanFlingOnlyMovesVertically() {
+    fun `given a vertical pan fling, should only move vertically`() {
         val state = state()
         val before = state.translation
 
@@ -229,7 +229,7 @@ class LazyTransformableLayoutFlingTest {
     private fun minScaleAt(angle: Float) = state(initialAngle = angle, initialScale = 0.0001f).zoomScale
 
     @Test
-    fun pinnedZoomFollowsDecreasingMinScaleWhileRotating() {
+    fun `given a zoom pinned to the min scale, when rotating, should follow the decreasing min scale`() {
         val logZoomVelocity = -6f
         val state = state(initialScale = 0.0001f)
         assertEquals(minScaleAt(0f), state.zoomScale)
@@ -254,7 +254,7 @@ class LazyTransformableLayoutFlingTest {
     }
 
     @Test
-    fun pinnedPanFollowsEdgeWhileZooming() {
+    fun `given a pan pinned to an edge, when zooming, should follow the edge`() {
         val state = state(initialScale = 1f, initialOffset = Offset(100_000f, 0f))
         assertEquals(layoutWidth - viewportWidth, state.translation.x, 0.01f)
 
@@ -275,7 +275,7 @@ class LazyTransformableLayoutFlingTest {
     }
 
     @Test
-    fun pinnedZoomStopsSoonAfterRotationEnds() {
+    fun `given a zoom pinned to the min scale, when rotation ends, should stop soon after`() {
         val state = state(
             initialScale = 0.0001f,
             rotationFlingDecay = FloatExponentialDecaySpec(frictionMultiplier = 10f),
@@ -290,7 +290,7 @@ class LazyTransformableLayoutFlingTest {
     }
 
     @Test
-    fun settingStateCancelsFling() {
+    fun `given a running fling, when setting the state, should cancel the fling`() {
         val state = state(zoomBounds = 0.5f..10f, initialScale = 1f)
         var afterSet: Frame? = null
         val setFrame = 5
@@ -314,7 +314,7 @@ class LazyTransformableLayoutFlingTest {
     }
 
     @Test
-    fun transformCancelsFling() {
+    fun `given a running fling, when transforming, should cancel the fling`() {
         val state = state(zoomBounds = 0.5f..10f, initialScale = 1f)
         var afterTransform: Frame? = null
         val transformFrame = 5
@@ -342,7 +342,7 @@ class LazyTransformableLayoutFlingTest {
     }
 
     @Test
-    fun settingNothingStillCancelsFling() {
+    fun `given a running fling, when setting nothing, should still cancel the fling`() {
         val state = state(zoomBounds = 0.5f..10f, initialScale = 1f)
         val setFrame = 5
 
@@ -354,7 +354,7 @@ class LazyTransformableLayoutFlingTest {
     }
 
     @Test
-    fun updateBoundsDoesNotCancelAFlingAndTheCenterStaysInTheNewLayoutBounds() {
+    fun `given a running fling, when updating bounds, should not cancel it and keep the center in the new layout bounds`() {
         val state = state()
         val newBounds = DpRect(2_000.dp, 1_000.dp, 3_800.dp, 2_850.dp)
         val setFrame = 5
@@ -374,5 +374,38 @@ class LazyTransformableLayoutFlingTest {
 
     private companion object {
         const val FRAME_NANOS = 16_666_667L
+    }
+
+    @Test
+    fun `given an unspecified centroid, when flinging rotation and zoom, should keep the content center fixed on screen without NaN`() {
+        val state = state()
+        val contentCenter = Offset(viewportWidth / 2f, viewportHeight / 2f)
+        val layoutPoint = state.viewportToLayout(contentCenter)
+
+        val frames = state.runFling(
+            rotationVelocity = 90f,
+            logZoomVelocity = 1f,
+            centroid = Offset.Unspecified
+        )
+
+        assertTrue(frames.changeCount { it.angle } > 10)
+        assertTrue(frames.changeCount { it.scale } > 10)
+        frames.forEach { assertTrue(it.angle.isFinite() && it.scale.isFinite() && it.offset.x.isFinite()) }
+        val after = state.layoutToViewport(layoutPoint)
+        assertEquals(contentCenter.x, after.x, 0.5f)
+        assertEquals(contentCenter.y, after.y, 0.5f)
+    }
+
+    @Test
+    fun `given a viewport centroid, when flinging rotation and zoom, should keep the point under it fixed on screen`() {
+        val state = state()
+        val centroid = Offset(100f, 200f)
+        val layoutPoint = state.viewportToLayout(centroid)
+
+        state.runFling(rotationVelocity = 90f, logZoomVelocity = 1f, centroid = centroid)
+
+        val after = state.layoutToViewport(layoutPoint)
+        assertEquals(centroid.x, after.x, 0.5f)
+        assertEquals(centroid.y, after.y, 0.5f)
     }
 }
