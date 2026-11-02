@@ -210,7 +210,64 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
-    fun `given blocked input, when keys are pressed, should ignore them`() = runComposeUiTest {
+    fun `given a horizontal and a vertical arrow held together, when both are down, should pan on both axes`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+        val node = focusLayout()
+        val before = state.centerOffset
+
+        node.performKeyInput {
+            keyDown(Key.DirectionRight)
+            keyDown(Key.DirectionDown)
+        }
+        waitForIdle()
+
+        assertEquals(before.x.value + 100f, state.centerOffset.x.value, 0.5f)
+        assertEquals(before.y.value + 100f, state.centerOffset.y.value, 0.5f)
+    }
+
+    @Test
+    fun `given an arrow key that was released, when another arrow is pressed, should pan only on the new axis`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+        val node = focusLayout()
+
+        node.performKeyInput {
+            keyDown(Key.DirectionRight)
+            keyUp(Key.DirectionRight)
+        }
+        waitForIdle()
+        val afterRight = state.centerOffset
+
+        node.performKeyInput { pressKey(Key.DirectionDown) }
+        waitForIdle()
+
+        assertEquals(afterRight.x.value, state.centerOffset.x.value, 0.5f)
+        assertEquals(afterRight.y.value + 100f, state.centerOffset.y.value, 0.5f)
+    }
+
+    @Test
+    fun `given two arrow keys held, when one is released, should keep panning in the direction of the other`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+        val node = focusLayout()
+
+        node.performKeyInput {
+            keyDown(Key.DirectionRight)
+            keyDown(Key.DirectionDown)
+        }
+        waitForIdle()
+        val beforeRelease = state.centerOffset
+
+        node.performKeyInput { keyUp(Key.DirectionDown) }
+        waitForIdle()
+
+        assertEquals(beforeRelease.x.value + 100f, state.centerOffset.x.value, 0.5f)
+        assertEquals(beforeRelease.y.value, state.centerOffset.y.value, 0.5f)
+    }
+
+    @Test
+    fun `given blocked input, when keys are pressed, should ignore them`()= runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val node = focusLayout()

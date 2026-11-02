@@ -47,6 +47,8 @@ import kotlin.math.roundToInt
 
 private const val TAP_ZOOM_FACTOR = 2f
 
+private val arrowKeys = setOf(Key.DirectionLeft, Key.DirectionRight, Key.DirectionUp, Key.DirectionDown)
+
 /**
  * A lazy layout of [Positionable] items that can be panned, zoomed and rotated.
  * Only items intersecting the viewport are composed, with some buffer.
@@ -74,10 +76,9 @@ fun LazyTransformableLayout(
         }
     }
 
+    val heldArrowKeys = remember { mutableSetOf<Key>() }
     val density = LocalDensity.current
-
     val scope = rememberCoroutineScope()
-
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(state) { state.runPendingAnimations() }
@@ -92,24 +93,44 @@ fun LazyTransformableLayout(
             .clipToBounds()
             .overscroll(overscrollEffect)
             .onKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown) {
-                    val panStep = with(density) { 100.dp.toPx() }
-                    val (zoomFactor, panDelta) = when (event.key) {
-                        Key.DirectionLeft -> 1f to Offset(panStep, 0f)
-                        Key.DirectionRight -> 1f to Offset(-panStep, 0f)
-                        Key.DirectionUp -> 1f to Offset(0f, panStep)
-                        Key.DirectionDown -> 1f to Offset(0f, -panStep)
-                        Key.Plus, Key.Equals, Key.NumPadAdd, Key.PageUp -> TAP_ZOOM_FACTOR to Offset.Zero
-                        Key.Minus, Key.NumPadSubtract, Key.PageDown -> 1 / TAP_ZOOM_FACTOR to Offset.Zero
-                        else -> return@onKeyEvent false
+                val panStep = with(density) { 100.dp.toPx() }
+                val heldPanDelta = {
+                    var x = 0f
+                    var y = 0f
+                    if (Key.DirectionLeft in heldArrowKeys) x += panStep
+                    if (Key.DirectionRight in heldArrowKeys) x -= panStep
+                    if (Key.DirectionUp in heldArrowKeys) y += panStep
+                    if (Key.DirectionDown in heldArrowKeys) y -= panStep
+                    Offset(x, y)
+                }
+
+                when(event.type) {
+                    KeyEventType.KeyUp -> {
+                        heldArrowKeys.remove(event.key).also {
+                            if (it && heldArrowKeys.isNotEmpty()) {
+                                scope.launch { state.animateBy(panDelta = heldPanDelta()) }
+                            }
+                        }
                     }
 
-                    scope.launch {
-                        state.animateBy(zoomFactor = zoomFactor, panDelta = panDelta)
+                    KeyEventType.KeyDown -> {
+                        if (event.key in arrowKeys) heldArrowKeys.add(event.key)
+                        val (zoomFactor, panDelta) = when (event.key) {
+                            in arrowKeys -> 1f to heldPanDelta()
+                            Key.Plus, Key.Equals, Key.NumPadAdd, Key.PageUp -> TAP_ZOOM_FACTOR to Offset.Zero
+                            Key.Minus, Key.NumPadSubtract, Key.PageDown -> 1 / TAP_ZOOM_FACTOR to Offset.Zero
+                            else -> return@onKeyEvent false
+                        }
+
+                        scope.launch {
+                            state.animateBy(zoomFactor = zoomFactor, panDelta = panDelta)
+                        }
+
+                        true
                     }
 
-                    true
-                } else false
+                    else -> false
+                }
             }.focusRequester(focusRequester)
             .focusable()
             .pointerInput(state) {
