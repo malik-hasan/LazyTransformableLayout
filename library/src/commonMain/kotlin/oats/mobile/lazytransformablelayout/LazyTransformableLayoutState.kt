@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -290,9 +289,6 @@ class LazyTransformableLayoutState(
         }
     }
 
-    internal val keyPanStep
-        get() = geometry?.viewportSize?.let { minOf(it.width, it.height) * 0.1f } ?: 0f
-
     /**
      * Rotates and zooms the layout about [pivot], then pans it, like a transform gesture.
      * Each value is clamped to its bounds. Cancels any ongoing or requested fling or animation of the same or lower
@@ -483,9 +479,6 @@ class LazyTransformableLayoutState(
      * @param zoomFactor factor to multiply the zoom scale by
      * @param panDelta distance in px to move the point under [pivot] on screen, applied after rotating and zooming.
      * It is divided by [zoomFactor] before it is applied, so the on-screen pan stays comparable across zoom scales.
-     * @param additive if true, these deltas will be added onto any running animation, so repeated calls such as key repeats
-     * accumulate instead of cutting each other short, else it replaces the existing animation.
-     * Either way the running animation's velocity is continued.
      * @param animationSpec the spec animating the rotation angle, the zoom scale in log space and the [pivot]
      * in layout space, as one [TransformAnimationValues]
      * @param mutatePriority the priority of this animation, which only animations and requests of the same or higher
@@ -497,30 +490,13 @@ class LazyTransformableLayoutState(
         rotationDelta: Float = 0f,
         zoomFactor: Float = 1f,
         panDelta: Offset = Offset.Zero,
-        additive: Boolean = false,
         animationSpec: AnimationSpec<TransformAnimationValues> = spring(),
         mutatePriority: MutatePriority = MutatePriority.Default
     ) {
         with(snapshotFlow { geometry }.filterNotNull().first()) {
-            val startAngle: Float
-            val startScale: Float
-            val startCenter: Offset
-            if (additive && animatable.isRunning) {
-                animatable.targetValue.run {
-                    startAngle = rotationAngle
-                    startScale = exp(logZoomScale)
-                    startCenter = centerFromLayoutPivot(
-                        viewportPivot = previousViewportPivot,
-                        angle = startAngle,
-                        scale = startScale,
-                        layoutPivot = layoutPivot
-                    )
-                }
-            } else {
-                startAngle = rotationAngle
-                startScale = zoomScale
-                startCenter = centerOffsetPx
-            }
+            val startAngle = rotationAngle
+            val startScale = zoomScale
+            val startCenter = centerOffsetPx
 
             animate(
                 pivot = pivot,
@@ -644,9 +620,6 @@ class LazyTransformableLayoutState(
      * @param zoomFactor factor to multiply the zoom scale by
      * @param panDelta distance in px to move the point under [pivot] on screen, applied after rotating and zooming.
      * It is divided by [zoomFactor] before it is applied, so the on-screen pan stays comparable across zoom scales.
-     * @param additive false animates from the current state, interrupting any running animation.
-     * true adds this change to where a running animation is heading, so repeated calls such as key repeats
-     * accumulate instead of cutting each other short. Either way the running animation's velocity is kept.
      * @param animationSpec the spec animating the rotation angle, the zoom scale in log space and the [pivot]
      * in layout space, as one [TransformAnimationValues]
      * @param mutatePriority the priority of this animation, which only animations and requests of the same or higher
@@ -658,7 +631,6 @@ class LazyTransformableLayoutState(
         rotationDelta: Float = 0f,
         zoomFactor: Float = 1f,
         panDelta: Offset = Offset.Zero,
-        additive: Boolean = false,
         animationSpec: AnimationSpec<TransformAnimationValues> = spring(),
         mutatePriority: MutatePriority = MutatePriority.Default
     ) = animationCoordinator.request(mutatePriority) {
@@ -667,7 +639,6 @@ class LazyTransformableLayoutState(
             rotationDelta = rotationDelta,
             zoomFactor = zoomFactor,
             panDelta = panDelta,
-            additive = additive,
             animationSpec = animationSpec,
             mutatePriority = mutatePriority
         )
@@ -864,22 +835,6 @@ class LazyTransformableLayoutState(
     }
 
     internal suspend fun runPendingAnimations() = animationCoordinator.runPending()
-
-    context(scope: CoroutineScope)
-    internal fun launchAdditiveAnimateBy(
-        zoomFactor: Float,
-        pivot: Pivot = Pivot.ContentCenter,
-        panDelta: Offset = Offset.Zero
-    ) = animationCoordinator.canCancel(MutatePriority.Default).also { allowed ->
-        if (allowed) scope.launch {
-            animateBy(
-                pivot = pivot,
-                zoomFactor = zoomFactor,
-                panDelta = panDelta,
-                additive = true
-            )
-        }
-    }
 
     internal suspend fun fling(
         initialRotationVelocity: Float = 0f,

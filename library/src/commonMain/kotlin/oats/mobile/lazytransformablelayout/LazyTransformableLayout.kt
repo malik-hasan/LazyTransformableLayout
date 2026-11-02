@@ -36,8 +36,10 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachIndexed
 import androidx.compose.ui.util.fastMap
@@ -92,6 +94,8 @@ fun LazyTransformableLayout(
         }
     }
 
+    val density = LocalDensity.current
+
     val scope = rememberCoroutineScope()
 
     val focusRequester = remember { FocusRequester() }
@@ -111,7 +115,7 @@ fun LazyTransformableLayout(
             .overscroll(overscrollEffect)
             .onPreviewKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown) {
-                    val panStep = state.keyPanStep
+                    val panStep = with(density) { 100.dp.toPx() }
                     val (zoomFactor, panDelta) = when (event.key) {
                         Key.DirectionLeft -> 1f to Offset(panStep, 0f)
                         Key.DirectionRight -> 1f to Offset(-panStep, 0f)
@@ -122,8 +126,8 @@ fun LazyTransformableLayout(
                         else -> return@onPreviewKeyEvent false
                     }
 
-                    scope.run {
-                        state.launchAdditiveAnimateBy(zoomFactor, panDelta = panDelta)
+                    scope.launch {
+                        state.animateBy(zoomFactor = zoomFactor, panDelta = panDelta)
                     }
 
                     true
@@ -196,21 +200,21 @@ fun LazyTransformableLayout(
                         focusRequester.requestFocus()
                     },
                     onDoubleTap = { position ->
-                        scope.run {
-                            state.launchAdditiveAnimateBy(TAP_ZOOM_FACTOR, Pivot.Viewport(position))
+                        scope.launch {
+                            state.animateBy(Pivot.Viewport(position), zoomFactor = TAP_ZOOM_FACTOR)
                         }
                     }
                 )
             }.pointerInput(state) {
                 detectTapSequenceGestures(
                     onTwoFingerTap = {
-                        scope.run {
-                            state.launchAdditiveAnimateBy(1 / TAP_ZOOM_FACTOR)
+                        scope.launch {
+                            state.animateBy(zoomFactor = 1 / TAP_ZOOM_FACTOR)
                         }
                     },
                     onSecondaryDoubleClick = { position ->
-                        scope.run {
-                            state.launchAdditiveAnimateBy(1 / TAP_ZOOM_FACTOR, Pivot.Viewport(position))
+                        scope.launch {
+                            state.animateBy(Pivot.Viewport(position), zoomFactor = 1 / TAP_ZOOM_FACTOR)
                         }
                     },
                     onDoubleTapDragStopped = { logZoomVelocity ->
