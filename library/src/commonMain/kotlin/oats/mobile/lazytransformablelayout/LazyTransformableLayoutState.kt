@@ -937,7 +937,7 @@ class LazyTransformableLayoutState(
     } else AnimationState(0f, initialVelocity).run {
         var previousValue = 0f
         animateDecay(animationSpec.generateDecayAnimationSpec()) {
-            if (!applyDelta(value - previousValue)) animationCoordinator.cancel()
+            if (!applyDelta(value - previousValue)) cancelAnimation()
             previousValue = value
         }
         velocity
