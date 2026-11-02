@@ -1,8 +1,8 @@
-package oats.mobile.lazytransformablelayout
+package oats.mobile.lazytransformablelayout.internal
 
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
-import oats.mobile.lazytransformablelayout.model.Positionable
+import oats.mobile.lazytransformablelayout.Positionable
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
@@ -16,12 +16,12 @@ class ContentTest {
     private val items = List(3) { TestPositionable(it) }
 
     @Test
-    fun emptyContentDoesNotThrow() {
+    fun `given empty content should not throw`() {
         assertEquals(0, Content {}.itemCount)
     }
 
     @Test
-    fun unkeyedItemsAlongsideKeyedItemsDoNotThrow() {
+    fun `given unkeyed items alongside keyed items should not throw`() {
         val content = Content {
             items(items) {}
             items(items, key = { it.id }) {}
@@ -33,7 +33,7 @@ class ContentTest {
     }
 
     @Test
-    fun duplicateKeysWithinOneIntervalDoNotThrow() {
+    fun `given duplicate keys within one interval should not throw`() {
         val content = Content {
             items(items, key = { "same" }) {}
         }
@@ -41,7 +41,7 @@ class ContentTest {
     }
 
     @Test
-    fun duplicateKeysAcrossIntervalsDoNotThrow() {
+    fun `given duplicate keys across intervals should not throw`() {
         val content = Content {
             items(items, key = { it.id }) {}
             item(TestPositionable(0), key = 0) {}
@@ -51,7 +51,7 @@ class ContentTest {
     }
 
     @Test
-    fun keysAndContentTypesResolveToTheirItemAcrossIntervals() {
+    fun `given multiple intervals when resolving keys and content types should resolve them to their item`() {
         val content = Content {
             item(TestPositionable(9), key = "single", contentType = "single-type") {}
             itemsIndexed(
@@ -73,7 +73,7 @@ class ContentTest {
     }
 
     @Test
-    fun intervalsCarryTheirItemsSizesAndStartIndices() {
+    fun `given multiple intervals should carry their item sizes and start indices`() {
         val single = TestPositionable(9)
         val second = TestPositionable(10)
         val content = Content {
@@ -93,7 +93,7 @@ class ContentTest {
     }
 
     @Test
-    fun itemCountIsFixedWhenBackingListGrowsAfterBuild() {
+    fun `given a backing list that grows after build should keep the item count fixed`() {
         val backing = mutableListOf(TestPositionable(0), TestPositionable(1))
         val content = Content {
             itemsIndexed(backing) { _, _ -> }

@@ -1,6 +1,8 @@
 package oats.mobile.lazytransformablelayout
 
+import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.OverscrollEffect
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.layout.LazyLayout
@@ -16,37 +18,46 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachIndexed
 import androidx.compose.ui.util.fastMap
 import kotlinx.coroutines.launch
-import oats.mobile.lazytransformablelayout.extension.detectDoubleTapDragGestures
+import oats.mobile.lazytransformablelayout.extension.detectTapSequenceGestures
 import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
-import oats.mobile.lazytransformablelayout.extension.detectTwoFingerTapGestures
+import oats.mobile.lazytransformablelayout.extension.detectWheelZoomGestures
 import oats.mobile.lazytransformablelayout.extension.transform
-import oats.mobile.lazytransformablelayout.model.Item
+import oats.mobile.lazytransformablelayout.internal.Content
+import oats.mobile.lazytransformablelayout.internal.Item
+import oats.mobile.lazytransformablelayout.internal.ItemProvider
 import kotlin.math.roundToInt
 
 private const val TAP_ZOOM_FACTOR = 2f
 
 /**
- * A lazy layout of [oats.mobile.lazytransformablelayout.model.Positionable] items that can be panned, zoomed and rotated.
- * Only items intersecting the viewport are composed.
- * Double tap zooms in, two-finger tap zooms out, and double tap then drag zooms continuously.
+ * A lazy layout of [Positionable] items that can be panned, zoomed and rotated.
+ * Only items intersecting the viewport are composed, with some buffer.
  *
- * @param state The camera state of this layout
+ * @param state The state holding this layout's rotation angle, zoom scale and center offset
  * @param modifier The modifier to apply to this layout
- * @param contentPadding Padding around the viewport's content area, such as space under overlaid UI.
- * The camera centers, fits and clamps to the content area, while items still draw underneath the padding.
+ * @param contentPadding Padding that insets the content area within the viewport
  * @param overscrollEffect The effect shown when panning past the layout bounds
  * @param contentBuilder Declares the items of this layout. It runs again whenever its lambda instance changes
  * or state it reads changes. Keep it stable: avoid capturing values that change often, and read frequently
- * changing state inside the item content or the [oats.mobile.lazytransformablelayout.model.Positionable] fields instead.
+ * changing state inside the item content or the [Positionable] fields instead.
  */
 @Composable
 fun LazyTransformableLayout(
@@ -63,7 +74,11 @@ fun LazyTransformableLayout(
         }
     }
 
+    val density = LocalDensity.current
+
     val scope = rememberCoroutineScope()
+
+    val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(state) { state.runPendingAnimations() }
 
@@ -76,12 +91,53 @@ fun LazyTransformableLayout(
         modifier = modifier
             .clipToBounds()
             .overscroll(overscrollEffect)
-            .pointerInput(state, overscrollEffect) {
+            .onKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown) {
+                    val panStep = with(density) { 100.dp.toPx() }
+                    val (zoomFactor, panDelta) = when (event.key) {
+                        Key.DirectionLeft -> 1f to Offset(panStep, 0f)
+                        Key.DirectionRight -> 1f to Offset(-panStep, 0f)
+                        Key.DirectionUp -> 1f to Offset(0f, panStep)
+                        Key.DirectionDown -> 1f to Offset(0f, -panStep)
+                        Key.Plus, Key.Equals, Key.NumPadAdd, Key.PageUp -> TAP_ZOOM_FACTOR to Offset.Zero
+                        Key.Minus, Key.NumPadSubtract, Key.PageDown -> 1 / TAP_ZOOM_FACTOR to Offset.Zero
+                        else -> return@onKeyEvent false
+                    }
+
+                    scope.launch {
+                        state.animateBy(zoomFactor = zoomFactor, panDelta = panDelta)
+                    }
+
+                    true
+                } else false
+            }.focusRequester(focusRequester)
+            .focusable()
+            .pointerInput(state) {
+                detectWheelZoomGestures { position, zoomFactor ->
+                    scope.launch {
+                        state.animateBy(
+                            pivot = Pivot.Viewport(position),
+                            zoomFactor = zoomFactor,
+                            mutatePriority = MutatePriority.UserInput
+                        )
+                    }
+                }
+            }.pointerInput(state, overscrollEffect) {
                 detectTransformGestures(
+                    onTransform = { centroid, rotationDelta, zoomFactor, panDelta ->
+                        state.snapBy(
+                            pivot = Pivot.Viewport(centroid),
+                            rotationDelta = rotationDelta,
+                            zoomFactor = zoomFactor,
+                            panDelta = panDelta,
+                            overscrollEffect = overscrollEffect,
+                            mutatePriority = MutatePriority.UserInput
+                        )
+                    },
                     onTransformStopped = { centroid, rotationVelocity, logZoomVelocity, panVelocity ->
-                         scope.launch {
+                        scope.launch {
                             state.fling(
-                                centroid = centroid,
+                                pivot = Pivot.Viewport(centroid),
                                 initialRotationVelocity = rotationVelocity,
                                 initialLogZoomVelocity = logZoomVelocity,
                                 initialPanVelocity = -panVelocity,
@@ -89,44 +145,53 @@ fun LazyTransformableLayout(
                             )
                         }
                     }
-                ) { centroid, rotationDelta, zoomFactor, panDelta ->
-                    state.transform(
-                        centroid = centroid,
-                        rotationDelta = rotationDelta,
-                        zoomFactor = zoomFactor,
-                        panDelta = panDelta,
-                        overscrollEffect = overscrollEffect
-                    )
-                }
+                )
             }.pointerInput(state) {
                 detectTapGestures(
-                    onPress = { state.cancelFling() },
+                    onPress = {
+                        state.cancelAnimation(MutatePriority.UserInput)
+                        focusRequester.requestFocus()
+                    },
                     onDoubleTap = { position ->
                         scope.launch {
-                            state.animateZoom(TAP_ZOOM_FACTOR, position)
+                            state.animateBy(
+                                pivot = Pivot.Viewport(position),
+                                zoomFactor = TAP_ZOOM_FACTOR
+                            )
                         }
                     }
                 )
             }.pointerInput(state) {
-                detectTwoFingerTapGestures {
-                    scope.launch {
-                        state.animateZoom(1 / TAP_ZOOM_FACTOR)
-                    }
-                }
-            }.pointerInput(state) {
-                detectDoubleTapDragGestures(
+                detectTapSequenceGestures(
+                    onTwoFingerTap = {
+                        scope.launch {
+                            state.animateBy(zoomFactor = 1 / TAP_ZOOM_FACTOR)
+                        }
+                    },
+                    onSecondaryDoubleClick = { position ->
+                        scope.launch {
+                            state.animateBy(
+                                pivot = Pivot.Viewport(position),
+                                zoomFactor = 1 / TAP_ZOOM_FACTOR
+                            )
+                        }
+                    },
+                    onDoubleTapDrag = { zoomFactor ->
+                        state.snapBy(
+                            zoomFactor = zoomFactor,
+                            mutatePriority = MutatePriority.UserInput
+                        )
+                    },
                     onDoubleTapDragStopped = { logZoomVelocity ->
                         scope.launch {
                             state.fling(initialLogZoomVelocity = logZoomVelocity)
                         }
-                    },
-                    onDoubleTapDrag = state::zoomBy
+                    }
                 )
             }
     ) { constraints ->
         state.measure(constraints, contentPadding)
-
-        val (minItemDimension, viewportBounds) = state.compositionBounds
+        val (minItemDimension, viewportBounds) = state.compositionBounds!!
 
         val itemsToCompose = mutableListOf<Item>()
         content.intervals.takeIf { it.size > 0 }?.forEach { interval ->

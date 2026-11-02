@@ -1,11 +1,11 @@
-package oats.mobile.lazytransformablelayout
+package oats.mobile.lazytransformablelayout.internal
 
 import androidx.compose.foundation.lazy.layout.IntervalList
 import androidx.compose.foundation.lazy.layout.LazyLayoutIntervalContent
 import androidx.compose.foundation.lazy.layout.MutableIntervalList
 import androidx.compose.runtime.Composable
-import oats.mobile.lazytransformablelayout.model.Layer
-import oats.mobile.lazytransformablelayout.model.Positionable
+import oats.mobile.lazytransformablelayout.LazyTransformableLayoutScope
+import oats.mobile.lazytransformablelayout.Positionable
 
 internal class Content(
     buildContent: LazyTransformableLayoutScope.() -> Unit

@@ -1,4 +1,4 @@
-package oats.mobile.lazytransformablelayout
+package oats.mobile.lazytransformablelayout.internal
 
 import androidx.compose.foundation.lazy.layout.LazyLayoutItemProvider
 import androidx.compose.runtime.Composable

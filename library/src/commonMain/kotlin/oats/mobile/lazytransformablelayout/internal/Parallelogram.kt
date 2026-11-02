@@ -1,20 +1,16 @@
-package oats.mobile.lazytransformablelayout.model
+package oats.mobile.lazytransformablelayout.internal
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastForEach
 import oats.mobile.lazytransformablelayout.extension.cross
 import oats.mobile.lazytransformablelayout.extension.distanceSquared
 import oats.mobile.lazytransformablelayout.extension.nearestPointOnSegment
-import oats.mobile.lazytransformablelayout.extension.toDp
-import oats.mobile.lazytransformablelayout.extension.toPx
 import kotlin.math.abs
 
-internal data class Parallelogram(
-    val vertices: List<Offset>
+internal class Parallelogram(
+    vertices: List<Offset>
 ): List<Offset> by vertices {
 
     constructor(p0: Offset, p1: Offset, p2: Offset, p3: Offset) : this(listOf(p0, p1, p2, p3))
@@ -73,13 +69,6 @@ internal data class Parallelogram(
             val t = (u cross w) / determinant
             s in 0f..1f && t in 0f..1f
         }
-
-    context(density: Density)
-    fun clamp(offset: DpOffset): DpOffset {
-        val px = offset.toPx()
-        val clamped = clamp(px)
-        return if (clamped == px) offset else clamped.toDp()
-    }
 
     fun clamp(offset: Offset) = if (abs(determinant) < 1e-4f) {
         var maxDistanceSquared = -1f

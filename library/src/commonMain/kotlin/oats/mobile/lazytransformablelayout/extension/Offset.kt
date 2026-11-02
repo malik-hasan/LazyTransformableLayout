@@ -23,29 +23,26 @@ infix fun Offset.dot(other: Offset) = x * other.x + y * other.y
 fun Offset.transform(
     scale: Float = 1f,
     angle: Float = 0f,
-    offset: Offset = Offset.Zero,
-    centroid: Offset = Offset.Zero
+    offset: Offset = Offset.Zero
 ): Offset {
-    val offsetCentroid = this + centroid
-    return (
-        this - offset - offsetCentroid + (
-            offsetCentroid * scale
-        ).let { scaledOffsetCentroid ->
-            if (angle == 0f) {
-                scaledOffsetCentroid
-            } else {
-                val (x, y) = scaledOffsetCentroid
-                val angleRadians = angle.radians
-                val cos = cos(angleRadians)
-                val sin = sin(angleRadians)
-                Offset(
-                    x = x * cos - y * sin,
-                    y = x * sin + y * cos
-                )
-            }
-        }
-    )
+    val scaled = this * scale
+    return if (angle == 0f) {
+        scaled
+    } else {
+        val (x, y) = scaled
+        val angleRadians = angle.radians
+        val cos = cos(angleRadians)
+        val sin = sin(angleRadians)
+        Offset(
+            x = x * cos - y * sin,
+            y = x * sin + y * cos
+        )
+    } - offset
 }
+
+fun Offset.toViewportAxes(scale: Float, angle: Float) = transform(scale, angle)
+
+fun Offset.toLayoutAxes(scale: Float, angle: Float) = transform(scale = 1 / scale, angle = -angle)
 
 context(density: Density)
 fun Offset.toDp() = with(density) {

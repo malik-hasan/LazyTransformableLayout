@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 import oats.mobile.lazytransformablelayout.LazyTransformableLayout
-import oats.mobile.lazytransformablelayout.model.Positionable
+import oats.mobile.lazytransformablelayout.Positionable
 import oats.mobile.lazytransformablelayout.rememberLazyTransformableLayoutState
 import kotlin.random.Random
 

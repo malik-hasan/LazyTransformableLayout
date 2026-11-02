@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.DpSize
-import oats.mobile.lazytransformablelayout.model.Positionable
 
 interface LazyTransformableLayoutScope {
 
