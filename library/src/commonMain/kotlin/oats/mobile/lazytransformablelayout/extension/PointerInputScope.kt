@@ -26,7 +26,6 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.VelocityTracker1D
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastAll
@@ -47,13 +46,15 @@ internal suspend fun PointerInputScope.detectWheelZoomGestures(
 ) = awaitEachGesture {
     val event = awaitPointerEvent()
     if (event.type == PointerEventType.Scroll && event.changes.fastAll { !it.isConsumed }) {
-        val scrollDelta = event.changes.fastFold(Offset.Zero) { acc, change ->
-            acc + change.scrollDelta
-        }
         onZoom(
             event.changes.first().position,
-            1.1f.pow(-scrollDelta.y)
+            1.1f.pow(
+                -event.changes.fastFold(Offset.Zero) { acc, change ->
+                    acc + change.scrollDelta
+                }.y
+            )
         )
+
         event.changes.fastForEach { it.consume() }
     }
 }
@@ -76,21 +77,31 @@ internal suspend fun PointerInputScope.detectTransformGestures(
     if (startEvent.run {
         type == PointerEventType.PanStart || type == PointerEventType.ScaleStart
     }) {
-        val endType = if (startEvent.type == PointerEventType.PanStart) PointerEventType.PanEnd else PointerEventType.ScaleEnd
+        var event = startEvent
+
+        var totalPan = Offset.Zero
         val panVelocityTracker = VelocityTracker()
         val logZoomVelocityTracker = VelocityTracker1D(true)
-        var totalPan = Offset.Zero
-        var event = startEvent
+
+        val endType = if (startEvent.type == PointerEventType.PanStart) {
+            PointerEventType.PanEnd
+        } else PointerEventType.ScaleEnd
+
         try {
             while (true) {
                 val change = event.changes.first()
+
                 val panDelta = change.historical.fastFold(-change.panOffset) { acc, historical ->
                     acc - historical.panOffset
                 }
+
                 val zoomFactor = change.historical.fastFold(change.scaleFactor) { acc, historical ->
                     acc * historical.scaleFactor
                 }
-                if (panDelta.x != 0f || panDelta.y != 0f || zoomFactor != 1f) onTransform(change.position, 0f, zoomFactor, panDelta)
+
+                if (panDelta != Offset.Zero || zoomFactor != 1f)
+                    onTransform(change.position, 0f, zoomFactor, panDelta)
+
                 event.changes.fastForEach { it.consume() }
 
                 totalPan += panDelta
@@ -98,9 +109,13 @@ internal suspend fun PointerInputScope.detectTransformGestures(
                 logZoomVelocityTracker.addDataPoint(change.uptimeMillis, ln(zoomFactor))
 
                 if (event.type == endType) break
+
                 do {
                     event = awaitPointerEvent()
-                } while (event.type != endType && event.type != PointerEventType.PanMove && event.type != PointerEventType.ScaleChange)
+                } while (event.type != endType
+                    && event.type != PointerEventType.PanMove
+                    && event.type != PointerEventType.ScaleChange
+                )
             }
         } finally {
             stopWithFlingThresholds(
@@ -145,8 +160,7 @@ internal suspend fun PointerInputScope.detectTransformGestures(
                     val panDelta: Offset
                     val centroidSize: Float
                     if (mouseRotating) {
-                        rotationDelta =
-                            event.calculatePan().x / size.width * MOUSE_ROTATION_DEGREES_PER_WIDTH
+                        rotationDelta = event.calculatePan().x / size.width * MOUSE_ROTATION_DEGREES_PER_WIDTH
                         zoomFactor = 1f
                         panDelta = Offset.Zero
                         centroidSize = size.width / MOUSE_ROTATION_DEGREES_PER_WIDTH.radians
@@ -162,10 +176,8 @@ internal suspend fun PointerInputScope.detectTransformGestures(
                         totalZoomBeforeTouchSlop *= zoomFactor
                         totalPanBeforeTouchSlop += panDelta
 
-                        val rotationMotionBeforeTouchSlop =
-                            abs(totalRotationBeforeTouchSlop.radians * centroidSize)
-                        val zoomMotionBeforeTouchSlop =
-                            abs(1 - totalZoomBeforeTouchSlop) * centroidSize
+                        val rotationMotionBeforeTouchSlop = abs(totalRotationBeforeTouchSlop.radians * centroidSize)
+                        val zoomMotionBeforeTouchSlop = abs(1 - totalZoomBeforeTouchSlop) * centroidSize
                         val panMotionBeforeTouchSlop = totalPanBeforeTouchSlop.getDistance()
 
                         if (rotationMotionBeforeTouchSlop > touchSlop
@@ -180,18 +192,19 @@ internal suspend fun PointerInputScope.detectTransformGestures(
                         val centroid = if (mouseRotating) {
                             Offset.Unspecified
                         } else event.calculateCentroid(false)
-                        if (centroid.isSpecified) lastCentroid = centroid
+                            .also { lastCentroid = it }
+
                         maxCentroidSize = maxOf(maxCentroidSize, centroidSize)
 
                         if (rotationDelta != 0f || zoomFactor != 1f || panDelta.x != 0f || panDelta.y != 0f)
                             onTransform(centroid, rotationDelta, zoomFactor, panDelta)
 
+                        var pointerCount = 0
                         changes.fastForEach {
                             if (it.positionChanged()) it.consume()
+                            if (it.pressed) pointerCount++
                         }
 
-                        var pointerCount = 0
-                        changes.fastForEach { if (it.pressed) pointerCount++ }
                         val uptimeMillis = changes.first().uptimeMillis
                         lastEventUptimeMillis = uptimeMillis
                         if (previousPointerCount > 0 && pointerCount != previousPointerCount && pointerCount > 0) {
@@ -205,8 +218,8 @@ internal suspend fun PointerInputScope.detectTransformGestures(
 
                         rotationVelocityTracker.addDataPoint(uptimeMillis, rotationDelta)
                         logZoomVelocityTracker.addDataPoint(uptimeMillis, ln(zoomFactor))
-                        if (!mouseRotating) event.calculateCentroid().takeIf { it.isSpecified }
-                            ?.let {
+                        if (!mouseRotating)
+                            event.calculateCentroid().takeIf { it.isSpecified }?.let {
                                 panVelocityTracker.addPosition(uptimeMillis, it)
                             }
                     }
@@ -228,7 +241,7 @@ internal suspend fun PointerInputScope.detectTransformGestures(
     }
 }
 
-private fun Density.stopWithFlingThresholds(
+private fun PointerInputScope.stopWithFlingThresholds(
     onTransformStopped: (centroid: Offset, rotationVelocity: Float, logZoomVelocity: Float, panVelocity: Velocity) -> Unit,
     centroid: Offset,
     rotationVelocity: Float,
@@ -246,13 +259,22 @@ private fun Density.stopWithFlingThresholds(
     onTransformStopped(
         centroid,
         rotationVelocity.takeUnless {
-            rotationVelocityPixels < maxOf(minZoomRotateFlingVelocity, maxOf(panVelocityPixels, zoomVelocityPixels) * zoomRotateNoiseFraction)
+            rotationVelocityPixels < maxOf(
+                minZoomRotateFlingVelocity,
+                maxOf(panVelocityPixels, zoomVelocityPixels) * zoomRotateNoiseFraction
+            )
         } ?: 0f,
         logZoomVelocity.takeUnless {
-            zoomVelocityPixels < maxOf(minZoomRotateFlingVelocity, maxOf(panVelocityPixels, rotationVelocityPixels) * zoomRotateNoiseFraction)
+            zoomVelocityPixels < maxOf(
+                minZoomRotateFlingVelocity,
+                maxOf(panVelocityPixels, rotationVelocityPixels) * zoomRotateNoiseFraction
+            )
         } ?: 0f,
         panVelocity.takeUnless {
-            panVelocityPixels < maxOf(300.dp.toPx(), maxOf(zoomVelocityPixels, rotationVelocityPixels) * 0.35f)
+            panVelocityPixels < maxOf(
+                300.dp.toPx(),
+                maxOf(zoomVelocityPixels, rotationVelocityPixels) * 0.35f
+            )
         } ?: Velocity.Zero
     )
 }
@@ -267,15 +289,13 @@ internal suspend fun PointerInputScope.detectTapSequenceGestures(
     do {
         downEvent = awaitPointerEvent()
     } while (!downEvent.changes.fastAll { it.changedToDown() })
-    val firstDown = downEvent.changes.first()
 
+    val firstDown = downEvent.changes.first()
     if (firstDown.type == PointerType.Mouse && downEvent.buttons.isSecondaryPressed) {
         firstDown.consume()
         withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
             waitForUpOrCancellation()
-        } ?: return@awaitEachGesture
-
-        withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) {
+        } ?: withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) {
             var secondDownEvent: PointerEvent
             do {
                 secondDownEvent = awaitPointerEvent()
@@ -287,57 +307,51 @@ internal suspend fun PointerInputScope.detectTapSequenceGestures(
             secondDown.consume()
             onSecondaryDoubleClick(secondDown.position)
         }
-        return@awaitEachGesture
-    }
-
-    val downPositions = mutableMapOf(firstDown.id to firstDown.position)
-    val tapped = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-        do {
-            val changes = awaitPointerEvent().changes
-            changes.fastForEach {
-                if (it.changedToDown()) downPositions[it.id] = it.position
-            }
-
-            if (downPositions.size > 2
-                || changes.fastAny { change ->
-                    change.isConsumed || downPositions[change.id]?.let {
-                        (change.position - it).getDistance() > viewConfiguration.touchSlop
-                    } != false
+    } else {
+        val downPositions = mutableMapOf(firstDown.id to firstDown.position)
+        withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+            do {
+                val changes = awaitPointerEvent().changes
+                changes.fastForEach {
+                    if (it.changedToDown()) downPositions[it.id] = it.position
                 }
-            ) return@withTimeoutOrNull false
-        } while (changes.fastAny { it.pressed })
-        true
-    } == true
-    if (!tapped) return@awaitEachGesture
 
-    if (downPositions.size == 2) {
-        onTwoFingerTap()
-        return@awaitEachGesture
-    }
+                if (downPositions.size > 2
+                    || changes.fastAny { change ->
+                        change.isConsumed || downPositions[change.id]?.let {
+                            (change.position - it).getDistance() > viewConfiguration.touchSlop
+                        } != false
+                    }
+                ) return@withTimeoutOrNull false
+            } while (changes.fastAny { it.pressed })
+            true
+        }?.let {
+            if (downPositions.size == 2) {
+                onTwoFingerTap()
+            } else withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) {
+                awaitFirstDown()
+            }?.let { secondDown ->
+                val zoomPerPixel = ln(16f) / size.height.coerceAtLeast(1)
+                val velocityTracker = VelocityTracker1D(false)
+                fun zoomBy(change: PointerInputChange, dragY: Float) {
+                    onDoubleTapDrag(exp(dragY * zoomPerPixel))
+                    change.run {
+                        velocityTracker.addDataPoint(uptimeMillis, position.y)
+                        consume()
+                    }
+                }
 
-    withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) {
-        awaitFirstDown()
-    }?.let { secondDown ->
-
-        val zoomPerPixel = ln(16f) / size.height.coerceAtLeast(1)
-        val velocityTracker = VelocityTracker1D(false)
-        fun zoomBy(change: PointerInputChange, dragY: Float) {
-            onDoubleTapDrag(exp(dragY * zoomPerPixel))
-            change.run {
-                velocityTracker.addDataPoint(uptimeMillis, position.y)
-                consume()
-            }
-        }
-
-        awaitTouchSlopOrCancellation(secondDown.id) { change, overSlop ->
-            zoomBy(change, overSlop.y)
-        }?.id?.let { dragPointerId ->
-            if (verticalDrag(dragPointerId) {
-                zoomBy(it, it.positionChange().y)
-            }) velocityTracker.calculateVelocity().takeIf {
-                abs(it) >= MinZoomRotateFlingVelocity.toPx()
-            }?.let { velocity ->
-                onDoubleTapDragStopped(velocity * zoomPerPixel)
+                awaitTouchSlopOrCancellation(secondDown.id) { change, overSlop ->
+                    zoomBy(change, overSlop.y)
+                }?.id?.let { dragPointerId ->
+                    if (verticalDrag(dragPointerId) {
+                        zoomBy(it, it.positionChange().y)
+                    }) velocityTracker.calculateVelocity().takeIf {
+                        abs(it) >= MinZoomRotateFlingVelocity.toPx()
+                    }?.let { velocity ->
+                        onDoubleTapDragStopped(velocity * zoomPerPixel)
+                    }
+                }
             }
         }
     }
