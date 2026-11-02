@@ -20,36 +20,41 @@ internal class AnimationCoordinator {
     private var animationJob: Job? = null
     private var animationMutatePriority = MutatePriority.Default
 
-    val isUserInputBlocked
-        get() = pendingAnimation != null && pendingMutatePriority == MutatePriority.PreventUserInput
-            || animationJob?.isActive == true && animationMutatePriority == MutatePriority.PreventUserInput
-
     fun request(priority: MutatePriority, animation: suspend () -> Unit) {
-        pendingMutatePriority = priority
-        pendingAnimation = animation
+        if (pendingAnimation == null || priority >= pendingMutatePriority) {
+            pendingMutatePriority = priority
+            pendingAnimation = animation
+        }
     }
 
     suspend fun runPending() = coroutineScope {
         var previous: Job? = null
+        var previousPriority = MutatePriority.Default
         snapshotFlow { pendingAnimation }
             .filterNotNull()
             .collect { pending ->
                 pendingAnimation = null
-                previous?.cancel()
-                previous = launch(start = CoroutineStart.UNDISPATCHED) { pending() }
+                val priority = pendingMutatePriority
+                if (previous?.isActive != true || priority >= previousPriority) {
+                    previous?.cancel()
+                    previous = launch(start = CoroutineStart.UNDISPATCHED) {
+                        pending()
+                    }
+                    previousPriority = priority
+                }
             }
     }
 
     suspend fun claim(
         priority: MutatePriority,
         block: suspend CoroutineScope.() -> Unit
-    ) = coroutineScope {
+    ) = canClaim(priority) && coroutineScope {
         val job = launch(start = CoroutineStart.UNDISPATCHED) {
             val job = coroutineContext.job
             animationJob?.cancel()
             animationJob = job
             animationMutatePriority = priority
-            pendingAnimation = null
+            if (pendingAnimation != null && priority >= pendingMutatePriority) pendingAnimation = null
             try {
                 coroutineScope { block() }
             } finally {
@@ -63,5 +68,15 @@ internal class AnimationCoordinator {
     fun cancel() {
         animationJob?.cancel()
         pendingAnimation = null
+    }
+
+    private fun canClaim(priority: MutatePriority) =
+        animationJob?.isActive != true || priority >= animationMutatePriority
+
+    fun canCancel(priority: MutatePriority) =
+        canClaim(priority) && (pendingAnimation == null || priority >= pendingMutatePriority)
+
+    fun tryCancel(priority: MutatePriority) = canCancel(priority).also {
+        if (it) cancel()
     }
 }

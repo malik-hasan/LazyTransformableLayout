@@ -295,7 +295,8 @@ class LazyTransformableLayoutState(
 
     /**
      * Rotates and zooms the layout about [pivot], then pans it, like a transform gesture.
-     * Each value is clamped to its bounds. Cancels any ongoing or requested fling or animation.
+     * Each value is clamped to its bounds. Cancels any ongoing or requested fling or animation of the same or lower
+     * [mutatePriority], and does nothing if one of higher priority is running or requested.
      * Has no effect before the layout is first measured.
      *
      * This is useful for using continuous input such as gestures to control the layout state.
@@ -311,6 +312,8 @@ class LazyTransformableLayoutState(
      * @param overscrollEffect the effect to apply any pan that goes past the panning bounds to.
      * This should be the same instance passed to the [LazyTransformableLayout] Composable, or null if no effect is desired.
      * @param nestedScrollSource the source of the transformation, reported to [overscrollEffect]
+     * @param mutatePriority the priority of this change, which is ignored while an animation or request of higher
+     * priority is active
      */
     fun snapBy(
         pivot: Pivot = Pivot.ContentCenter,
@@ -318,7 +321,8 @@ class LazyTransformableLayoutState(
         zoomFactor: Float = 1f,
         panDelta: Offset = Offset.Zero,
         overscrollEffect: OverscrollEffect? = null,
-        nestedScrollSource: NestedScrollSource = NestedScrollSource.UserInput
+        nestedScrollSource: NestedScrollSource = NestedScrollSource.UserInput,
+        mutatePriority: MutatePriority = MutatePriority.Default
     ) {
         geometry?.run {
             snapBy(
@@ -327,7 +331,8 @@ class LazyTransformableLayoutState(
                 zoomFactor = zoomFactor,
                 panDelta = panDelta,
                 overscrollEffect = overscrollEffect,
-                nestedScrollSource = nestedScrollSource
+                nestedScrollSource = nestedScrollSource,
+                mutatePriority = mutatePriority
             )
         }
     }
@@ -338,9 +343,9 @@ class LazyTransformableLayoutState(
         zoomFactor: Float = 1f,
         panDelta: Offset = Offset.Zero,
         overscrollEffect: OverscrollEffect? = null,
-        nestedScrollSource: NestedScrollSource = NestedScrollSource.UserInput
-    ) = geometry?.run {
-        cancelAnimation()
+        nestedScrollSource: NestedScrollSource = NestedScrollSource.UserInput,
+        mutatePriority: MutatePriority = MutatePriority.Default
+    ) = geometry?.takeIf { animationCoordinator.tryCancel(mutatePriority) }?.run {
 
         val transform = { panDelta: Offset ->
             transform(
@@ -361,20 +366,24 @@ class LazyTransformableLayoutState(
 
     /**
      * Snaps the state to the given values, clamped to their bounds. A null value keeps its current value.
-     * Cancels any ongoing fling or animation.
+     * Cancels any ongoing or requested fling or animation of the same or lower
+     * [mutatePriority], and does nothing if one of higher priority is running or requested.
      *
      * See [animateTo] to animate to the same values, or [requestAnimateTo] to animate to them without suspending.
      *
      * @param rotationAngle rotation angle in degrees
      * @param zoomScale zoom scale
      * @param centerOffset point in layout space to place at the center of the content area
+     * @param mutatePriority the priority of this change, which is ignored while an animation or request of higher
+     * priority is active
      */
     fun snapTo(
         rotationAngle: Float? = null,
         zoomScale: Float? = null,
-        centerOffset: DpOffset? = null
+        centerOffset: DpOffset? = null,
+        mutatePriority: MutatePriority = MutatePriority.Default
     ) {
-        cancelAnimation()
+        if (!animationCoordinator.tryCancel(mutatePriority)) return
         pendingFitBounds = null
         clampAndSet(
             angle = rotationAngle ?: this.rotationAngle,
@@ -386,30 +395,39 @@ class LazyTransformableLayoutState(
     /**
      * Snaps to center [bounds] in the content area, at the largest zoom scale that fits it at the target
      * rotation angle, with [margin] to spare. The values are clamped to their bounds.
+     * Cancels any ongoing or requested fling or animation of the same or lower
+     * [mutatePriority], and does nothing if one of higher priority is running or requested.
      *
      * See [animateToBounds] to animate to the same fit, or [requestAnimateToBounds] to animate to it without suspending.
      *
      * @param bounds area in layout space to fit in the content area
      * @param rotationAngle rotation angle in degrees, or null to keep the current rotation angle
      * @param margin absolute Dp space to keep between [bounds] and each edge of the content area, independent of zoom
+     * @param mutatePriority the priority of this change, which is ignored while an animation or request of higher
+     * priority is active
      */
     fun snapToBounds(
         bounds: DpRect,
         rotationAngle: Float? = null,
-        margin: Dp = 0.dp
-    ) = geometry?.run {
-        snapTo(
-            rotationAngle = rotationAngle,
-            zoomScale = boundsFitScale(
-                bounds = bounds,
-                rotationAngle = clampAngle(rotationAngle ?: this@LazyTransformableLayoutState.rotationAngle),
-                margin = margin
-            ),
-            centerOffset = bounds.center
-        )
-    } ?: run {
-        snapTo(rotationAngle, centerOffset = bounds.center)
-        pendingFitBounds = bounds to margin
+        margin: Dp = 0.dp,
+        mutatePriority: MutatePriority = MutatePriority.Default
+    ) {
+        if (!animationCoordinator.tryCancel(mutatePriority)) return
+        geometry?.run {
+            snapTo(
+                rotationAngle = rotationAngle,
+                zoomScale = boundsFitScale(
+                    bounds = bounds,
+                    rotationAngle = clampAngle(rotationAngle ?: this@LazyTransformableLayoutState.rotationAngle),
+                    margin = margin
+                ),
+                centerOffset = bounds.center,
+                mutatePriority = mutatePriority
+            )
+        } ?: run {
+            snapTo(rotationAngle, centerOffset = bounds.center, mutatePriority = mutatePriority)
+            pendingFitBounds = bounds to margin
+        }
     }
 
     private fun Geometry.transform(
@@ -450,7 +468,9 @@ class LazyTransformableLayoutState(
 
     /**
      * Animates rotation and zoom about [pivot], then pans, with each value clamped to its bounds.
-     * Cancels any other ongoing or requested fling or animation. Suspends until the layout is first measured.
+     * Cancels any ongoing or requested fling or animation of the same or lower [mutatePriority], and is canceled by
+     * user input unless [mutatePriority] prevents it. Returns without animating if one of higher priority is running.
+     * Suspends until the layout is first measured.
      *
      * Must be called from a coroutine with a [androidx.compose.runtime.MonotonicFrameClock], such as one from
      * [androidx.compose.runtime.rememberCoroutineScope] or [androidx.compose.runtime.LaunchedEffect], since it animates
@@ -468,8 +488,9 @@ class LazyTransformableLayoutState(
      * Either way the running animation's velocity is continued.
      * @param animationSpec the spec animating the rotation angle, the zoom scale in log space and the [pivot]
      * in layout space, as one [TransformAnimationValues]
-     * @param mutatePriority [MutatePriority.PreventUserInput] ignores gestures and keys until the animation ends,
-     * instead of letting them cancel it
+     * @param mutatePriority the priority of this animation, which only animations and requests of the same or higher
+     * priority can interrupt. [MutatePriority.PreventUserInput] also ignores gestures and keys until the animation
+     * ends, instead of letting them cancel it
      */
     suspend fun animateBy(
         pivot: Pivot = Pivot.ContentCenter,
@@ -519,7 +540,8 @@ class LazyTransformableLayoutState(
     /**
      * Animates the state to the given values, clamped to their bounds. A null value keeps its current value.
      * Calling it again while it is running retargets the animation and keeps its velocity.
-     * Cancels any other ongoing fling or animation, and is canceled by user input unless [mutatePriority] prevents it.
+     * Cancels any ongoing or requested fling or animation of the same or lower [mutatePriority], and is canceled by
+     * user input unless [mutatePriority] prevents it. Returns without animating if one of higher priority is running.
      * Suspends until the layout is first measured.
      *
      * Must be called from a coroutine with a [androidx.compose.runtime.MonotonicFrameClock], such as one from
@@ -534,8 +556,9 @@ class LazyTransformableLayoutState(
      * @param pivot the point that stays fixed on screen while rotating and zooming
      * @param animationSpec the spec animating the rotation angle, the zoom scale in log space and the [pivot]
      * in layout space, as one [TransformAnimationValues]
-     * @param mutatePriority [MutatePriority.PreventUserInput] ignores gestures and keys until the animation ends,
-     * instead of letting them cancel it
+     * @param mutatePriority the priority of this animation, which only animations and requests of the same or higher
+     * priority can interrupt. [MutatePriority.PreventUserInput] also ignores gestures and keys until the animation
+     * ends, instead of letting them cancel it
      */
     suspend fun animateTo(
         rotationAngle: Float? = null,
@@ -569,8 +592,8 @@ class LazyTransformableLayoutState(
     /**
      * Animates to center [bounds] in the content area, at the largest zoom scale that fits them at the target
      * rotation angle, with [margin] to spare. Continues the velocity of any running animation.
-     * Cancels any other ongoing fling or animation, and is canceled by user
-     * input unless [mutatePriority] prevents it.
+     * Cancels any ongoing or requested fling or animation of the same or lower [mutatePriority], and is canceled by
+     * user input unless [mutatePriority] prevents it. Returns without animating if one of higher priority is running.
      * Suspends until the layout is first measured.
      *
      * Must be called from a coroutine with a [androidx.compose.runtime.MonotonicFrameClock], such as one from
@@ -584,8 +607,9 @@ class LazyTransformableLayoutState(
      * @param margin absolute Dp space to keep between [bounds] and each edge of the content area, independent of zoom
      * @param animationSpec the spec animating the rotation angle, the zoom scale in log space and the center of
      * the content area in layout space, as one [TransformAnimationValues]
-     * @param mutatePriority [MutatePriority.PreventUserInput] ignores gestures and keys until the animation ends,
-     * instead of letting them cancel it
+     * @param mutatePriority the priority of this animation, which only animations and requests of the same or higher
+     * priority can interrupt. [MutatePriority.PreventUserInput] also ignores gestures and keys until the animation
+     * ends, instead of letting them cancel it
      */
     suspend fun animateToBounds(
         bounds: DpRect,
@@ -608,9 +632,10 @@ class LazyTransformableLayoutState(
     /**
      * Animates rotation and zoom about [pivot], then pans, with each value clamped to its bounds. Doesn't suspend,
      * so it can be called outside a composition-bound coroutine, such as from a ViewModel. The animation starts on the
-     * next frame while the layout is composed, replacing any earlier request. [snapTo], [snapBy] or
-     * [snapToBounds] before it starts, discards the request. Once it starts, it cancels any other ongoing fling
-     * or animation.
+     * next frame while the layout is composed, replacing any earlier request of the same or lower [mutatePriority].
+     * It is dropped if an earlier request has a higher one. [snapTo], [snapBy] or [snapToBounds] before it starts,
+     * discards the request. Once it starts, it cancels any ongoing fling or animation of the same or lower priority,
+     * or is skipped if one of higher priority is running.
      *
      * See [animateBy] to animate the same change in a coroutine, or [snapBy] to apply it immediately.
      *
@@ -624,8 +649,9 @@ class LazyTransformableLayoutState(
      * accumulate instead of cutting each other short. Either way the running animation's velocity is kept.
      * @param animationSpec the spec animating the rotation angle, the zoom scale in log space and the [pivot]
      * in layout space, as one [TransformAnimationValues]
-     * @param mutatePriority [MutatePriority.PreventUserInput] ignores gestures and keys until the animation ends,
-     * instead of letting them cancel it
+     * @param mutatePriority the priority of this animation, which only animations and requests of the same or higher
+     * priority can interrupt. [MutatePriority.PreventUserInput] also ignores gestures and keys until the animation
+     * ends, instead of letting them cancel it
      */
     fun requestAnimateBy(
         pivot: Pivot = Pivot.ContentCenter,
@@ -651,8 +677,10 @@ class LazyTransformableLayoutState(
      * Animates the state to the given values, clamped to their bounds.
      * Doesn't suspend, so it can be called outside a composition-bound coroutine, such as from a ViewModel.
      * The animation starts on the next frame while the layout is composed,
-     * replacing any earlier request. [snapTo], [snapBy] or [snapToBounds] before it starts, discards the request.
-     * Once it starts, it cancels any other ongoing fling or animation, continuing the velocity of a running animation.
+     * replacing any earlier request of the same or lower [mutatePriority]. It is dropped if an earlier request has a
+     * higher one. [snapTo], [snapBy] or [snapToBounds] before it starts, discards the request.
+     * Once it starts, it cancels any ongoing fling or animation of the same or lower priority, continuing the
+     * velocity of a running animation, or is skipped if one of higher priority is running.
      *
      * See [animateTo] to animate to the same values in a coroutine, or [snapTo] to set them immediately.
      *
@@ -662,8 +690,9 @@ class LazyTransformableLayoutState(
      * @param pivot the point that stays fixed on screen while rotating and zooming
      * @param animationSpec the spec animating the rotation angle, the zoom scale in log space and the [pivot]
      * in layout space, as one [TransformAnimationValues]
-     * @param mutatePriority [MutatePriority.PreventUserInput] ignores gestures and keys until the animation ends,
-     * instead of letting them cancel it
+     * @param mutatePriority the priority of this animation, which only animations and requests of the same or higher
+     * priority can interrupt. [MutatePriority.PreventUserInput] also ignores gestures and keys until the animation
+     * ends, instead of letting them cancel it
      */
     fun requestAnimateTo(
         rotationAngle: Float? = null,
@@ -680,9 +709,10 @@ class LazyTransformableLayoutState(
      * Animates to center [bounds] in the content area, at the largest zoom scale that fits them at the target
      * rotation angle, with [margin] to spare. The values are clamped to their bounds. Doesn't suspend, so it can be
      * called outside a composition-bound coroutine, such as from a ViewModel. The animation starts once the layout is
-     * composed and measured, replacing any earlier request. [snapTo], [snapBy] or [snapToBounds] before it
-     * starts, discards the request. Once it starts, it cancels any other ongoing fling or animation, continuing the
-     * velocity of a running animation.
+     * composed and measured, replacing any earlier request of the same or lower [mutatePriority]. It is dropped if
+     * an earlier request has a higher one. [snapTo], [snapBy] or [snapToBounds] before it starts, discards the
+     * request. Once it starts, it cancels any ongoing fling or animation of the same or lower priority, continuing
+     * the velocity of a running animation, or is skipped if one of higher priority is running.
      *
      * See [animateToBounds] to animate to the same fit in a coroutine, or [snapToBounds] to fit immediately.
      *
@@ -691,8 +721,9 @@ class LazyTransformableLayoutState(
      * @param margin absolute space in Dp to keep between [bounds] and each edge of the content area, independent of zoom
      * @param animationSpec the spec animating the rotation angle, the zoom scale in log space and the center of
      * the content area in layout space, as one [TransformAnimationValues]
-     * @param mutatePriority [MutatePriority.PreventUserInput] ignores gestures and keys until the animation ends,
-     * instead of letting them cancel it
+     * @param mutatePriority the priority of this animation, which only animations and requests of the same or higher
+     * priority can interrupt. [MutatePriority.PreventUserInput] also ignores gestures and keys until the animation
+     * ends, instead of letting them cancel it
      */
     fun requestAnimateToBounds(
         bounds: DpRect,
@@ -824,28 +855,23 @@ class LazyTransformableLayoutState(
     private val animationCoordinator = AnimationCoordinator()
 
     /**
-     * Cancels any ongoing or requested fling or animation
+     * Cancels any ongoing or requested fling or animation of the same or lower [mutatePriority].
+     *
+     * @param mutatePriority the priority of this cancellation. [MutatePriority.PreventUserInput] cancels any animation.
      */
-    fun cancelAnimation() {
-        animationCoordinator.cancel()
+    fun cancelAnimation(mutatePriority: MutatePriority = MutatePriority.Default) {
+        animationCoordinator.tryCancel(mutatePriority)
     }
 
     internal suspend fun runPendingAnimations() = animationCoordinator.runPending()
-
-    internal val isUserInputBlocked
-        get() = animationCoordinator.isUserInputBlocked
-
-    internal inline fun ifInputAllowed(block: () -> Unit) {
-        if (!isUserInputBlocked) block()
-    }
 
     context(scope: CoroutineScope)
     internal fun launchAdditiveAnimateBy(
         zoomFactor: Float,
         pivot: Pivot = Pivot.ContentCenter,
         panDelta: Offset = Offset.Zero
-    ) = ifInputAllowed {
-        scope.launch {
+    ) = animationCoordinator.canCancel(MutatePriority.Default).also { allowed ->
+        if (allowed) scope.launch {
             animateBy(
                 pivot = pivot,
                 zoomFactor = zoomFactor,
@@ -866,11 +892,11 @@ class LazyTransformableLayoutState(
             && initialLogZoomVelocity == 0f
             && initialPanVelocity.x == 0f
             && initialPanVelocity.y == 0f
-            || isUserInputBlocked
+            || !animationCoordinator.canCancel(MutatePriority.Default)
         ) {
             // release overscroll
             overscrollEffect?.applyToFling(Velocity.Zero) { Velocity.Zero }
-        } else animationCoordinator.claim(MutatePriority.UserInput) {
+        } else animationCoordinator.claim(MutatePriority.Default) {
             val viewportPivot = viewportPivot.takeIf { it.isSpecified } ?: contentCenter
 
             var rotationRunning = true
@@ -956,7 +982,7 @@ class LazyTransformableLayoutState(
     } else AnimationState(0f, initialVelocity).run {
         var previousValue = 0f
         animateDecay(animationSpec.generateDecayAnimationSpec()) {
-            if (!applyDelta(value - previousValue)) cancelAnimation()
+            if (!applyDelta(value - previousValue)) animationCoordinator.cancel()
             previousValue = value
         }
         velocity

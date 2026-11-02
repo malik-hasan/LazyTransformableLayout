@@ -1,5 +1,6 @@
 package oats.mobile.lazytransformablelayout
 
+import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.OverscrollEffect
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.BringIntoViewSpec
@@ -62,7 +63,9 @@ private const val SCROLL_PIXELS_PER_ZOOM_DOUBLING = 545f
  * zooms out. Trackpad pinch and two-finger swipes zoom and pan where the platform reports them.
  * Once focused, for example by clicking, arrow keys pan, and the plus, equals, numpad plus and Page Up keys zoom in
  * while the minus, numpad minus and Page Down keys zoom out.
- * All of these are ignored while an animation started with [androidx.compose.foundation.MutatePriority.PreventUserInput] runs.
+ * Dragging, pinching, the wheel and pressing mutate with [MutatePriority.UserInput], so they interrupt animations of
+ * [MutatePriority.Default] priority, while taps, keys and flings start animations of [MutatePriority.Default] priority.
+ * All of these are ignored while an animation started with [MutatePriority.PreventUserInput] runs or is requested.
  *
  * @param state The state holding this layout's rotation angle, zoom scale and center offset
  * @param modifier The modifier to apply to this layout
@@ -107,7 +110,7 @@ fun LazyTransformableLayout(
             .clipToBounds()
             .overscroll(overscrollEffect)
             .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && !state.isUserInputBlocked) {
+                if (event.type == KeyEventType.KeyDown) {
                     val panStep = state.keyPanStep
                     val (zoomFactor, panDelta) = when (event.key) {
                         Key.DirectionLeft -> 1f to Offset(panStep, 0f)
@@ -138,12 +141,11 @@ fun LazyTransformableLayout(
                 }
             }.scrollable(
                 state = rememberScrollableState { delta ->
-                    state.ifInputAllowed {
-                        state.snapBy(
-                            viewportPivot = wheelPivot.position,
-                            zoomFactor = 2f.pow(delta / SCROLL_PIXELS_PER_ZOOM_DOUBLING)
-                        )
-                    }
+                    state.snapBy(
+                        viewportPivot = wheelPivot.position,
+                        zoomFactor = 2f.pow(delta / SCROLL_PIXELS_PER_ZOOM_DOUBLING),
+                        mutatePriority = MutatePriority.UserInput
+                    )
                     delta
                 },
                 orientation = Orientation.Vertical,
@@ -178,20 +180,19 @@ fun LazyTransformableLayout(
                         }
                     }
                 ) { centroid, rotationDelta, zoomFactor, panDelta ->
-                    state.ifInputAllowed {
-                        state.snapBy(
-                            viewportPivot = centroid,
-                            rotationDelta = rotationDelta,
-                            zoomFactor = zoomFactor,
-                            panDelta = panDelta,
-                            overscrollEffect = overscrollEffect
-                        )
-                    }
+                    state.snapBy(
+                        viewportPivot = centroid,
+                        rotationDelta = rotationDelta,
+                        zoomFactor = zoomFactor,
+                        panDelta = panDelta,
+                        overscrollEffect = overscrollEffect,
+                        mutatePriority = MutatePriority.UserInput
+                    )
                 }
             }.pointerInput(state) {
                 detectTapGestures(
                     onPress = {
-                        state.ifInputAllowed { state.cancelAnimation() }
+                        state.cancelAnimation(MutatePriority.UserInput)
                         focusRequester.requestFocus()
                     },
                     onDoubleTap = { position ->
@@ -218,9 +219,7 @@ fun LazyTransformableLayout(
                         }
                     },
                     onDoubleTapDrag = {
-                        state.ifInputAllowed {
-                            state.snapBy(zoomFactor = it)
-                        }
+                        state.snapBy(zoomFactor = it, mutatePriority = MutatePriority.UserInput)
                     }
                 )
             }
