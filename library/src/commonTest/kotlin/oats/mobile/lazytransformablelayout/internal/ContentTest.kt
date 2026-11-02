@@ -1,8 +1,8 @@
-package oats.mobile.lazytransformablelayout
+package oats.mobile.lazytransformablelayout.internal
 
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
-import oats.mobile.lazytransformablelayout.internal.Content
+import oats.mobile.lazytransformablelayout.Positionable
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame

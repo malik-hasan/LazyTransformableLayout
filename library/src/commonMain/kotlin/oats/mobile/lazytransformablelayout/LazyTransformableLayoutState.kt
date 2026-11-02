@@ -393,20 +393,14 @@ class LazyTransformableLayoutState(
         mutatePriority: MutatePriority = MutatePriority.Default
     ) {
         if (animationCoordinator.tryCancel(mutatePriority)) {
-            geometry?.run {
-                snapTo(
-                    rotationAngle = rotationAngle,
-                    zoomScale = fitScale(
-                        bounds = bounds,
-                        rotationAngle = rotationAngle,
-                        margin = margin
-                    ),
-                    centerOffset = bounds.center,
-                    mutatePriority = mutatePriority
-                )
-            } ?: run {
-                pendingFitBounds = bounds to margin
-            }
+            val geometry = geometry
+            snapTo(
+                rotationAngle = rotationAngle,
+                zoomScale = geometry?.fitScale(bounds, rotationAngle, margin),
+                centerOffset = bounds.center,
+                mutatePriority = mutatePriority
+            )
+            if (geometry == null) pendingFitBounds = bounds to margin
         }
     }
 

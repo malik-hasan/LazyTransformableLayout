@@ -1,9 +1,8 @@
-package oats.mobile.lazytransformablelayout.model
+package oats.mobile.lazytransformablelayout.internal
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import oats.mobile.lazytransformablelayout.extension.cross
-import oats.mobile.lazytransformablelayout.internal.Parallelogram
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals

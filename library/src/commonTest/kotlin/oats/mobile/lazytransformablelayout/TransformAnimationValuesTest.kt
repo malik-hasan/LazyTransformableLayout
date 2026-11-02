@@ -1,7 +1,6 @@
-package oats.mobile.lazytransformablelayout.model
+package oats.mobile.lazytransformablelayout
 
 import androidx.compose.ui.unit.DpOffset
-import oats.mobile.lazytransformablelayout.TransformAnimationValues
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

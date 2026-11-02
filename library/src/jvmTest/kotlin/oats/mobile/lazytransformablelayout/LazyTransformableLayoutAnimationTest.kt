@@ -462,37 +462,40 @@ class LazyTransformableLayoutAnimationTest {
         waitForIdle()
         mainClock.autoAdvance = false
         state.requestAnimateTo(
-            zoomScale = 1f,
+            zoomScale = 2f,
             animationSpec = linear,
             mutatePriority = MutatePriority.PreventUserInput
         )
         mainClock.advanceTimeByFrame()
 
         state.snapToBounds(DpRect(0.dp, 0.dp, 400.dp, 200.dp), margin = 10.dp)
+        mainClock.advanceTimeBy(1_000)
         width = viewportWidth + 100
         mainClock.advanceTimeByFrame()
-        mainClock.advanceTimeBy(1_000)
 
-        assertEquals(1f, state.zoomScale, 1e-4f)
+        assertEquals(2f, state.zoomScale, 1e-4f)
     }
 
     @Test
     fun `given a pending prevent user input request, when snapping to bounds before the first layout, should not apply the fit`() = runComposeUiTest {
         val state = state()
+        var width by mutableStateOf(viewportWidth)
         state.requestAnimateTo(
-            zoomScale = 1f,
+            zoomScale = 2f,
             animationSpec = linear,
             mutatePriority = MutatePriority.PreventUserInput
         )
         state.snapToBounds(DpRect(0.dp, 0.dp, 400.dp, 200.dp), margin = 10.dp)
         setContent {
-            Box(Modifier.size(viewportWidth.dp, viewportHeight.dp)) {
+            Box(Modifier.size(width.dp, viewportHeight.dp)) {
                 LazyTransformableLayout(state, overscrollEffect = null) {}
             }
         }
         mainClock.advanceTimeBy(2_000)
+        width = viewportWidth + 100
+        mainClock.advanceTimeByFrame()
 
-        assertEquals(1f, state.zoomScale, 1e-4f)
+        assertEquals(2f, state.zoomScale, 1e-4f)
     }
 
     @Test

@@ -1,4 +1,4 @@
-package oats.mobile.lazytransformablelayout.model
+package oats.mobile.lazytransformablelayout.internal
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -6,7 +6,6 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import oats.mobile.lazytransformablelayout.internal.Geometry
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
