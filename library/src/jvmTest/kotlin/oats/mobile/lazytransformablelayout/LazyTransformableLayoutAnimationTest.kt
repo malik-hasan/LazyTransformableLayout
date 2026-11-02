@@ -454,6 +454,79 @@ class LazyTransformableLayoutAnimationTest {
     }
 
     @Test
+    fun `given a prevent user input animation, when snapping to bounds then remeasuring, should not apply the fit`() = runComposeUiTest {
+        val state = state()
+        var width by mutableStateOf(viewportWidth)
+        setContent {
+            Box(Modifier.size(width.dp, viewportHeight.dp)) {
+                LazyTransformableLayout(state, overscrollEffect = null) {}
+            }
+        }
+        waitForIdle()
+        mainClock.autoAdvance = false
+        state.requestAnimateTo(
+            zoomScale = 1f,
+            animationSpec = linear,
+            mutatePriority = MutatePriority.PreventUserInput
+        )
+        mainClock.advanceTimeByFrame()
+
+        state.snapToBounds(DpRect(0.dp, 0.dp, 400.dp, 200.dp), margin = 10.dp)
+        width = viewportWidth + 100
+        mainClock.advanceTimeByFrame()
+        mainClock.advanceTimeBy(1_000)
+
+        assertEquals(1f, state.zoomScale, 1e-4f)
+    }
+
+    @Test
+    fun `given a pending prevent user input request, when snapping to bounds before the first layout, should not apply the fit`() = runComposeUiTest {
+        val state = state()
+        state.requestAnimateTo(
+            zoomScale = 1f,
+            animationSpec = linear,
+            mutatePriority = MutatePriority.PreventUserInput
+        )
+        state.snapToBounds(DpRect(0.dp, 0.dp, 400.dp, 200.dp), margin = 10.dp)
+        setContent {
+            Box(Modifier.size(viewportWidth.dp, viewportHeight.dp)) {
+                LazyTransformableLayout(state, overscrollEffect = null) {}
+            }
+        }
+        mainClock.advanceTimeBy(2_000)
+
+        assertEquals(1f, state.zoomScale, 1e-4f)
+    }
+
+    @Test
+    fun `given a call before the first layout with a zoom scale below the bounds, when animating by, should be relative to the clamped scale`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds, initialZoomScale = 0.0001f)
+        setContent {
+            LaunchedEffect(Unit) { state.animateBy(zoomFactor = 2f, animationSpec = linear) }
+            Box(Modifier.size(viewportWidth.dp, viewportHeight.dp)) {
+                LazyTransformableLayout(state, overscrollEffect = null) {}
+            }
+        }
+        mainClock.advanceTimeBy(2_000)
+
+        assertEquals(2f * 700f / 6_000f, state.zoomScale, 1e-3f)
+    }
+
+    @Test
+    fun `given a call before the first layout with a zoom scale below the bounds, when animating to without a zoom scale, should keep the clamped scale`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds, initialZoomScale = 0.0001f)
+        setContent {
+            LaunchedEffect(Unit) { state.animateTo(rotationAngle = 0f, animationSpec = linear) }
+            Box(Modifier.size(viewportWidth.dp, viewportHeight.dp)) {
+                LazyTransformableLayout(state, overscrollEffect = null) {}
+            }
+        }
+        mainClock.advanceTimeBy(2_000)
+
+        assertEquals(700f / 6_000f, state.zoomScale, 1e-3f)
+    }
+
+    @Test
     fun `given a running animation, when canceling it, should not cancel the caller`() = runComposeUiTest {
         val state = state()
         var reachedAfter = false

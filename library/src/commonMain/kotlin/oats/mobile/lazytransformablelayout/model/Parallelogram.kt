@@ -13,8 +13,8 @@ import oats.mobile.lazytransformablelayout.extension.toDp
 import oats.mobile.lazytransformablelayout.extension.toPx
 import kotlin.math.abs
 
-internal data class Parallelogram(
-    val vertices: List<Offset>
+internal class Parallelogram(
+    vertices: List<Offset>
 ): List<Offset> by vertices {
 
     constructor(p0: Offset, p1: Offset, p2: Offset, p3: Offset) : this(listOf(p0, p1, p2, p3))

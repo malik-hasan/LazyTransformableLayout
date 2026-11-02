@@ -21,6 +21,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.test.MouseButton
+import androidx.compose.ui.test.ScrollWheel
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.click
@@ -647,6 +648,42 @@ class LazyTransformableLayoutGestureTest {
         mainClock.advanceTimeBy(2_000)
 
         assertEquals(3f, state.zoomScale, 1e-3f)
+    }
+
+    @Test
+    fun `given a running animation, when scrolling the wheel horizontally, should not cancel it`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+        mainClock.autoAdvance = false
+
+        state.requestAnimateTo(zoomScale = 3f, animationSpec = tween(300, easing = LinearEasing))
+        mainClock.advanceTimeByFrame()
+        mainClock.advanceTimeBy(100)
+        onNodeWithTag("layout").performMouseInput {
+            moveTo(Offset(100f, 200f))
+            scroll(1f, ScrollWheel.Horizontal)
+        }
+        mainClock.advanceTimeBy(2_000)
+
+        assertEquals(3f, state.zoomScale, 1e-3f)
+    }
+
+    @Test
+    fun `given a running animation, when scrolling the wheel vertically, should zoom`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+        mainClock.autoAdvance = false
+
+        state.requestAnimateTo(zoomScale = 3f, animationSpec = tween(300, easing = LinearEasing))
+        mainClock.advanceTimeByFrame()
+        mainClock.advanceTimeBy(100)
+        onNodeWithTag("layout").performMouseInput {
+            moveTo(Offset(100f, 200f))
+            scroll(1f)
+        }
+        mainClock.advanceTimeBy(2_000)
+
+        assertTrue(state.zoomScale < 3f, "scale was ${state.zoomScale}")
     }
 
     @Test

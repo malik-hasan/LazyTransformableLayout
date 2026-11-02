@@ -68,7 +68,7 @@ class LazyTransformableLayoutFlingTest {
         val clock = BroadcastFrameClock()
         val frames = mutableListOf(Frame(translation, rotationAngle, zoomScale))
         val job = launch(clock) {
-            fling(rotationVelocity, logZoomVelocity, panVelocity, centroid)
+            fling(rotationVelocity, logZoomVelocity, panVelocity, Pivot.Viewport(centroid))
         }
         var frameTimeNanos = 0L
         while (job.isActive && frames.size <= maxFrames) {
@@ -182,7 +182,7 @@ class LazyTransformableLayoutFlingTest {
 
         runBlocking(BroadcastFrameClock()) {
             withTimeout(1_000) {
-                state.fling(0f, 0f, Velocity.Zero, Offset(viewportWidth / 2f, viewportHeight / 2f))
+                state.fling(0f, 0f, Velocity.Zero, Pivot.Viewport(Offset(viewportWidth / 2f, viewportHeight / 2f)))
             }
         }
 

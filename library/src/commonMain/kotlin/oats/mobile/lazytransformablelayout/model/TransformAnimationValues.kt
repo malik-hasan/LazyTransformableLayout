@@ -10,7 +10,7 @@ import androidx.compose.ui.unit.DpOffset
  * @property logZoomScale natural logarithm of the zoom scale, so that equal steps zoom by equal factors
  * @property layoutPivot the pivot passed to the animate function, in layout space
  */
-data class TransformAnimationValues(
+class TransformAnimationValues(
     val rotationAngle: Float = 0f,
     val logZoomScale: Float = 0f,
     val layoutPivot: DpOffset = DpOffset.Zero

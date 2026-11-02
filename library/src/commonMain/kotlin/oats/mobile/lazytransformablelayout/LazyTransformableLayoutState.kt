@@ -26,7 +26,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -218,8 +217,6 @@ class LazyTransformableLayoutState(
     private fun Geometry.clampCenter(angle: Float, scale: Float, center: Offset) =
         panningBoundsAt(layoutBounds, angle, scale).clamp(center)
 
-    private fun Geometry.pivotOrContentCenter(pivot: Offset) = if (pivot.isSpecified) pivot else contentCenter
-
     private fun Geometry.fitScale(bounds: DpRect, rotationAngle: Float?, margin: Dp) = boundsFitScale(
         bounds = bounds,
         rotationAngle = clampAngle(rotationAngle ?: this@LazyTransformableLayoutState.rotationAngle),
@@ -396,24 +393,21 @@ class LazyTransformableLayoutState(
         margin: Dp = 0.dp,
         mutatePriority: MutatePriority = MutatePriority.Default
     ) {
-        geometry?.takeIf { animationCoordinator.tryCancel(mutatePriority) }?.run {
-            snapTo(
-                rotationAngle = rotationAngle,
-                zoomScale = fitScale(
-                    bounds = bounds,
+        if (animationCoordinator.tryCancel(mutatePriority)) {
+            geometry?.run {
+                snapTo(
                     rotationAngle = rotationAngle,
-                    margin = margin
-                ),
-                centerOffset = bounds.center,
-                mutatePriority = mutatePriority
-            )
-        } ?: run {
-            snapTo(
-                rotationAngle = rotationAngle,
-                centerOffset = bounds.center,
-                mutatePriority = mutatePriority
-            )
-            pendingFitBounds = bounds to margin
+                    zoomScale = fitScale(
+                        bounds = bounds,
+                        rotationAngle = rotationAngle,
+                        margin = margin
+                    ),
+                    centerOffset = bounds.center,
+                    mutatePriority = mutatePriority
+                )
+            } ?: run {
+                pendingFitBounds = bounds to margin
+            }
         }
     }
 
@@ -487,15 +481,18 @@ class LazyTransformableLayoutState(
         panDelta: Offset = Offset.Zero,
         animationSpec: AnimationSpec<TransformAnimationValues> = spring(),
         mutatePriority: MutatePriority = MutatePriority.Default
-    ) = animate(
-        pivot = pivot,
-        targetAngle = rotationAngle + rotationDelta,
-        targetScale = zoomScale * zoomFactor,
-        targetCenter = null,
-        panDelta = panDelta / zoomFactor,
-        animationSpec = animationSpec,
-        mutatePriority = mutatePriority
-    )
+    ) {
+        awaitGeometry()
+        animate(
+            pivot = pivot,
+            targetAngle = rotationAngle + rotationDelta,
+            targetScale = zoomScale * zoomFactor,
+            targetCenter = null,
+            panDelta = panDelta / zoomFactor,
+            animationSpec = animationSpec,
+            mutatePriority = mutatePriority
+        )
+    }
 
     /**
      * Animates the state to the given values, clamped to their bounds. A null value keeps its current value.
@@ -527,15 +524,18 @@ class LazyTransformableLayoutState(
         pivot: Pivot = Pivot.ContentCenter,
         animationSpec: AnimationSpec<TransformAnimationValues> = spring(),
         mutatePriority: MutatePriority = MutatePriority.Default
-    ) = animate(
-        pivot = pivot,
-        targetAngle = rotationAngle ?: this.rotationAngle,
-        targetScale = zoomScale ?: this.zoomScale,
-        targetCenter = centerOffset,
-        panDelta = Offset.Zero,
-        animationSpec = animationSpec,
-        mutatePriority = mutatePriority
-    )
+    ) {
+        awaitGeometry()
+        animate(
+            pivot = pivot,
+            targetAngle = rotationAngle ?: this.rotationAngle,
+            targetScale = zoomScale ?: this.zoomScale,
+            targetCenter = centerOffset,
+            panDelta = Offset.Zero,
+            animationSpec = animationSpec,
+            mutatePriority = mutatePriority
+        )
+    }
 
     /**
      * Animates to center [bounds] in the content area, at the largest zoom scale that fits them at the target
@@ -565,19 +565,21 @@ class LazyTransformableLayoutState(
         margin: Dp = 0.dp,
         animationSpec: AnimationSpec<TransformAnimationValues> = spring(),
         mutatePriority: MutatePriority = MutatePriority.Default
-    ) = animate(
-        pivot = Pivot.ContentCenter,
-        targetAngle = rotationAngle ?: this.rotationAngle,
-        targetScale = awaitGeometry().fitScale(
-            bounds = bounds,
-            rotationAngle = rotationAngle,
-            margin = margin
-        ),
-        targetCenter = bounds.center,
-        panDelta = Offset.Zero,
-        animationSpec = animationSpec,
-        mutatePriority = mutatePriority
-    )
+    ) = awaitGeometry().run {
+        animate(
+            pivot = Pivot.ContentCenter,
+            targetAngle = rotationAngle ?: this@LazyTransformableLayoutState.rotationAngle,
+            targetScale = fitScale(
+                bounds = bounds,
+                rotationAngle = rotationAngle,
+                margin = margin
+            ),
+            targetCenter = bounds.center,
+            panDelta = Offset.Zero,
+            animationSpec = animationSpec,
+            mutatePriority = mutatePriority
+        )
+    }
 
     /**
      * Animates rotation and zoom about [pivot], then pans, with each value clamped to its bounds. Doesn't suspend,
@@ -711,7 +713,7 @@ class LazyTransformableLayoutState(
         animationSpec: AnimationSpec<TransformAnimationValues>,
         mutatePriority: MutatePriority
     ) = animationCoordinator.claim(mutatePriority) {
-        awaitGeometry().run {
+        geometry?.run {
             val startAngle = rotationAngle
             val startScale = zoomScale
             val startCenter = centerOffset
@@ -822,7 +824,7 @@ class LazyTransformableLayoutState(
         initialRotationVelocity: Float = 0f,
         initialLogZoomVelocity: Float = 0f,
         initialPanVelocity: Velocity = Velocity.Zero,
-        viewportPivot: Offset = Offset.Unspecified,
+        pivot: Pivot = Pivot.ContentCenter,
         overscrollEffect: OverscrollEffect? = null
     ) {
         if (geometry == null) return
@@ -846,7 +848,7 @@ class LazyTransformableLayoutState(
                         geometry?.run {
                             val targetAngle = rotationAngle + rotationDelta
                             transform(
-                                pivot = pivotOrContentCenter(viewportPivot),
+                                pivot = pivot.viewportPosition(rotationAngle, zoomScale, centerOffset),
                                 rotationDelta = rotationDelta
                             )
                             rotationAngle == targetAngle
@@ -868,7 +870,7 @@ class LazyTransformableLayoutState(
                             val zoomFactor = exp(logDelta)
                             val targetScale = zoomScale * zoomFactor
                             transform(
-                                pivot = pivotOrContentCenter(viewportPivot),
+                                pivot = pivot.viewportPosition(rotationAngle, zoomScale, centerOffset),
                                 zoomFactor = zoomFactor
                             )
                             zoomScale == targetScale || rotationRunning

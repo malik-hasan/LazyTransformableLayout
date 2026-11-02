@@ -46,16 +46,14 @@ internal suspend fun PointerInputScope.detectWheelZoomGestures(
 ) = awaitEachGesture {
     val event = awaitPointerEvent()
     if (event.type == PointerEventType.Scroll && event.changes.fastAll { !it.isConsumed }) {
-        onZoom(
-            event.changes.first().position,
-            1.1f.pow(
-                -event.changes.fastFold(Offset.Zero) { acc, change ->
-                    acc + change.scrollDelta
-                }.y
-            )
-        )
+        val scrollY = event.changes.fastFold(Offset.Zero) { acc, change ->
+            acc + change.scrollDelta
+        }.y
 
-        event.changes.fastForEach { it.consume() }
+        if (scrollY != 0f) {
+            onZoom(event.changes.first().position, 1.1f.pow(-scrollY))
+            event.changes.fastForEach { it.consume() }
+        }
     }
 }
 

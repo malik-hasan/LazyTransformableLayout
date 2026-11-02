@@ -12,7 +12,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
-import oats.mobile.lazytransformablelayout.model.PendingAnimation
 
 internal class AnimationCoordinator {
     private var pendingAnimation by mutableStateOf<PendingAnimation?>(null)
@@ -77,5 +76,12 @@ internal class AnimationCoordinator {
             animationJob?.cancel()
             pendingAnimation = null
         }
+    }
+
+    private class PendingAnimation(
+        val priority: MutatePriority,
+        val animation: suspend () -> Unit
+    ) {
+        fun canBeOverriddenBy(otherPriority: MutatePriority) = otherPriority >= priority
     }
 }

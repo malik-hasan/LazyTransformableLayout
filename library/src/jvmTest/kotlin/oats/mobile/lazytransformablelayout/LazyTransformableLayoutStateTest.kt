@@ -15,7 +15,6 @@ import oats.mobile.lazytransformablelayout.model.Parallelogram
 import oats.mobile.lazytransformablelayout.model.Pivot
 import kotlin.math.abs
 import kotlin.random.Random
-import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -431,6 +430,16 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
+    fun `given an unspecified viewport pivot, when snapping by, should keep a finite center offset`() {
+        val state = state()
+
+        state.snapBy(pivot = Pivot.Viewport(Offset.Unspecified), zoomFactor = 2f)
+
+        assertEquals(2f, state.zoomScale, 1e-4f)
+        assertTrue(state.centerOffset.x.value.isFinite() && state.centerOffset.y.value.isFinite(), "center was ${state.centerOffset}")
+    }
+
+    @Test
     fun `given a layout pivot, when snapping by, should zoom about where it currently is`() {
         val state = state()
         val position = DpOffset(5_100.dp, 3_100.dp)
@@ -506,7 +515,6 @@ class LazyTransformableLayoutStateTest {
         assertEquals(1.2f, state.zoomScale, 1e-4f)
     }
 
-    @Ignore
     @Test
     fun `given bounds, when snapping to bounds, should center on the bounds center`() {
         val state = state()

@@ -21,7 +21,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -126,9 +125,7 @@ fun LazyTransformableLayout(
                 detectTransformGestures(
                     onTransform = { centroid, rotationDelta, zoomFactor, panDelta ->
                         state.snapBy(
-                            pivot = if (centroid.isSpecified) {
-                                Pivot.Viewport(centroid)
-                            } else Pivot.ContentCenter,
+                            pivot = Pivot.Viewport(centroid),
                             rotationDelta = rotationDelta,
                             zoomFactor = zoomFactor,
                             panDelta = panDelta,
@@ -139,7 +136,7 @@ fun LazyTransformableLayout(
                     onTransformStopped = { centroid, rotationVelocity, logZoomVelocity, panVelocity ->
                         scope.launch {
                             state.fling(
-                                viewportPivot = centroid,
+                                pivot = Pivot.Viewport(centroid),
                                 initialRotationVelocity = rotationVelocity,
                                 initialLogZoomVelocity = logZoomVelocity,
                                 initialPanVelocity = -panVelocity,

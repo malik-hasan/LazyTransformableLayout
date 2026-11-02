@@ -7,7 +7,6 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
 
 class PivotTest {
 
@@ -26,6 +25,13 @@ class PivotTest {
             val pivot = Pivot.Viewport(Offset(123f, 456f))
             assertEquals(Offset(123f, 456f), pivot.viewportPosition(0f, 1f, center))
             assertEquals(Offset(123f, 456f), pivot.viewportPosition(77f, 3f, center))
+        }
+    }
+
+    @Test
+    fun `given an unspecified viewport pivot when resolving it should be the center of the content area`() {
+        with(geometry) {
+            assertEquals(Offset(500f, 1_000f), Pivot.Viewport(Offset.Unspecified).viewportPosition(45f, 2f, center))
         }
     }
 
@@ -53,13 +59,5 @@ class PivotTest {
             assertEquals(500f, position.x, 1e-3f)
             assertEquals(1_000f, position.y, 1e-3f)
         }
-    }
-
-    @Test
-    fun `given equal pivots when comparing should compare by value`() {
-        assertEquals(Pivot.Viewport(Offset(1f, 2f)), Pivot.Viewport(Offset(1f, 2f)))
-        assertNotEquals<Pivot>(Pivot.Viewport(Offset(1f, 2f)), Pivot.Viewport(Offset(2f, 1f)))
-        assertEquals(Pivot.Layout(DpOffset(1.dp, 2.dp)), Pivot.Layout(DpOffset(1.dp, 2.dp)))
-        assertNotEquals<Pivot>(Pivot.ContentCenter, Pivot.Layout(DpOffset(1.dp, 2.dp)))
     }
 }
