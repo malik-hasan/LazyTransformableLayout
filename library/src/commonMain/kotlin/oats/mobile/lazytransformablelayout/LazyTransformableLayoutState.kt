@@ -27,7 +27,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.isSpecified
-import androidx.compose.ui.geometry.toRect
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -36,7 +35,6 @@ import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.toSize
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -51,18 +49,12 @@ import oats.mobile.lazytransformablelayout.extension.toDp
 import oats.mobile.lazytransformablelayout.extension.toLayoutAxes
 import oats.mobile.lazytransformablelayout.extension.toPx
 import oats.mobile.lazytransformablelayout.extension.toViewportAxes
-import oats.mobile.lazytransformablelayout.extension.vertex
-import oats.mobile.lazytransformablelayout.extension.vertices
+import oats.mobile.lazytransformablelayout.model.Geometry
 import oats.mobile.lazytransformablelayout.model.Parallelogram
 import oats.mobile.lazytransformablelayout.model.Pivot
 import oats.mobile.lazytransformablelayout.model.TransformAnimationValues
-import oats.mobile.lazytransformablelayout.model.Viewport
-import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.exp
-import kotlin.math.floor
 import kotlin.math.ln
-import kotlin.math.sin
 
 /**
  * The state of a [LazyTransformableLayout]: the [rotationAngle], [zoomScale] and [centerOffset] that
@@ -100,14 +92,11 @@ class LazyTransformableLayoutState(
     private val rotationFlingDecay: FloatDecayAnimationSpec = FloatExponentialDecaySpec(),
     private val zoomFlingDecay: FloatDecayAnimationSpec = FloatExponentialDecaySpec()
 ) {
-    internal var layoutBounds by mutableStateOf(initialLayoutBounds)
-        private set
+    private var layoutBounds by mutableStateOf(initialLayoutBounds)
 
-    internal var rotationBounds by mutableStateOf(initialRotationBounds)
-        private set
+    private var rotationBounds by mutableStateOf(initialRotationBounds)
 
-    internal var zoomBounds by mutableStateOf(initialZoomBounds)
-        private set
+    private var zoomBounds by mutableStateOf(initialZoomBounds)
 
     init {
         initialRotationBounds.run {
@@ -125,10 +114,7 @@ class LazyTransformableLayoutState(
         }
     }
 
-    private var viewport by mutableStateOf<Viewport?>(null)
-
-    private val Viewport.layoutBoundsPx
-        get() = layoutBounds.toRect()
+    private var geometry by mutableStateOf<Geometry?>(null)
 
     context(measureScope: LazyLayoutMeasureScope)
     internal fun measure(constraints: Constraints, contentPadding: PaddingValues) {
@@ -153,17 +139,17 @@ class LazyTransformableLayoutState(
             }
         }
 
-        val viewport = with(measureScope) {
-            Viewport(density, fontScale, constraints, contentBounds)
+        val geometry = with(measureScope) {
+            Geometry(density, fontScale, constraints, contentBounds)
         }
 
-        if (this.viewport != viewport) {
-            this.viewport = viewport
+        if (this.geometry != geometry) {
+            this.geometry = geometry
 
             clampAndSet(
                 scale = pendingFitBounds?.let { (bounds, margin) ->
                     pendingFitBounds = null
-                    viewport.boundsFitScale(bounds, rotationAngle, margin)
+                    geometry.boundsFitScale(bounds, rotationAngle, margin)
                 } ?: zoomScale
             )
         }
@@ -175,7 +161,7 @@ class LazyTransformableLayoutState(
      * @param position position in layout space
      * @return position in the viewport, or [Offset.Unspecified] before the layout is first measured
      */
-    fun layoutToViewport(position: DpOffset) = viewport?.layoutToViewport(
+    fun layoutToViewport(position: DpOffset) = geometry?.layoutToViewport(
         layoutPosition = position,
         angle = rotationAngle,
         scale = zoomScale,
@@ -188,7 +174,7 @@ class LazyTransformableLayoutState(
      * @param position position in the viewport
      * @return position in layout space, or [DpOffset.Unspecified] before the layout is first measured
      */
-    fun viewportToLayout(position: Offset) = viewport?.run {
+    fun viewportToLayout(position: Offset) = geometry?.run {
         viewportToLayout(
             viewportPosition = position,
             angle = rotationAngle,
@@ -200,72 +186,22 @@ class LazyTransformableLayoutState(
     private var previousCompositionBounds: Pair<Float, Parallelogram>? = null
 
     internal val compositionBounds by derivedStateOf(referentialEqualityPolicy()) {
-        viewport?.run {
+        geometry?.run {
             val minItemDimension = 0.5f / zoomScale
             previousCompositionBounds?.takeIf { (previousMinItemDimension, previousBounds) ->
                 minItemDimension * 1.19f >= previousMinItemDimension
-                    && viewportBounds(128f) in previousBounds
-            } ?: (minItemDimension to viewportBounds(256f))
+                    && viewportBounds(128f, rotationAngle, zoomScale, centerOffsetPx) in previousBounds
+            } ?: (minItemDimension to viewportBounds(256f, rotationAngle, zoomScale, centerOffsetPx))
                 .also { previousCompositionBounds = it }
         }
     }
 
-    private fun Viewport.viewportBounds(buffer: Float) = Parallelogram(
-        size.toSize().toRect()
-            .inflate(buffer)
-            .vertices.map {
-                viewportToLayoutPx(it, rotationAngle, zoomScale, centerOffsetPx)
-            }
-    )
-
     private val scaleBounds by derivedStateOf {
-        viewport?.scaleBoundsAt(rotationAngle) ?: zoomBounds
-    }
-
-    private fun Viewport.scaleBoundsAt(rotationAngle: Float): ClosedFloatingPointRange<Float> {
-        val layoutBounds = layoutBoundsPx
-        val angleRadians = rotationAngle.radians
-        val cos = abs(cos(angleRadians))
-        val sin = abs(sin(angleRadians))
-        val start = maxOf(
-            zoomBounds.start,
-            contentBounds.width / layoutBounds.run { width * cos + height * sin },
-            contentBounds.height / layoutBounds.run { width * sin + height * cos }
-        )
-        return start..maxOf(start, zoomBounds.endInclusive)
+        geometry?.scaleBoundsAt(layoutBounds, zoomBounds, rotationAngle) ?: zoomBounds
     }
 
     private val panningBounds by derivedStateOf {
-        viewport?.panningBoundsAt(rotationAngle, zoomScale)
-    }
-
-    private fun Viewport.panningBoundsAt(rotationAngle: Float, zoomScale: Float): Parallelogram {
-        val layoutBounds = layoutBoundsPx
-        val (width, height) = contentBounds.size
-        val startIndex = (-floor(rotationAngle / 90f).toInt() - 1).mod(4)
-        fun vertex(index: Int) = layoutBounds
-            .vertex((startIndex + index) % 4)
-            .toViewportAxes(zoomScale, rotationAngle)
-
-        val leftmost = vertex(0)
-        val topmost = vertex(1)
-        val rightmost = vertex(2)
-        val bottommost = vertex(3)
-
-        val left = leftmost.x
-        val top = topmost.y
-        val right = (rightmost.x - width).coerceAtLeast(left)
-        val bottom = (bottommost.y - height).coerceAtLeast(top)
-
-        fun corner(x: Float, y: Float) =
-            Offset(x + width / 2, y + height / 2).toLayoutAxes(zoomScale, rotationAngle)
-
-        return Parallelogram(
-            corner(left, (leftmost.y - height / 2).coerceIn(top, bottom)),
-            corner((topmost.x - width / 2).coerceIn(left, right), top),
-            corner(right, (rightmost.y - height / 2).coerceIn(top, bottom)),
-            corner((bottommost.x - width / 2).coerceIn(left, right), bottom)
-        )
+        geometry?.panningBoundsAt(layoutBounds, rotationAngle, zoomScale)
     }
 
     /**
@@ -303,9 +239,9 @@ class LazyTransformableLayoutState(
         private set
 
     internal val keyPanStep
-        get() = viewport?.size?.let { minOf(it.width, it.height) * 0.1f } ?: 0f
+        get() = geometry?.viewportSize?.let { minOf(it.width, it.height) * 0.1f } ?: 0f
 
-    private var Viewport.centerOffsetPx: Offset
+    private var Geometry.centerOffsetPx: Offset
         get() = centerOffset.toPx()
         set(value) {
             centerOffset = value.toDp()
@@ -314,17 +250,17 @@ class LazyTransformableLayoutState(
     private fun clampCenter(center: Offset) = panningBounds?.clamp(center) ?: center
 
     private fun clampCenter(angle: Float, scale: Float, center: DpOffset) =
-        viewport?.run { clampCenter(angle, scale, center.toPx()).toDp() } ?: center
+        geometry?.run { clampCenter(angle, scale, center.toPx()).toDp() } ?: center
 
-    private fun Viewport.clampCenter(angle: Float, scale: Float, center: Offset) =
-        panningBoundsAt(angle, scale).clamp(center)
+    private fun Geometry.clampCenter(angle: Float, scale: Float, center: Offset) =
+        panningBoundsAt(layoutBounds, angle, scale).clamp(center)
 
     private fun Offset.toViewportAxes() = toViewportAxes(zoomScale, rotationAngle)
 
     private fun Offset.toLayoutAxes() = toLayoutAxes(zoomScale, rotationAngle)
 
     internal val translation by derivedStateOf {
-        viewport?.run {
+        geometry?.run {
             centerOffsetPx.toViewportAxes() - contentCenter
         } ?: Offset.Zero
     }
@@ -346,7 +282,7 @@ class LazyTransformableLayoutState(
     private fun clampScale(scale: Float) = scale.coerceIn(scaleBounds)
 
     private fun clampScale(angle: Float, scale: Float) =
-        scale.coerceIn(viewport?.scaleBoundsAt(angle) ?: zoomBounds)
+        scale.coerceIn(geometry?.scaleBoundsAt(layoutBounds, zoomBounds, angle) ?: zoomBounds)
 
     private fun clampAndSet(
         angle: Float = rotationAngle,
@@ -360,7 +296,7 @@ class LazyTransformableLayoutState(
         centerOffset = clampCenter(clampedAngle, clampedScale, center)
     }
 
-    private fun Viewport.transform(
+    private fun Geometry.transform(
         pivot: Offset,
         rotationDelta: Float = 0f,
         zoomFactor: Float = 1f,
@@ -389,7 +325,7 @@ class LazyTransformableLayoutState(
         return panBy(-panDelta)
     }
 
-    private fun Viewport.panBy(delta: Offset): Offset {
+    private fun Geometry.panBy(delta: Offset): Offset {
         val previousCenter = centerOffsetPx
         val newCenter = clampCenter(
             previousCenter + delta.toLayoutAxes()
@@ -424,7 +360,7 @@ class LazyTransformableLayoutState(
         panDelta: Offset = Offset.Zero,
         overscrollEffect: OverscrollEffect? = null,
         nestedScrollSource: NestedScrollSource = NestedScrollSource.UserInput
-    ) = viewport?.run {
+    ) = geometry?.run {
         snapBy(
             viewportPivot = pivot.viewportPosition(rotationAngle, zoomScale, centerOffset),
             rotationDelta = rotationDelta,
@@ -443,7 +379,7 @@ class LazyTransformableLayoutState(
         overscrollEffect: OverscrollEffect? = null,
         nestedScrollSource: NestedScrollSource = NestedScrollSource.UserInput
     ) {
-        viewport?.run {
+        geometry?.run {
             cancelAnimation()
 
             val transform = { panDelta: Offset ->
@@ -483,7 +419,7 @@ class LazyTransformableLayoutState(
     )
     private var previousViewportPivot = Offset.Zero
 
-    private suspend fun Viewport.animate(
+    private suspend fun Geometry.animate(
         pivot: Pivot,
         startAngle: Float,
         startScale: Float,
@@ -613,7 +549,7 @@ class LazyTransformableLayoutState(
         animationSpec: AnimationSpec<TransformAnimationValues> = spring(),
         mutatePriority: MutatePriority = MutatePriority.Default
     ) {
-        with(snapshotFlow { viewport }.filterNotNull().first()) {
+        with(snapshotFlow { geometry }.filterNotNull().first()) {
             val startAngle: Float
             val startScale: Float
             val startCenter: Offset
@@ -752,7 +688,7 @@ class LazyTransformableLayoutState(
         animationSpec: AnimationSpec<TransformAnimationValues> = spring(),
         mutatePriority: MutatePriority = MutatePriority.Default
     ) {
-        with(snapshotFlow { viewport }.filterNotNull().first()) {
+        with(snapshotFlow { geometry }.filterNotNull().first()) {
             val startAngle = this@LazyTransformableLayoutState.rotationAngle
             val startScale = this@LazyTransformableLayoutState.zoomScale
             val startCenter = this@LazyTransformableLayoutState.centerOffset
@@ -818,7 +754,7 @@ class LazyTransformableLayoutState(
         bounds: DpRect,
         rotationAngle: Float? = null,
         margin: Dp = 0.dp
-    ) = viewport?.run {
+    ) = geometry?.run {
         snapTo(
             rotationAngle = rotationAngle,
             zoomScale = boundsFitScale(
@@ -862,7 +798,7 @@ class LazyTransformableLayoutState(
         mutatePriority: MutatePriority = MutatePriority.Default
     ) = animateTo(
         rotationAngle = rotationAngle,
-        zoomScale = snapshotFlow { viewport }.filterNotNull().first().boundsFitScale(
+        zoomScale = snapshotFlow { geometry }.filterNotNull().first().boundsFitScale(
             bounds = bounds,
             rotationAngle = clampAngle(rotationAngle ?: this.rotationAngle),
             margin = margin
@@ -972,7 +908,7 @@ class LazyTransformableLayoutState(
         initialPanVelocity: Velocity = Velocity.Zero,
         viewportPivot: Offset = Offset.Unspecified,
         overscrollEffect: OverscrollEffect? = null
-    ) = viewport?.run {
+    ) = geometry?.run {
         if (initialRotationVelocity == 0f
             && initialLogZoomVelocity == 0f
             && initialPanVelocity.x == 0f
@@ -1036,14 +972,14 @@ class LazyTransformableLayoutState(
         }
     }
 
-    private suspend fun Viewport.flingX(xVelocity: Float, boundsChanging: () -> Boolean) = Velocity(
+    private suspend fun Geometry.flingX(xVelocity: Float, boundsChanging: () -> Boolean) = Velocity(
         x = flingPan(xVelocity, boundsChanging) { delta ->
             panBy(Offset(delta, 0f)).x
         },
         y = 0f
     )
 
-    private suspend fun Viewport.flingY(yVelocity: Float, boundsChanging: () -> Boolean) = Velocity(
+    private suspend fun Geometry.flingY(yVelocity: Float, boundsChanging: () -> Boolean) = Velocity(
         x = 0f,
         y = flingPan(yVelocity, boundsChanging) { delta ->
             panBy(Offset(0f, delta)).y
