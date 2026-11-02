@@ -11,8 +11,7 @@ import androidx.compose.ui.unit.dp
 import oats.mobile.lazytransformablelayout.extension.toLayoutAxes
 import oats.mobile.lazytransformablelayout.extension.transform
 import oats.mobile.lazytransformablelayout.extension.vertices
-import oats.mobile.lazytransformablelayout.model.Parallelogram
-import oats.mobile.lazytransformablelayout.model.Pivot
+import oats.mobile.lazytransformablelayout.internal.Parallelogram
 import kotlin.math.abs
 import kotlin.random.Random
 import kotlin.test.Test

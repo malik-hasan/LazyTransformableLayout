@@ -1,4 +1,4 @@
-package oats.mobile.lazytransformablelayout.model
+package oats.mobile.lazytransformablelayout.internal
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect

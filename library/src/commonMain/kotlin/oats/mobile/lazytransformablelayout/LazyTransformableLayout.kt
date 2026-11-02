@@ -40,14 +40,15 @@ import oats.mobile.lazytransformablelayout.extension.detectTapSequenceGestures
 import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
 import oats.mobile.lazytransformablelayout.extension.detectWheelZoomGestures
 import oats.mobile.lazytransformablelayout.extension.transform
-import oats.mobile.lazytransformablelayout.model.Item
-import oats.mobile.lazytransformablelayout.model.Pivot
+import oats.mobile.lazytransformablelayout.internal.Content
+import oats.mobile.lazytransformablelayout.internal.Item
+import oats.mobile.lazytransformablelayout.internal.ItemProvider
 import kotlin.math.roundToInt
 
 private const val TAP_ZOOM_FACTOR = 2f
 
 /**
- * A lazy layout of [oats.mobile.lazytransformablelayout.model.Positionable] items that can be panned, zoomed and rotated.
+ * A lazy layout of [Positionable] items that can be panned, zoomed and rotated.
  * Only items intersecting the viewport are composed, with some buffer.
  *
  * @param state The state holding this layout's rotation angle, zoom scale and center offset
@@ -56,7 +57,7 @@ private const val TAP_ZOOM_FACTOR = 2f
  * @param overscrollEffect The effect shown when panning past the layout bounds
  * @param contentBuilder Declares the items of this layout. It runs again whenever its lambda instance changes
  * or state it reads changes. Keep it stable: avoid capturing values that change often, and read frequently
- * changing state inside the item content or the [oats.mobile.lazytransformablelayout.model.Positionable] fields instead.
+ * changing state inside the item content or the [Positionable] fields instead.
  */
 @Composable
 fun LazyTransformableLayout(

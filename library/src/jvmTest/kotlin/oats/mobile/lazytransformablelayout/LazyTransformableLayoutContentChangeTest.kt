@@ -40,8 +40,6 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
-import oats.mobile.lazytransformablelayout.model.Pivot
-import oats.mobile.lazytransformablelayout.model.Positionable
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

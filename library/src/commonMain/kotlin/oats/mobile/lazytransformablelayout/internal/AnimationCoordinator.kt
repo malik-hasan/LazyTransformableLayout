@@ -1,4 +1,4 @@
-package oats.mobile.lazytransformablelayout
+package oats.mobile.lazytransformablelayout.internal
 
 import androidx.compose.foundation.MutatePriority
 import androidx.compose.runtime.getValue

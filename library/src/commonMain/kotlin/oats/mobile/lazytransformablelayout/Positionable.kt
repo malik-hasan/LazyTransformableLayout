@@ -1,4 +1,4 @@
-package oats.mobile.lazytransformablelayout.model
+package oats.mobile.lazytransformablelayout
 
 import androidx.compose.ui.unit.DpRect
 

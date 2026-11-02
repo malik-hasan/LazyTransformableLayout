@@ -43,10 +43,9 @@ import oats.mobile.lazytransformablelayout.extension.toDp
 import oats.mobile.lazytransformablelayout.extension.toLayoutAxes
 import oats.mobile.lazytransformablelayout.extension.toPx
 import oats.mobile.lazytransformablelayout.extension.toViewportAxes
-import oats.mobile.lazytransformablelayout.model.Geometry
-import oats.mobile.lazytransformablelayout.model.Parallelogram
-import oats.mobile.lazytransformablelayout.model.Pivot
-import oats.mobile.lazytransformablelayout.model.TransformAnimationValues
+import oats.mobile.lazytransformablelayout.internal.AnimationCoordinator
+import oats.mobile.lazytransformablelayout.internal.Geometry
+import oats.mobile.lazytransformablelayout.internal.Parallelogram
 import kotlin.math.exp
 import kotlin.math.ln
 

@@ -2,7 +2,7 @@ package oats.mobile.lazytransformablelayout.demo.tiledwallpaper
 
 import androidx.compose.ui.unit.DpRect
 import com.github.panpf.zoomimage.util.IntRectCompat
-import oats.mobile.lazytransformablelayout.model.Positionable
+import oats.mobile.lazytransformablelayout.Positionable
 
 data class ImageTile(
     val id: Int,

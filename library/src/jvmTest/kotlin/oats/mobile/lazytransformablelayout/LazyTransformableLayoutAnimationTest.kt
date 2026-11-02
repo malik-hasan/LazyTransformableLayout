@@ -10,8 +10,6 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
-import oats.mobile.lazytransformablelayout.model.Pivot
-import oats.mobile.lazytransformablelayout.model.TransformAnimationValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.PaddingValues
@@ -24,7 +22,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
-import oats.mobile.lazytransformablelayout.model.Positionable
 import androidx.compose.ui.test.ComposeUiTest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch

@@ -1,7 +1,8 @@
-package oats.mobile.lazytransformablelayout.model
+package oats.mobile.lazytransformablelayout.internal
 
 import androidx.compose.foundation.lazy.layout.LazyLayoutIntervalContent.Interval
 import androidx.compose.runtime.Composable
+import oats.mobile.lazytransformablelayout.Positionable
 
 internal class Layer(
     val items: List<Positionable>,

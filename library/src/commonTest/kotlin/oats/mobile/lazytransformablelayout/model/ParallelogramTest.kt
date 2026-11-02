@@ -3,6 +3,7 @@ package oats.mobile.lazytransformablelayout.model
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import oats.mobile.lazytransformablelayout.extension.cross
+import oats.mobile.lazytransformablelayout.internal.Parallelogram
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -24,7 +25,8 @@ class ParallelogramTest {
         assertEquals(Rect(-1f, -1f, 1f, 1f), diamond.axisAlignedBoundingBox)
     }
 
-    private val inner = Parallelogram(Offset(-0.5f, 0f), Offset(0f, -0.5f), Offset(0.5f, 0f), Offset(0f, 0.5f))
+    private val inner =
+        Parallelogram(Offset(-0.5f, 0f), Offset(0f, -0.5f), Offset(0.5f, 0f), Offset(0f, 0.5f))
 
     @Test
     fun `given a parallelogram inside another when checking containment should contain it`() {
@@ -42,7 +44,8 @@ class ParallelogramTest {
     @Test
     fun `given a parallelogram with a vertex outside when checking containment should not contain it`() {
         // three vertices inside the diamond, one past its edge
-        val straddling = Parallelogram(Offset(0f, 0f), Offset(0.4f, 0f), Offset(0.8f, 0.4f), Offset(0.4f, 0.4f))
+        val straddling =
+            Parallelogram(Offset(0f, 0f), Offset(0.4f, 0f), Offset(0.8f, 0.4f), Offset(0.4f, 0.4f))
         assertFalse(straddling in diamond)
     }
 

@@ -12,6 +12,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.advanceUntilIdle
+import oats.mobile.lazytransformablelayout.internal.AnimationCoordinator
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

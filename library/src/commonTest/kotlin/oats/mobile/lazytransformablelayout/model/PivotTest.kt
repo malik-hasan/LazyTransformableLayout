@@ -5,6 +5,8 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import oats.mobile.lazytransformablelayout.Pivot
+import oats.mobile.lazytransformablelayout.internal.Geometry
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

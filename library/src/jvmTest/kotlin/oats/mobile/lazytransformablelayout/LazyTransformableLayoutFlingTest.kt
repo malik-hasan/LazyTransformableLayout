@@ -15,7 +15,6 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import oats.mobile.lazytransformablelayout.extension.nearestPointOnSegment
 import oats.mobile.lazytransformablelayout.extension.toLayoutAxes
-import oats.mobile.lazytransformablelayout.model.Pivot
 import kotlin.math.abs
 import kotlin.math.ln
 import kotlin.test.Test
