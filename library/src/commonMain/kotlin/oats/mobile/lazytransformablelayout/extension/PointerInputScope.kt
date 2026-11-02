@@ -28,9 +28,7 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.VelocityTracker1D
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Velocity
-import androidx.compose.ui.unit.center
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.toOffset
 import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastFold
@@ -43,22 +41,18 @@ import kotlin.math.ln
 private val MinZoomRotateFlingVelocity = 1000.dp
 private const val MOUSE_ROTATION_DEGREES_PER_WIDTH = 180f
 
-suspend fun PointerInputScope.detectTransformGestures(
+internal suspend fun PointerInputScope.detectTransformGestures(
     onTransformStopped: (centroid: Offset, rotationVelocity: Float, logZoomVelocity: Float, panVelocity: Velocity) -> Unit,
-    onScroll: (position: Offset) -> Unit,
-    panZoomLock: Boolean = false,
     onTransform: (centroid: Offset, rotationDelta: Float, zoomFactor: Float, panDelta: Offset) -> Unit
 ) = awaitEachGesture {
     var startEvent: PointerEvent
     do {
-        startEvent = awaitPointerEvent().apply {
-            if (type == PointerEventType.Scroll) onScroll(changes.first().position)
-        }
+        startEvent = awaitPointerEvent()
     } while (startEvent.run {
         type != PointerEventType.PanStart
             && type != PointerEventType.ScaleStart
-            && (changes.fastAny { !it.changedToDownIgnoreConsumed() }
-                && (changes.fastAny { it.type != PointerType.Mouse } || buttons.isPrimaryPressed)
+            && !(changes.fastAll { it.changedToDownIgnoreConsumed() }
+                && (changes.first().type != PointerType.Mouse || buttons.isPrimaryPressed)
             )
     })
 
@@ -79,7 +73,7 @@ suspend fun PointerInputScope.detectTransformGestures(
                 val zoomFactor = change.historical.fastFold(change.scaleFactor) { acc, historical ->
                     acc * historical.scaleFactor
                 }
-                if (panDelta != Offset.Zero || zoomFactor != 1f) onTransform(change.position, 0f, zoomFactor, panDelta)
+                if (panDelta.x != 0f || panDelta.y != 0f || zoomFactor != 1f) onTransform(change.position, 0f, zoomFactor, panDelta)
                 event.changes.fastForEach { it.consume() }
 
                 totalPan += panDelta
@@ -102,15 +96,13 @@ suspend fun PointerInputScope.detectTransformGestures(
             )
         }
     } else {
-        var lockedToPanZoom = false
-
         var pastTouchSlop = false
         val touchSlop = viewConfiguration.touchSlop
         var totalRotationBeforeTouchSlop = 0f
         var totalZoomBeforeTouchSlop = 1f
         var totalPanBeforeTouchSlop = Offset.Zero
 
-        var lastCentroid = Offset.Zero
+        var lastCentroid = Offset.Unspecified
         var maxCentroidSize = 0f
 
         var lastEventUptimeMillis = 0L
@@ -126,13 +118,12 @@ suspend fun PointerInputScope.detectTransformGestures(
             && startEvent.keyboardModifiers.isShiftPressed
 
         try {
-            val viewportCenter = size.center.toOffset()
             do {
                 val event = awaitPointerEvent()
                 val changes = event.changes
                 val canceled = changes.fastAny { it.isConsumed }
                 if (!canceled) {
-                    var rotationDelta: Float
+                    val rotationDelta: Float
                     val zoomFactor: Float
                     val panDelta: Offset
                     val centroidSize: Float
@@ -143,7 +134,7 @@ suspend fun PointerInputScope.detectTransformGestures(
                         panDelta = Offset.Zero
                         centroidSize = size.width / MOUSE_ROTATION_DEGREES_PER_WIDTH.radians
                     } else {
-                        rotationDelta = if (lockedToPanZoom) 0f else event.calculateRotation()
+                        rotationDelta = event.calculateRotation()
                         zoomFactor = event.calculateZoom()
                         panDelta = event.calculatePan()
                         centroidSize = event.calculateCentroidSize(useCurrent = false)
@@ -165,28 +156,26 @@ suspend fun PointerInputScope.detectTransformGestures(
                             || panMotionBeforeTouchSlop > touchSlop
                         ) {
                             pastTouchSlop = true
-                            lockedToPanZoom =
-                                panZoomLock && rotationMotionBeforeTouchSlop < touchSlop
-                            if (lockedToPanZoom) rotationDelta = 0f
                         }
                     }
 
                     if (pastTouchSlop) {
                         val centroid =
-                            if (mouseRotating) viewportCenter else event.calculateCentroid(
+                            if (mouseRotating) Offset.Unspecified else event.calculateCentroid(
                                 useCurrent = false
                             )
                         if (centroid.isSpecified) lastCentroid = centroid
                         maxCentroidSize = maxOf(maxCentroidSize, centroidSize)
 
-                        if (rotationDelta != 0f || zoomFactor != 1f || panDelta != Offset.Zero)
+                        if (rotationDelta != 0f || zoomFactor != 1f || panDelta.x != 0f || panDelta.y != 0f)
                             onTransform(centroid, rotationDelta, zoomFactor, panDelta)
 
                         changes.fastForEach {
                             if (it.positionChanged()) it.consume()
                         }
 
-                        val pointerCount = changes.count { it.pressed }
+                        var pointerCount = 0
+                        changes.fastForEach { if (it.pressed) pointerCount++ }
                         val uptimeMillis = changes.first().uptimeMillis
                         lastEventUptimeMillis = uptimeMillis
                         if (previousPointerCount > 0 && pointerCount != previousPointerCount && pointerCount > 0) {
@@ -212,7 +201,7 @@ suspend fun PointerInputScope.detectTransformGestures(
             stopWithFlingThresholds(
                 onTransformStopped = onTransformStopped,
                 centroid = lastCentroid,
-                rotationVelocity = if (lockedToPanZoom) 0f else rotationVelocityTracker.calculateVelocity(),
+                rotationVelocity = rotationVelocityTracker.calculateVelocity(),
                 logZoomVelocity = logZoomVelocityTracker.calculateVelocity(),
                 panVelocity = if (lastPointerCountChangeMillis >= 0 && lastEventUptimeMillis - lastPointerCountChangeMillis < 40) {
                     panVelocityBeforeLastReset
@@ -252,7 +241,7 @@ private fun Density.stopWithFlingThresholds(
     )
 }
 
-suspend fun PointerInputScope.detectTapSequenceGestures(
+internal suspend fun PointerInputScope.detectTapSequenceGestures(
     onTwoFingerTap: () -> Unit,
     onSecondaryDoubleClick: (position: Offset) -> Unit,
     onDoubleTapDragStopped: (logZoomVelocity: Float) -> Unit,

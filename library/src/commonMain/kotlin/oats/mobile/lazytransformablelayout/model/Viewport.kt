@@ -8,6 +8,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.IntSize
 import oats.mobile.lazytransformablelayout.extension.radians
+import oats.mobile.lazytransformablelayout.extension.toDp
 import oats.mobile.lazytransformablelayout.extension.toLayoutAxes
 import oats.mobile.lazytransformablelayout.extension.toPx
 import oats.mobile.lazytransformablelayout.extension.toViewportAxes
@@ -36,12 +37,38 @@ internal data class Viewport(
         )
     }
 
-    fun viewportToLayout(position: Offset, angle: Float, scale: Float, center: DpOffset) =
-        center.toPx() + (position - contentCenter).toLayoutAxes(scale, angle)
+    fun viewportToLayoutPx(viewportPosition: Offset, angle: Float, scale: Float, center: Offset) =
+        center + (viewportPosition - contentCenter).toLayoutAxes(scale, angle)
 
-    fun layoutToViewport(position: DpOffset, angle: Float, scale: Float, center: DpOffset) =
-        (position - center).toPx().toViewportAxes(scale, angle) + contentCenter
+    fun viewportToLayout(viewportPosition: Offset, angle: Float, scale: Float, center: DpOffset) =
+        viewportToLayoutPx(viewportPosition, angle, scale, center.toPx()).toDp()
 
-    fun centerFromPivot(viewportPivot: Offset, angle: Float, scale: Float, layoutPivot: DpOffset) =
-        layoutPivot.toPx() - (viewportPivot - contentCenter).toLayoutAxes(scale, angle)
+    fun layoutToViewport(layoutPosition: DpOffset, angle: Float, scale: Float, center: DpOffset) =
+        (layoutPosition - center).toPx().toViewportAxes(scale, angle) + contentCenter
+
+    fun centerFromLayoutPivot(viewportPivot: Offset, angle: Float, scale: Float, layoutPivot: Offset) =
+        layoutPivot - (viewportPivot - contentCenter).toLayoutAxes(scale, angle)
+
+    fun centerFromLayoutPivot(viewportPivot: Offset, angle: Float, scale: Float, layoutPivot: DpOffset) =
+        centerFromLayoutPivot(viewportPivot, angle, scale, layoutPivot.toPx())
+
+    fun centerPreservingPivot(
+        viewportPivot: Offset,
+        angle: Float,
+        scale: Float,
+        fromViewportPivot: Offset,
+        fromAngle: Float,
+        fromScale: Float,
+        fromCenter: Offset
+    ) = centerFromLayoutPivot(
+        viewportPivot = viewportPivot,
+        angle = angle,
+        scale = scale,
+        layoutPivot = viewportToLayoutPx(
+            viewportPosition = fromViewportPivot,
+            angle = fromAngle,
+            scale = fromScale,
+            center = fromCenter
+        )
+    )
 }

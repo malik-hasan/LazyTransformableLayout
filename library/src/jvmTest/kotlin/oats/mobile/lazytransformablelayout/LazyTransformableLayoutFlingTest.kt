@@ -4,15 +4,18 @@ import androidx.compose.animation.core.FloatDecayAnimationSpec
 import androidx.compose.animation.core.FloatExponentialDecaySpec
 import androidx.compose.runtime.BroadcastFrameClock
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import oats.mobile.lazytransformablelayout.extension.nearestPointOnSegment
+import oats.mobile.lazytransformablelayout.extension.toLayoutAxes
+import oats.mobile.lazytransformablelayout.model.Pivot
 import kotlin.math.abs
 import kotlin.math.ln
 import kotlin.test.Test
@@ -23,9 +26,11 @@ class LazyTransformableLayoutFlingTest {
 
     private data class Frame(val offset: Offset, val angle: Float, val scale: Float)
 
-    private val viewportWidth = 1080
-    private val viewportHeight = 2000
-    private val layoutBounds = Rect(0f, 0f, 10_000f, 6_000f)
+    private val viewportWidth = 500
+    private val viewportHeight = 700
+    private val layoutBounds = DpRect(0.dp, 0.dp, 10_000.dp, 6_000.dp)
+    private val layoutWidth = 10_000f
+    private val layoutHeight = 6_000f
 
     private fun state(
         rotationBounds: ClosedFloatingPointRange<Float> = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY,
@@ -39,13 +44,17 @@ class LazyTransformableLayoutFlingTest {
         initialLayoutBounds = layoutBounds,
         initialRotationBounds = rotationBounds,
         initialZoomBounds = zoomBounds,
-        initialOffset = initialOffset,
         initialRotationAngle = initialAngle,
         initialZoomScale = initialScale,
         rotationFlingDecay = rotationFlingDecay,
         zoomFlingDecay = zoomFlingDecay
-    ).apply {
-        measure(Constraints.fixed(viewportWidth, viewportHeight))
+    ).measured(viewportWidth, viewportHeight).apply {
+        snapToTranslation(initialOffset)
+    }
+
+    private fun LazyTransformableLayoutState.snapToTranslation(translation: Offset) {
+        val center = (translation + Offset(viewportWidth / 2f, viewportHeight / 2f)).toLayoutAxes(zoomScale, rotationAngle)
+        snapTo(centerOffset = DpOffset(center.x.dp, center.y.dp))
     }
 
     private fun LazyTransformableLayoutState.runFling(
@@ -57,7 +66,7 @@ class LazyTransformableLayoutFlingTest {
         onFrame: (index: Int) -> Unit = {}
     ): List<Frame> = runBlocking {
         val clock = BroadcastFrameClock()
-        val frames = mutableListOf(Frame(offset, rotationAngle, zoomScale))
+        val frames = mutableListOf(Frame(translation, rotationAngle, zoomScale))
         val job = launch(clock) {
             fling(rotationVelocity, logZoomVelocity, panVelocity, centroid)
         }
@@ -67,7 +76,7 @@ class LazyTransformableLayoutFlingTest {
             if (clock.hasAwaiters) {
                 frameTimeNanos += FRAME_NANOS
                 clock.sendFrame(frameTimeNanos)
-                frames += Frame(offset, rotationAngle, zoomScale)
+                frames += Frame(translation, rotationAngle, zoomScale)
                 onFrame(frames.lastIndex)
             }
         }
@@ -95,7 +104,7 @@ class LazyTransformableLayoutFlingTest {
     @Test
     fun rotationKeepsFlingingWhenZoomIsAtViewportCoverMin() {
         val state = state(initialScale = 0.0001f)
-        val minScale = viewportHeight / layoutBounds.height
+        val minScale = viewportHeight / layoutHeight
         assertEquals(minScale, state.zoomScale, 1e-5f)
 
         val frames = state.runFling(rotationVelocity = 90f, logZoomVelocity = -2f)
@@ -138,16 +147,16 @@ class LazyTransformableLayoutFlingTest {
     @Test
     fun panFlingMovesAlongCollapsedBoundsAtMinScale() {
         val state = state(initialAngle = 30f, initialScale = 0.0001f, initialOffset = Offset(-10_000f, 0f))
-        val segmentStart = state.offset
-        state.setFocusedItem(offset = Offset(10_000f, 0f))
-        val segmentEnd = state.offset
-        state.setFocusedItem(offset = segmentStart)
-        assertTrue(segmentEnd.x - segmentStart.x > 1_000f)
+        val segmentStart = state.translation
+        state.snapToTranslation(Offset(10_000f, 0f))
+        val segmentEnd = state.translation
+        state.snapToTranslation(segmentStart)
+        assertTrue(segmentEnd.x - segmentStart.x > 250f)
 
         val frames = state.runFling(panVelocity = Velocity(2_000f, 1_000f))
 
         assertTrue(frames.changeCount { it.offset } > 10, "offset changed on ${frames.changeCount { it.offset }} frames")
-        assertTrue(state.offset.x - segmentStart.x > 300f, "offset moved from $segmentStart to ${state.offset}")
+        assertTrue(state.translation.x - segmentStart.x > 100f, "offset moved from $segmentStart to ${state.translation}")
         frames.forEach {
             val distance = (it.offset - it.offset.nearestPointOnSegment(segmentStart, segmentEnd)).getDistance()
             assertTrue(distance < 0.01f, "offset ${it.offset} is outside the panning bounds")
@@ -157,7 +166,8 @@ class LazyTransformableLayoutFlingTest {
     @Test
     fun panFlingIntoEdgeStopsAtTheEdge() {
         val state = state(initialScale = 1f, initialOffset = Offset(0f, 1_000f))
-        assertEquals(Offset(0f, 1_000f), state.offset)
+        assertEquals(0f, state.translation.x, 0.01f)
+        assertEquals(1_000f, state.translation.y, 0.01f)
 
         val frames = state.runFling(panVelocity = Velocity(-3_000f, 0f))
 
@@ -168,7 +178,7 @@ class LazyTransformableLayoutFlingTest {
     @Test
     fun zeroVelocityFlingCompletesWithoutFrames() {
         val state = state(initialAngle = 20f, initialScale = 2f)
-        val before = Frame(state.offset, state.rotationAngle, state.zoomScale)
+        val before = Frame(state.translation, state.rotationAngle, state.zoomScale)
 
         runBlocking(BroadcastFrameClock()) {
             withTimeout(1_000) {
@@ -176,7 +186,7 @@ class LazyTransformableLayoutFlingTest {
             }
         }
 
-        assertEquals(before, Frame(state.offset, state.rotationAngle, state.zoomScale))
+        assertEquals(before, Frame(state.translation, state.rotationAngle, state.zoomScale))
     }
 
     @Test
@@ -222,7 +232,7 @@ class LazyTransformableLayoutFlingTest {
     @Test
     fun pinnedPanFollowsEdgeWhileZooming() {
         val state = state(initialScale = 1f, initialOffset = Offset(100_000f, 0f))
-        assertEquals(layoutBounds.width - viewportWidth, state.offset.x)
+        assertEquals(layoutWidth - viewportWidth, state.translation.x, 0.01f)
 
         val frames = state.runFling(
             logZoomVelocity = 0.5f,
@@ -233,7 +243,7 @@ class LazyTransformableLayoutFlingTest {
         val zoomEnd = frames.lastChangeIndex { it.scale }
         assertTrue(zoomEnd > 10, "zoom ran for $zoomEnd frames")
         for (i in 2..zoomEnd) {
-            val edge = layoutBounds.width * frames[i].scale - viewportWidth
+            val edge = layoutWidth * frames[i].scale - viewportWidth
             assertEquals(edge, frames[i].offset.x, 0.5f, "offset left the right edge at frame $i")
             assertTrue(frames[i].offset.x > frames[i - 1].offset.x, "offset did not move right at frame $i")
         }
@@ -267,8 +277,8 @@ class LazyTransformableLayoutFlingTest {
             panVelocity = Velocity(2_000f, 1_000f)
         ) { index ->
             if (index == setFrame) {
-                state.setPosition(rotationAngle = 45f)
-                afterSet = Frame(state.offset, state.rotationAngle, state.zoomScale)
+                state.snapTo(rotationAngle = 45f)
+                afterSet = Frame(state.translation, state.rotationAngle, state.zoomScale)
             }
         }
 
@@ -276,7 +286,7 @@ class LazyTransformableLayoutFlingTest {
         assertEquals(45f, expected.angle)
         assertTrue(frames.size - 1 <= setFrame + 1, "fling ran ${frames.size - 1 - setFrame} frames after set")
         frames.drop(setFrame + 1).forEach { assertEquals(expected, it) }
-        assertEquals(expected, Frame(state.offset, state.rotationAngle, state.zoomScale))
+        assertEquals(expected, Frame(state.translation, state.rotationAngle, state.zoomScale))
     }
 
     @Test
@@ -291,34 +301,51 @@ class LazyTransformableLayoutFlingTest {
             panVelocity = Velocity(2_000f, 1_000f)
         ) { index ->
             if (index == transformFrame) {
-                state.transform(
+                state.snapBy(
+                    pivot = Pivot.Viewport(Offset(viewportWidth / 2f, viewportHeight / 2f)),
                     rotationDelta = 10f,
                     zoomFactor = 1.2f,
-                    panDelta = Offset(50f, -30f),
-                    centroid = Offset(viewportWidth / 2f, viewportHeight / 2f)
+                    panDelta = Offset(50f, -30f)
                 )
-                afterTransform = Frame(state.offset, state.rotationAngle, state.zoomScale)
+                afterTransform = Frame(state.translation, state.rotationAngle, state.zoomScale)
             }
         }
 
         val expected = afterTransform!!
         assertTrue(frames.size - 1 <= transformFrame + 1, "fling ran ${frames.size - 1 - transformFrame} frames after transform")
         frames.drop(transformFrame + 1).forEach { assertEquals(expected, it) }
-        assertEquals(expected, Frame(state.offset, state.rotationAngle, state.zoomScale))
+        assertEquals(expected, Frame(state.translation, state.rotationAngle, state.zoomScale))
     }
 
     @Test
-    fun settingNothingDoesNotCancelFling() {
+    fun settingNothingStillCancelsFling() {
         val state = state(zoomBounds = 0.5f..10f, initialScale = 1f)
         val setFrame = 5
 
         val frames = state.runFling(rotationVelocity = 90f, logZoomVelocity = 1f) { index ->
-            if (index == setFrame) state.setPosition()
+            if (index == setFrame) state.snapTo()
         }
 
-        val laterFrames = frames.drop(setFrame)
-        assertTrue(laterFrames.changeCount { it.angle } > 10, "angle changed on ${laterFrames.changeCount { it.angle }} frames after set()")
-        assertTrue(laterFrames.changeCount { it.scale } > 10, "scale changed on ${laterFrames.changeCount { it.scale }} frames after set()")
+        assertTrue(frames.size - 1 <= setFrame + 1, "fling ran ${frames.size - 1 - setFrame} frames after snapTo()")
+    }
+
+    @Test
+    fun updateBoundsDoesNotCancelAFlingAndTheCenterStaysInTheNewLayoutBounds() {
+        val state = state()
+        val newBounds = DpRect(2_000.dp, 1_000.dp, 3_800.dp, 2_850.dp)
+        val setFrame = 5
+
+        val frames = state.runFling(panVelocity = Velocity(3_000f, 2_000f)) { index ->
+            if (index == setFrame) state.updateBounds(layoutBounds = newBounds)
+            if (index >= setFrame) {
+                val center = state.centerOffset
+                assertTrue(center.x.value in 2_250f..3_550f, "x was ${center.x.value} at frame $index")
+                assertTrue(center.y.value in 1_350f..2_500f, "y was ${center.y.value} at frame $index")
+            }
+        }
+
+        assertTrue(frames.size - 1 > setFrame + 3, "fling ran ${frames.size - 1 - setFrame} frames after updateBounds")
+        assertTrue(frames.drop(setFrame + 1).changeCount { it.offset } > 0, "the fling stopped moving")
     }
 
     private companion object {
