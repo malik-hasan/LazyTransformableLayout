@@ -202,6 +202,30 @@ class LazyTransformableLayoutFlingTest {
         }
     }
 
+    @Test
+    fun horizontalPanFlingOnlyMovesHorizontally() {
+        val state = state()
+        val before = state.translation
+
+        val frames = state.runFling(panVelocity = Velocity(2_000f, 0f))
+
+        assertTrue(frames.changeCount { it.offset } > 10)
+        assertTrue(state.translation.x - before.x > 100f, "moved from $before to ${state.translation}")
+        frames.forEach { assertEquals(before.y, it.offset.y) }
+    }
+
+    @Test
+    fun verticalPanFlingOnlyMovesVertically() {
+        val state = state()
+        val before = state.translation
+
+        val frames = state.runFling(panVelocity = Velocity(0f, -2_000f))
+
+        assertTrue(frames.changeCount { it.offset } > 10)
+        assertTrue(before.y - state.translation.y > 100f, "moved from $before to ${state.translation}")
+        frames.forEach { assertEquals(before.x, it.offset.x) }
+    }
+
     private fun minScaleAt(angle: Float) = state(initialAngle = angle, initialScale = 0.0001f).zoomScale
 
     @Test

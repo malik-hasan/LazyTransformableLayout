@@ -57,13 +57,13 @@ class GeometryTest {
 
     @Test
     fun centerFromLayoutPivotKeepsTheLayoutPivotAtTheViewportPivot() {
-        val layoutPivot = DpOffset(250.dp, 80.dp)
+        val layoutPivot = Offset(250f, 80f)
         val viewportPivot = Offset(200f, 700f)
         for (angle in listOf(0f, 45f, -100f)) {
             for (scale in listOf(0.5f, 2f)) {
                 val center = geometry.centerFromLayoutPivot(viewportPivot, angle, scale, layoutPivot)
                 val back = geometry.layoutToViewport(
-                    layoutPivot,
+                    DpOffset(layoutPivot.x.dp, layoutPivot.y.dp),
                     angle,
                     scale,
                     DpOffset(center.x.dp, center.y.dp)
@@ -75,8 +75,8 @@ class GeometryTest {
 
     @Test
     fun centerFromTheContentCenterPivotIsTheLayoutPivot() {
-        val layoutPivot = DpOffset(250.dp, 80.dp)
-        assertOffsetEquals(Offset(250f, 80f), geometry.centerFromLayoutPivot(geometry.contentCenter, 33f, 3f, layoutPivot))
+        val layoutPivot = Offset(250f, 80f)
+        assertOffsetEquals(layoutPivot, geometry.centerFromLayoutPivot(geometry.contentCenter, 33f, 3f, layoutPivot))
     }
 
     @Test

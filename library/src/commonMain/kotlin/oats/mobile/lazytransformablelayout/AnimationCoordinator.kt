@@ -12,18 +12,17 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import oats.mobile.lazytransformablelayout.model.PendingAnimation
 
 internal class AnimationCoordinator {
-    private var pendingAnimation by mutableStateOf<(suspend () -> Unit)?>(null)
-    private var pendingMutatePriority = MutatePriority.Default
+    private var pendingAnimation by mutableStateOf<PendingAnimation?>(null)
 
     private var animationJob: Job? = null
     private var animationMutatePriority = MutatePriority.Default
 
     fun request(priority: MutatePriority, animation: suspend () -> Unit) {
-        if (pendingAnimation == null || priority >= pendingMutatePriority) {
-            pendingMutatePriority = priority
-            pendingAnimation = animation
+        if (pendingAnimation?.canBeOverriddenBy(priority) != false) {
+            pendingAnimation = PendingAnimation(priority, animation)
         }
     }
 
@@ -34,13 +33,13 @@ internal class AnimationCoordinator {
             .filterNotNull()
             .collect { pending ->
                 pendingAnimation = null
-                val priority = pendingMutatePriority
-                if (previous?.isActive != true || priority >= previousPriority) {
+                val pendingPriority = pending.priority
+                if (previous?.isActive != true || pendingPriority >= previousPriority) {
                     previous?.cancel()
                     previous = launch(start = CoroutineStart.UNDISPATCHED) {
-                        pending()
+                        pending.animation()
                     }
-                    previousPriority = priority
+                    previousPriority = pendingPriority
                 }
             }
     }
@@ -48,35 +47,35 @@ internal class AnimationCoordinator {
     suspend fun claim(
         priority: MutatePriority,
         block: suspend CoroutineScope.() -> Unit
-    ) = canClaim(priority) && coroutineScope {
-        val job = launch(start = CoroutineStart.UNDISPATCHED) {
-            val job = coroutineContext.job
-            animationJob?.cancel()
-            animationJob = job
-            animationMutatePriority = priority
-            if (pendingAnimation != null && priority >= pendingMutatePriority) pendingAnimation = null
-            try {
-                coroutineScope { block() }
-            } finally {
-                if (animationJob == job) animationJob = null
+    ) {
+        if (canClaim(priority)) {
+            coroutineScope {
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    val job = coroutineContext.job
+                    animationJob?.cancel()
+                    animationJob = job
+                    animationMutatePriority = priority
+                    if (pendingAnimation?.canBeOverriddenBy(priority) == true) pendingAnimation = null
+                    try {
+                        coroutineScope { block() }
+                    } finally {
+                        if (animationJob == job) animationJob = null
+                    }
+                }
             }
         }
-        job.join()
-        !job.isCancelled
-    }
-
-    fun cancel() {
-        animationJob?.cancel()
-        pendingAnimation = null
     }
 
     private fun canClaim(priority: MutatePriority) =
         animationJob?.isActive != true || priority >= animationMutatePriority
 
     fun canCancel(priority: MutatePriority) =
-        canClaim(priority) && (pendingAnimation == null || priority >= pendingMutatePriority)
+        canClaim(priority) && pendingAnimation?.canBeOverriddenBy(priority) != false
 
     fun tryCancel(priority: MutatePriority) = canCancel(priority).also {
-        if (it) cancel()
+        if (it) {
+            animationJob?.cancel()
+            pendingAnimation = null
+        }
     }
 }

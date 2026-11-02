@@ -14,7 +14,6 @@ import oats.mobile.lazytransformablelayout.extension.toDp
 import oats.mobile.lazytransformablelayout.extension.toLayoutAxes
 import oats.mobile.lazytransformablelayout.extension.toPx
 import oats.mobile.lazytransformablelayout.extension.toViewportAxes
-import oats.mobile.lazytransformablelayout.extension.vertex
 import oats.mobile.lazytransformablelayout.extension.vertices
 import kotlin.math.abs
 import kotlin.math.cos
@@ -68,17 +67,16 @@ internal data class Geometry(
     }
 
     fun panningBoundsAt(layoutBounds: DpRect, rotationAngle: Float, zoomScale: Float): Parallelogram {
-        val layoutBounds = layoutBounds.toRect()
-        val (width, height) = contentBounds.size
+        val vertices = layoutBounds.toRect().vertices
         val startIndex = (-floor(rotationAngle / 90f).toInt() - 1).mod(4)
-        fun vertex(index: Int) = layoutBounds
-            .vertex((startIndex + index) % 4)
-            .toViewportAxes(zoomScale, rotationAngle)
+        fun vertex(index: Int) = vertices[(startIndex + index) % 4].toViewportAxes(zoomScale, rotationAngle)
 
         val leftmost = vertex(0)
         val topmost = vertex(1)
         val rightmost = vertex(2)
         val bottommost = vertex(3)
+
+        val (width, height) = contentBounds.size
 
         val left = leftmost.x
         val top = topmost.y
@@ -107,9 +105,6 @@ internal data class Geometry(
 
     fun centerFromLayoutPivot(viewportPivot: Offset, angle: Float, scale: Float, layoutPivot: Offset) =
         layoutPivot - (viewportPivot - contentCenter).toLayoutAxes(scale, angle)
-
-    fun centerFromLayoutPivot(viewportPivot: Offset, angle: Float, scale: Float, layoutPivot: DpOffset) =
-        centerFromLayoutPivot(viewportPivot, angle, scale, layoutPivot.toPx())
 
     fun centerPreservingPivot(
         viewportPivot: Offset,

@@ -37,9 +37,26 @@ import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.ln
+import kotlin.math.pow
 
 private val MinZoomRotateFlingVelocity = 1000.dp
 private const val MOUSE_ROTATION_DEGREES_PER_WIDTH = 180f
+
+internal suspend fun PointerInputScope.detectWheelZoomGestures(
+    onZoom: (position: Offset, zoomFactor: Float) -> Unit
+) = awaitEachGesture {
+    val event = awaitPointerEvent()
+    if (event.type == PointerEventType.Scroll && event.changes.fastAll { !it.isConsumed }) {
+        val scrollDelta = event.changes.fastFold(Offset.Zero) { acc, change ->
+            acc + change.scrollDelta
+        }
+        onZoom(
+            event.changes.first().position,
+            1.1f.pow(-scrollDelta.y)
+        )
+        event.changes.fastForEach { it.consume() }
+    }
+}
 
 internal suspend fun PointerInputScope.detectTransformGestures(
     onTransformStopped: (centroid: Offset, rotationVelocity: Float, logZoomVelocity: Float, panVelocity: Velocity) -> Unit,
@@ -160,10 +177,9 @@ internal suspend fun PointerInputScope.detectTransformGestures(
                     }
 
                     if (pastTouchSlop) {
-                        val centroid =
-                            if (mouseRotating) Offset.Unspecified else event.calculateCentroid(
-                                useCurrent = false
-                            )
+                        val centroid = if (mouseRotating) {
+                            Offset.Unspecified
+                        } else event.calculateCentroid(false)
                         if (centroid.isSpecified) lastCentroid = centroid
                         maxCentroidSize = maxOf(maxCentroidSize, centroidSize)
 

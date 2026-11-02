@@ -3,13 +3,7 @@ package oats.mobile.lazytransformablelayout
 import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.OverscrollEffect
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.gestures.BringIntoViewSpec
-import androidx.compose.foundation.gestures.FlingBehavior
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.ScrollScope
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.rememberScrollableState
-import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.layout.LazyLayout
 import androidx.compose.foundation.overscroll
@@ -27,14 +21,13 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
@@ -46,34 +39,21 @@ import androidx.compose.ui.util.fastMap
 import kotlinx.coroutines.launch
 import oats.mobile.lazytransformablelayout.extension.detectTapSequenceGestures
 import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
+import oats.mobile.lazytransformablelayout.extension.detectWheelZoomGestures
 import oats.mobile.lazytransformablelayout.extension.transform
 import oats.mobile.lazytransformablelayout.model.Item
 import oats.mobile.lazytransformablelayout.model.Pivot
-import oats.mobile.lazytransformablelayout.model.WheelPivot
-import kotlin.math.ln
-import kotlin.math.pow
 import kotlin.math.roundToInt
 
 private const val TAP_ZOOM_FACTOR = 2f
-private const val SCROLL_PIXELS_PER_ZOOM_DOUBLING = 545f
 
 /**
  * A lazy layout of [oats.mobile.lazytransformablelayout.model.Positionable] items that can be panned, zoomed and rotated.
- * Only items intersecting the viewport are composed.
- * Double tap zooms in, two-finger tap zooms out, and double tap then drag zooms continuously.
- * With a mouse, dragging pans, shift-dragging rotates, the wheel zooms at the cursor, and a secondary double click
- * zooms out. Trackpad pinch and two-finger swipes zoom and pan where the platform reports them.
- * Once focused, for example by clicking, arrow keys pan, and the plus, equals, numpad plus and Page Up keys zoom in
- * while the minus, numpad minus and Page Down keys zoom out.
- * Dragging, pinching, the wheel and pressing mutate with [MutatePriority.UserInput], so they interrupt animations of
- * [MutatePriority.Default] priority, while taps, keys and flings start animations of [MutatePriority.Default] priority.
- * All of these are ignored while an animation started with [MutatePriority.PreventUserInput] runs or is requested.
+ * Only items intersecting the viewport are composed, with some buffer.
  *
  * @param state The state holding this layout's rotation angle, zoom scale and center offset
  * @param modifier The modifier to apply to this layout
- * @param contentPadding Padding that insets the content area within the viewport, such as space under overlaid UI.
- * The center offset is placed at the center of the content area, and fitting and clamping use it,
- * while items still draw underneath the padding.
+ * @param contentPadding Padding that insets the content area within the viewport
  * @param overscrollEffect The effect shown when panning past the layout bounds
  * @param contentBuilder Declares the items of this layout. It runs again whenever its lambda instance changes
  * or state it reads changes. Keep it stable: avoid capturing values that change often, and read frequently
@@ -100,8 +80,6 @@ fun LazyTransformableLayout(
 
     val focusRequester = remember { FocusRequester() }
 
-    val wheelPivot = remember { WheelPivot() }
-
     LaunchedEffect(state) { state.runPendingAnimations() }
 
     LazyLayout(
@@ -113,7 +91,7 @@ fun LazyTransformableLayout(
         modifier = modifier
             .clipToBounds()
             .overscroll(overscrollEffect)
-            .onPreviewKeyEvent { event ->
+            .onKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown) {
                     val panStep = with(density) { 100.dp.toPx() }
                     val (zoomFactor, panDelta) = when (event.key) {
@@ -123,7 +101,7 @@ fun LazyTransformableLayout(
                         Key.DirectionDown -> 1f to Offset(0f, -panStep)
                         Key.Plus, Key.Equals, Key.NumPadAdd, Key.PageUp -> TAP_ZOOM_FACTOR to Offset.Zero
                         Key.Minus, Key.NumPadSubtract, Key.PageDown -> 1 / TAP_ZOOM_FACTOR to Offset.Zero
-                        else -> return@onPreviewKeyEvent false
+                        else -> return@onKeyEvent false
                     }
 
                     scope.launch {
@@ -134,44 +112,30 @@ fun LazyTransformableLayout(
                 } else false
             }.focusRequester(focusRequester)
             .focusable()
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                        if (event.type == PointerEventType.Scroll) {
-                            wheelPivot.position = event.changes.first().position
-                        }
+            .pointerInput(state) {
+                detectWheelZoomGestures { position, zoomFactor ->
+                    scope.launch {
+                        state.animateBy(
+                            pivot = Pivot.Viewport(position),
+                            zoomFactor = zoomFactor,
+                            mutatePriority = MutatePriority.UserInput
+                        )
                     }
                 }
-            }.scrollable(
-                state = rememberScrollableState { delta ->
-                    state.snapBy(
-                        viewportPivot = wheelPivot.position,
-                        zoomFactor = 2f.pow(delta / SCROLL_PIXELS_PER_ZOOM_DOUBLING),
-                        mutatePriority = MutatePriority.UserInput
-                    )
-                    delta
-                },
-                orientation = Orientation.Vertical,
-                overscrollEffect = null,
-                flingBehavior = remember(state) {
-                    object : FlingBehavior {
-                        override suspend fun ScrollScope.performFling(initialVelocity: Float): Float {
-                            state.fling(
-                                initialLogZoomVelocity = initialVelocity * ln(2f) / SCROLL_PIXELS_PER_ZOOM_DOUBLING,
-                                viewportPivot = wheelPivot.position
-                            )
-                            return 0f
-                        }
-                    }
-                },
-                bringIntoViewSpec = remember {
-                    object : BringIntoViewSpec {
-                        override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float) = 0f
-                    }
-                }
-            ).pointerInput(state, overscrollEffect) {
+            }.pointerInput(state, overscrollEffect) {
                 detectTransformGestures(
+                    onTransform = { centroid, rotationDelta, zoomFactor, panDelta ->
+                        state.snapBy(
+                            pivot = if (centroid.isSpecified) {
+                                Pivot.Viewport(centroid)
+                            } else Pivot.ContentCenter,
+                            rotationDelta = rotationDelta,
+                            zoomFactor = zoomFactor,
+                            panDelta = panDelta,
+                            overscrollEffect = overscrollEffect,
+                            mutatePriority = MutatePriority.UserInput
+                        )
+                    },
                     onTransformStopped = { centroid, rotationVelocity, logZoomVelocity, panVelocity ->
                         scope.launch {
                             state.fling(
@@ -183,16 +147,7 @@ fun LazyTransformableLayout(
                             )
                         }
                     }
-                ) { centroid, rotationDelta, zoomFactor, panDelta ->
-                    state.snapBy(
-                        viewportPivot = centroid,
-                        rotationDelta = rotationDelta,
-                        zoomFactor = zoomFactor,
-                        panDelta = panDelta,
-                        overscrollEffect = overscrollEffect,
-                        mutatePriority = MutatePriority.UserInput
-                    )
-                }
+                )
             }.pointerInput(state) {
                 detectTapGestures(
                     onPress = {
@@ -201,7 +156,10 @@ fun LazyTransformableLayout(
                     },
                     onDoubleTap = { position ->
                         scope.launch {
-                            state.animateBy(Pivot.Viewport(position), zoomFactor = TAP_ZOOM_FACTOR)
+                            state.animateBy(
+                                pivot = Pivot.Viewport(position),
+                                zoomFactor = TAP_ZOOM_FACTOR
+                            )
                         }
                     }
                 )
@@ -214,16 +172,22 @@ fun LazyTransformableLayout(
                     },
                     onSecondaryDoubleClick = { position ->
                         scope.launch {
-                            state.animateBy(Pivot.Viewport(position), zoomFactor = 1 / TAP_ZOOM_FACTOR)
+                            state.animateBy(
+                                pivot = Pivot.Viewport(position),
+                                zoomFactor = 1 / TAP_ZOOM_FACTOR
+                            )
                         }
+                    },
+                    onDoubleTapDrag = { zoomFactor ->
+                        state.snapBy(
+                            zoomFactor = zoomFactor,
+                            mutatePriority = MutatePriority.UserInput
+                        )
                     },
                     onDoubleTapDragStopped = { logZoomVelocity ->
                         scope.launch {
                             state.fling(initialLogZoomVelocity = logZoomVelocity)
                         }
-                    },
-                    onDoubleTapDrag = {
-                        state.snapBy(zoomFactor = it, mutatePriority = MutatePriority.UserInput)
                     }
                 )
             }

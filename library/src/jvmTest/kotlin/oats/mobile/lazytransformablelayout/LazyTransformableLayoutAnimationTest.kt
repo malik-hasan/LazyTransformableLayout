@@ -14,7 +14,14 @@ import oats.mobile.lazytransformablelayout.model.Pivot
 import oats.mobile.lazytransformablelayout.model.TransformAnimationValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ComposeUiTest
 import kotlinx.coroutines.CoroutineScope
@@ -250,6 +257,42 @@ class LazyTransformableLayoutAnimationTest {
 
         assertEquals(90f, state.rotationAngle, 1e-3f)
         assertEquals(1.7f, state.zoomScale, 1e-3f)
+        assertEquals(1_200f, state.centerOffset.x.value, 0.05f)
+        assertEquals(1_100f, state.centerOffset.y.value, 0.05f)
+    }
+
+    @Test
+    fun animationClampsEachFrameToTheCurrentGeometry() = runComposeUiTest {
+        val state = state()
+        var startPadding by mutableStateOf(300.dp)
+        setContent {
+            CompositionLocalProvider(LocalDensity provides Density(1f)) {
+                Box(Modifier.size(viewportWidth.dp, viewportHeight.dp)) {
+                    LazyTransformableLayout(
+                        state = state,
+                        contentPadding = PaddingValues(start = startPadding),
+                        overscrollEffect = null
+                    ) {}
+                }
+            }
+        }
+        waitForIdle()
+        state.snapTo(centerOffset = DpOffset(2_000.dp, 3_000.dp))
+        mainClock.autoAdvance = false
+
+        state.requestAnimateTo(centerOffset = DpOffset(150.dp, 3_000.dp), animationSpec = linear)
+        mainClock.advanceTimeByFrame()
+        mainClock.advanceTimeBy(100)
+        startPadding = 0.dp
+        mainClock.advanceTimeByFrame()
+        mainClock.advanceTimeByFrame()
+
+        repeat(30) {
+            mainClock.advanceTimeBy(10)
+            assertTrue(state.centerOffset.x.value >= 250f - 0.05f, "center ${state.centerOffset} is outside the new bounds")
+        }
+        mainClock.advanceTimeBy(1_000)
+        assertEquals(250f, state.centerOffset.x.value, 0.05f)
     }
 
     private fun logZoomAfterOneFrame(

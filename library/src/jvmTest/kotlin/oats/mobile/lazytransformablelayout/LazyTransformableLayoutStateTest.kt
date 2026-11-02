@@ -355,6 +355,53 @@ class LazyTransformableLayoutStateTest {
     }
 
     @Test
+    fun snapToClampsTheCenterAtTheClampedZoomScale() {
+        val state = state(zoomBounds = 0.1f..4f)
+
+        state.snapTo(zoomScale = 100f, centerOffset = DpOffset(10.dp, 10.dp))
+
+        assertEquals(4f, state.zoomScale)
+        assertOffsetEquals(Offset(250f / 4f, 350f / 4f), state.centerOffset.toOffset())
+        val topLeft = state.layoutToViewport(DpOffset.Zero)
+        assertTrue(topLeft.x <= 0.05f && topLeft.y <= 0.05f, "empty space shows, layout origin at $topLeft")
+    }
+
+    @Test
+    fun snapToBoundsClampsTheCenterAtTheClampedFitScale() {
+        val state = state(zoomBounds = 1f..4f)
+
+        state.snapToBounds(DpRect(0.dp, 0.dp, 600.dp, 400.dp))
+
+        assertEquals(1f, state.zoomScale)
+        assertOffsetEquals(Offset(300f, 350f), state.centerOffset.toOffset())
+    }
+
+    @Test
+    fun updateBoundsClampsTheCenterAtTheClampedRotationAngle() {
+        val state = state()
+        state.snapTo(centerOffset = DpOffset(300.dp, 3_000.dp))
+        assertOffsetEquals(Offset(300f, 3_000f), state.centerOffset.toOffset())
+
+        state.updateBounds(rotationBounds = 90f..90f)
+
+        assertEquals(90f, state.rotationAngle)
+        assertOffsetEquals(Offset(350f, 3_000f), state.centerOffset.toOffset())
+    }
+
+    @Test
+    fun remeasuringWithTheSameConstraintsKeepsTheState() {
+        val state = state()
+        state.snapTo(rotationAngle = 20f, zoomScale = 2f, centerOffset = DpOffset(4_000.dp, 2_500.dp))
+        val center = state.centerOffset
+
+        state.measured(viewportWidth, viewportHeight)
+
+        assertEquals(20f, state.rotationAngle)
+        assertEquals(2f, state.zoomScale)
+        assertEquals(center, state.centerOffset)
+    }
+
+    @Test
     fun updateBoundsClampsTheStateToTheNewBounds() {
         val state = state()
         state.snapTo(rotationAngle = 40f, zoomScale = 3f, centerOffset = DpOffset(9_000.dp, 5_000.dp))
