@@ -22,7 +22,7 @@ import oats.mobile.lazytransformablelayout.extension.GESTURE_BEGAN
 import oats.mobile.lazytransformablelayout.extension.GESTURE_ENDED
 import oats.mobile.lazytransformablelayout.extension.dispatchMagnify
 import oats.mobile.lazytransformablelayout.extension.dispatchPhase
-import javax.swing.JFrame
+import oats.mobile.lazytransformablelayout.extension.headlessFrame
 import javax.swing.JRootPane
 import kotlin.math.pow
 import kotlin.test.Test
@@ -132,21 +132,5 @@ class LazyTransformableLayoutTrackpadPinchTest {
         }
         waitForIdle()
         return window.rootPane
-    }
-
-    // Tests run headless, where JFrame's constructor throws, so the frame is allocated without running it.
-    private fun headlessFrame(): RootPaneFrame {
-        val unsafeClass = Class.forName("sun.misc.Unsafe")
-        val unsafe = unsafeClass.getDeclaredField("theUnsafe").apply { isAccessible = true }.get(null)
-        return unsafeClass.getMethod("allocateInstance", Class::class.java)
-            .invoke(unsafe, RootPaneFrame::class.java) as RootPaneFrame
-    }
-
-    private class RootPaneFrame : JFrame() {
-        private var pane: JRootPane? = null
-
-        override fun getRootPane(): JRootPane = pane ?: JRootPane().also { pane = it }
-
-        override fun toString() = "RootPaneFrame"
     }
 }

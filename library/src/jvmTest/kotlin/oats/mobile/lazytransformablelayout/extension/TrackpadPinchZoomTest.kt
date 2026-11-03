@@ -97,6 +97,62 @@ class TrackpadPinchZoomTest {
             assertEquals(0, stops)
         }
     }
+
+    @Test
+    fun `given a hovered node, when the pointer exits and a magnify is dispatched, should not zoom`() {
+        if (!isMac) return
+        runComposeUiTest {
+            var zooms = 0
+            val window = headlessFrame()
+            setContent {
+                CompositionLocalProvider(LocalAwtWindow provides window, LocalDensity provides Density(1f)) {
+                    Box(
+                        Modifier
+                            .size(500.dp, 700.dp)
+                            .testTag("node")
+                            .trackpadPinchZoom({ _, _ -> }) { _, _ -> zooms++ }
+                    )
+                }
+            }
+            waitForIdle()
+            onNodeWithTag("node").performMouseInput { moveTo(Offset(250f, 350f)) }
+            waitForIdle()
+            onNodeWithTag("node").performMouseInput { exit(Offset(-10f, -10f)) }
+            waitForIdle()
+
+            runOnUiThread { dispatchMagnify(window.rootPane, 0.25) }
+            waitForIdle()
+
+            assertEquals(0, zooms)
+        }
+    }
+
+    @Test
+    fun `given a hovered node, when the gesture ends without a magnify, should not report a stop`() {
+        if (!isMac) return
+        runComposeUiTest {
+            var stops = 0
+            val window = headlessFrame()
+            setContent {
+                CompositionLocalProvider(LocalAwtWindow provides window, LocalDensity provides Density(1f)) {
+                    Box(
+                        Modifier
+                            .size(500.dp, 700.dp)
+                            .testTag("node")
+                            .trackpadPinchZoom({ _, _ -> stops++ }) { _, _ -> }
+                    )
+                }
+            }
+            waitForIdle()
+            onNodeWithTag("node").performMouseInput { moveTo(Offset(250f, 350f)) }
+            waitForIdle()
+
+            runOnUiThread { dispatchPhase(window.rootPane, GESTURE_ENDED) }
+            waitForIdle()
+
+            assertEquals(0, stops)
+        }
+    }
 }
 
 private const val GESTURE_PACKAGE = "com.apple.eawt.event"
@@ -134,14 +190,15 @@ private fun nextNotifier(component: Component): Any? =
         .apply { isAccessible = true }
         .invoke(null, component)
 
-private fun headlessFrame(): RootPaneFrame {
+// Tests run headless, where JFrame's constructor throws, so the frame is allocated without running it.
+internal fun headlessFrame(): RootPaneFrame {
     val unsafeClass = Class.forName("sun.misc.Unsafe")
     val unsafe = unsafeClass.getDeclaredField("theUnsafe").apply { isAccessible = true }.get(null)
     return unsafeClass.getMethod("allocateInstance", Class::class.java)
         .invoke(unsafe, RootPaneFrame::class.java) as RootPaneFrame
 }
 
-private class RootPaneFrame : JFrame() {
+internal class RootPaneFrame : JFrame() {
     private var pane: JRootPane? = null
 
     override fun getRootPane(): JRootPane = pane ?: JRootPane().also { pane = it }

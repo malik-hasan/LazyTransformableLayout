@@ -1,16 +1,18 @@
 package oats.mobile.lazytransformablelayout.extension
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.awt.LocalAwtWindow
-import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.SuspendingPointerInputModifierNode
 import androidx.compose.ui.input.pointer.util.VelocityTracker1D
+import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
+import androidx.compose.ui.node.DelegatingNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.currentValueOf
 import androidx.compose.ui.unit.Velocity
 import java.lang.reflect.Proxy
 import javax.swing.JComponent
@@ -20,16 +22,40 @@ import kotlin.math.pow
 
 private const val GESTURE_PACKAGE = "com.apple.eawt.event"
 
-@OptIn(ExperimentalComposeUiApi::class)
 internal actual fun Modifier.trackpadPinchZoom(
     onZoomStopped: (position: Offset, logZoomVelocity: Float) -> Unit,
     onZoom: (position: Offset, zoomFactor: Float) -> Unit
-): Modifier = composed {
-    val latestOnZoomStopped by rememberUpdatedState(onZoomStopped)
-    val latestOnZoom by rememberUpdatedState(onZoom)
-    val rootPane = (LocalAwtWindow.current as? RootPaneContainer)?.rootPane
+): Modifier = this then TrackpadPinchZoomElement(onZoomStopped, onZoom)
 
-    pointerInput(rootPane) {
+private data class TrackpadPinchZoomElement(
+    val onZoomStopped: (position: Offset, logZoomVelocity: Float) -> Unit,
+    val onZoom: (position: Offset, zoomFactor: Float) -> Unit
+) : ModifierNodeElement<TrackpadPinchZoomNode>() {
+    override fun create() = TrackpadPinchZoomNode(onZoomStopped, onZoom)
+
+    override fun update(node: TrackpadPinchZoomNode) {
+        node.onZoomStopped = onZoomStopped
+        node.onZoom = onZoom
+    }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+private class TrackpadPinchZoomNode(
+    var onZoomStopped: (position: Offset, logZoomVelocity: Float) -> Unit,
+    var onZoom: (position: Offset, zoomFactor: Float) -> Unit
+) : DelegatingNode(), CompositionLocalConsumerModifierNode {
+
+    private var rootPane: JComponent? = null
+
+    init {
+        delegate(SuspendingPointerInputModifierNode { pinchZoom(rootPane) })
+    }
+
+    override fun onAttach() {
+        rootPane = (currentValueOf(LocalAwtWindow) as? RootPaneContainer)?.rootPane
+    }
+
+    private suspend fun PointerInputScope.pinchZoom(rootPane: JComponent?) {
         var hover: Offset? = null
         var zoomed = false
         val logZoomVelocityTracker = VelocityTracker1D(true)
@@ -53,7 +79,7 @@ internal actual fun Modifier.trackpadPinchZoom(
                             val zoomFactor = (1 + magnification).toFloat().coerceAtLeast(0.01f).pow(1.5f)
                             zoomed = true
                             logZoomVelocityTracker.addDataPoint(uptimeMillis(), ln(zoomFactor))
-                            latestOnZoom(position, zoomFactor)
+                            onZoom(position, zoomFactor)
                         }
 
                         "gestureEnded" -> {
@@ -61,7 +87,7 @@ internal actual fun Modifier.trackpadPinchZoom(
                                 logZoomVelocityTracker.addDataPoint(uptimeMillis(), 0f)
                                 stopWithFlingThresholds(
                                     onTransformStopped = { centroid, _, logZoomVelocity, _ ->
-                                        latestOnZoomStopped(centroid, logZoomVelocity)
+                                        onZoomStopped(centroid, logZoomVelocity)
                                     },
                                     centroid = position,
                                     rotationVelocity = 0f,
@@ -84,7 +110,7 @@ internal actual fun Modifier.trackpadPinchZoom(
                 utilities.getMethod("addGestureListenerTo", JComponent::class.java, gestureListener)
                     .invoke(null, component, listener)
 
-                val remove = {
+                val remove: () -> Unit = {
                     utilities.getMethod("removeGestureListenerFrom", JComponent::class.java, gestureListener)
                         .invoke(null, component, listener)
                 }

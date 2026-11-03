@@ -36,7 +36,7 @@ kotlin {
             group("mobile") {
                 group("ios")
             }
-            group("nonJvm") {
+            group("nonDesktop") {
                 withWasmJs()
                 group("ios")
             }
@@ -46,7 +46,12 @@ kotlin {
     sourceSets {
         androidMain {
             dependsOn(getByName("mobileMain"))
-            dependsOn(getByName("nonJvmMain"))
+            dependsOn(getByName("nonDesktopMain"))
+        }
+
+        getByName("androidHostTest") {
+            dependsOn(getByName("mobileTest"))
+            dependsOn(getByName("nonDesktopTest"))
         }
 
         commonMain.dependencies {
