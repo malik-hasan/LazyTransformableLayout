@@ -180,10 +180,10 @@ fun LazyTransformableLayout(
                 var pendingLogZoom = 0f
                 var wheelJob: Job? = null
                 detectWheelZoomGestures { position, zoomFactor ->
-                    val pivot = Pivot.Viewport(position)
                     pendingLogZoom += ln(zoomFactor)
                     if (wheelJob?.isActive != true) wheelJob = scope.launch {
                         var previousFrameNanos = withFrameNanos { it }
+                        val pivot = Pivot.Viewport(position)
                         while (pendingLogZoom != 0f) {
                             val frameNanos = withFrameNanos { it }
                             val logZoomStep = if (abs(pendingLogZoom) < MIN_WHEEL_LOG_ZOOM_STEP) {
