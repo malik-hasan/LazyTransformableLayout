@@ -117,13 +117,16 @@ class TrackpadPinchZoomTest {
             waitForIdle()
             onNodeWithTag("node").performMouseInput { moveTo(Offset(250f, 350f)) }
             waitForIdle()
+            runOnUiThread { dispatchMagnify(window.rootPane, 0.25) }
+            waitForIdle()
+            assertEquals(1, zooms)
+
             onNodeWithTag("node").performMouseInput { exit(Offset(-10f, -10f)) }
             waitForIdle()
-
             runOnUiThread { dispatchMagnify(window.rootPane, 0.25) }
             waitForIdle()
 
-            assertEquals(0, zooms)
+            assertEquals(1, zooms)
         }
     }
 
@@ -147,10 +150,56 @@ class TrackpadPinchZoomTest {
             onNodeWithTag("node").performMouseInput { moveTo(Offset(250f, 350f)) }
             waitForIdle()
 
+            runOnUiThread { dispatchPhase(window.rootPane, GESTURE_BEGAN) }
+            repeat(10) {
+                runOnUiThread { dispatchMagnify(window.rootPane, 0.05) }
+                Thread.sleep(10)
+            }
+            runOnUiThread { dispatchPhase(window.rootPane, GESTURE_ENDED) }
+            waitForIdle()
+            assertEquals(1, stops)
+
             runOnUiThread { dispatchPhase(window.rootPane, GESTURE_ENDED) }
             waitForIdle()
 
-            assertEquals(0, stops)
+            assertEquals(1, stops)
+        }
+    }
+
+    @Test
+    fun `given a hovered node, when the zoom lambda is swapped during recomposition, should call only the new lambda`() {
+        if (!isMac) return
+        runComposeUiTest {
+            var oldZooms = 0
+            var newZooms = 0
+            val oldLambda: (Offset, Float) -> Unit = { _, _ -> oldZooms++ }
+            val newLambda: (Offset, Float) -> Unit = { _, _ -> newZooms++ }
+            var onZoom by mutableStateOf(oldLambda)
+            val window = headlessFrame()
+            setContent {
+                CompositionLocalProvider(LocalAwtWindow provides window, LocalDensity provides Density(1f)) {
+                    Box(
+                        Modifier
+                            .size(500.dp, 700.dp)
+                            .testTag("node")
+                            .trackpadPinchZoom({ _, _ -> }, onZoom)
+                    )
+                }
+            }
+            waitForIdle()
+            onNodeWithTag("node").performMouseInput { moveTo(Offset(250f, 350f)) }
+            waitForIdle()
+            runOnUiThread { dispatchMagnify(window.rootPane, 0.25) }
+            waitForIdle()
+            assertEquals(1, oldZooms)
+
+            onZoom = newLambda
+            waitForIdle()
+            runOnUiThread { dispatchMagnify(window.rootPane, 0.25) }
+            waitForIdle()
+
+            assertEquals(1, oldZooms)
+            assertEquals(1, newZooms)
         }
     }
 }
