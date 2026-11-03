@@ -12,10 +12,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.referentialEqualityPolicy
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
@@ -35,6 +37,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachIndexed
 import androidx.compose.ui.util.fastMap
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import oats.mobile.lazytransformablelayout.extension.detectTapSequenceGestures
 import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
@@ -44,10 +49,15 @@ import oats.mobile.lazytransformablelayout.internal.Content
 import oats.mobile.lazytransformablelayout.internal.Item
 import oats.mobile.lazytransformablelayout.internal.ItemProvider
 import kotlin.math.roundToInt
+import kotlin.time.Duration.Companion.milliseconds
 
 private const val TAP_ZOOM_FACTOR = 2f
 
 private val arrowKeys = setOf(Key.DirectionLeft, Key.DirectionRight, Key.DirectionUp, Key.DirectionDown)
+
+private val zoomInKeys = setOf(Key.Plus, Key.Equals, Key.NumPadAdd, Key.PageUp)
+
+private val zoomOutKeys = setOf(Key.Minus, Key.NumPadSubtract, Key.PageDown)
 
 /**
  * A lazy layout of [Positionable] items that can be panned, zoomed and rotated.
@@ -76,7 +86,9 @@ fun LazyTransformableLayout(
         }
     }
 
-    val heldArrowKeys = remember { mutableSetOf<Key>() }
+    val heldKeys = remember { mutableSetOf<Key>() }
+    var keyJob by remember { mutableStateOf<Job?>(null) }
+
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
@@ -93,40 +105,47 @@ fun LazyTransformableLayout(
             .clipToBounds()
             .overscroll(overscrollEffect)
             .onKeyEvent { event ->
-                val panStep = with(density) { 100.dp.toPx() }
-                val heldPanDelta = {
-                    var x = 0f
-                    var y = 0f
-                    if (Key.DirectionLeft in heldArrowKeys) x += panStep
-                    if (Key.DirectionRight in heldArrowKeys) x -= panStep
-                    if (Key.DirectionUp in heldArrowKeys) y += panStep
-                    if (Key.DirectionDown in heldArrowKeys) y -= panStep
-                    Offset(x, y)
-                }
-
                 when(event.type) {
-                    KeyEventType.KeyUp -> {
-                        heldArrowKeys.remove(event.key).also {
-                            if (it && heldArrowKeys.isNotEmpty()) {
-                                scope.launch { state.animateBy(panDelta = heldPanDelta()) }
+                    KeyEventType.KeyUp -> heldKeys.run {
+                        remove(event.key).also {
+                            if (isEmpty()) {
+                                keyJob?.cancel()
+                                keyJob = null
                             }
                         }
                     }
 
                     KeyEventType.KeyDown -> {
-                        if (event.key in arrowKeys) heldArrowKeys.add(event.key)
-                        val (zoomFactor, panDelta) = when (event.key) {
-                            in arrowKeys -> 1f to heldPanDelta()
-                            Key.Plus, Key.Equals, Key.NumPadAdd, Key.PageUp -> TAP_ZOOM_FACTOR to Offset.Zero
-                            Key.Minus, Key.NumPadSubtract, Key.PageDown -> 1 / TAP_ZOOM_FACTOR to Offset.Zero
-                            else -> return@onKeyEvent false
-                        }
+                        val key = event.key
+                        if (key in arrowKeys || key in zoomInKeys || key in zoomOutKeys) {
+                            if (heldKeys.add(event.key)) {
+                                keyJob?.cancel()
+                                keyJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                                    val panStep = with(density) { 100.dp.toPx() }
+                                    while (true) {
+                                        var zoomFactor = 1f
+                                        if (heldKeys.any { it in zoomInKeys }) zoomFactor *= TAP_ZOOM_FACTOR
+                                        if (heldKeys.any { it in zoomOutKeys }) zoomFactor /= TAP_ZOOM_FACTOR
 
-                        scope.launch {
-                            state.animateBy(zoomFactor = zoomFactor, panDelta = panDelta)
-                        }
+                                        var x = 0f
+                                        var y = 0f
+                                        if (Key.DirectionLeft in heldKeys) x += panStep
+                                        if (Key.DirectionRight in heldKeys) x -= panStep
+                                        if (Key.DirectionUp in heldKeys) y += panStep
+                                        if (Key.DirectionDown in heldKeys) y -= panStep
 
-                        true
+                                        scope.launch {
+                                            state.animateBy(
+                                                zoomFactor = zoomFactor,
+                                                panDelta = Offset(x, y)
+                                            )
+                                        }
+                                        delay(50.milliseconds)
+                                    }
+                                }
+                            }
+                            true
+                        } else false
                     }
 
                     else -> false

@@ -126,11 +126,18 @@ class LazyTransformableLayoutGestureTest {
         val node = onNodeWithTag("layout")
         node.performTouchInput { click(Offset(250f, 350f)) }
         waitForIdle()
+        mainClock.autoAdvance = false
 
-        node.performKeyInput { pressKey(Key.Plus) }
-        waitForIdle()
+        tapKey(node, Key.Plus)
 
         assertEquals(2f, state.zoomScale, 0.05f)
+    }
+
+    private fun ComposeUiTest.tapKey(node: SemanticsNodeInteraction, key: Key) {
+        node.performKeyInput { keyDown(key) }
+        mainClock.advanceTimeByFrame()
+        node.performKeyInput { keyUp(key) }
+        mainClock.advanceTimeBy(2_000)
     }
 
     private fun ComposeUiTest.focusLayout(): SemanticsNodeInteraction {
@@ -145,9 +152,9 @@ class LazyTransformableLayoutGestureTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val node = focusLayout()
+        mainClock.autoAdvance = false
 
-        node.performKeyInput { pressKey(Key.PageUp) }
-        waitForIdle()
+        tapKey(node, Key.PageUp)
 
         assertEquals(2f, state.zoomScale, 0.05f)
     }
@@ -157,9 +164,9 @@ class LazyTransformableLayoutGestureTest {
         val state = LazyTransformableLayoutState(layoutBounds, initialZoomScale = 2f)
         setMeasuredLayout(state, 500, 700)
         val node = focusLayout()
+        mainClock.autoAdvance = false
 
-        node.performKeyInput { pressKey(Key.PageDown) }
-        waitForIdle()
+        tapKey(node, Key.PageDown)
 
         assertEquals(1f, state.zoomScale, 0.05f)
     }
@@ -169,9 +176,9 @@ class LazyTransformableLayoutGestureTest {
         val state = LazyTransformableLayoutState(layoutBounds, initialZoomScale = 2f)
         setMeasuredLayout(state, 500, 700)
         val node = focusLayout()
+        mainClock.autoAdvance = false
 
-        node.performKeyInput { pressKey(Key.Minus) }
-        waitForIdle()
+        tapKey(node, Key.Minus)
 
         assertEquals(1f, state.zoomScale, 0.05f)
     }
@@ -181,17 +188,15 @@ class LazyTransformableLayoutGestureTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val node = focusLayout()
+        mainClock.autoAdvance = false
 
-        node.performKeyInput { pressKey(Key.Equals) }
-        waitForIdle()
+        tapKey(node, Key.Equals)
         assertEquals(2f, state.zoomScale, 0.05f)
 
-        node.performKeyInput { pressKey(Key.NumPadAdd) }
-        waitForIdle()
+        tapKey(node, Key.NumPadAdd)
         assertEquals(4f, state.zoomScale, 0.1f)
 
-        node.performKeyInput { pressKey(Key.NumPadSubtract) }
-        waitForIdle()
+        tapKey(node, Key.NumPadSubtract)
         assertEquals(2f, state.zoomScale, 0.05f)
     }
 
@@ -201,9 +206,12 @@ class LazyTransformableLayoutGestureTest {
         setMeasuredLayout(state, 500, 700)
         val node = focusLayout()
         val before = state.centerOffset
+        mainClock.autoAdvance = false
 
-        node.performKeyInput { pressKey(Key.DirectionRight) }
-        waitForIdle()
+        node.performKeyInput { keyDown(Key.DirectionRight) }
+        mainClock.advanceTimeByFrame()
+        node.performKeyInput { keyUp(Key.DirectionRight) }
+        mainClock.advanceTimeBy(2_000)
 
         assertEquals(before.x.value + 100f, state.centerOffset.x.value, 0.5f)
         assertEquals(before.y.value, state.centerOffset.y.value, 0.5f)
@@ -215,12 +223,18 @@ class LazyTransformableLayoutGestureTest {
         setMeasuredLayout(state, 500, 700)
         val node = focusLayout()
         val before = state.centerOffset
+        mainClock.autoAdvance = false
 
         node.performKeyInput {
             keyDown(Key.DirectionRight)
             keyDown(Key.DirectionDown)
         }
-        waitForIdle()
+        mainClock.advanceTimeByFrame()
+        node.performKeyInput {
+            keyUp(Key.DirectionRight)
+            keyUp(Key.DirectionDown)
+        }
+        mainClock.advanceTimeBy(2_000)
 
         assertEquals(before.x.value + 100f, state.centerOffset.x.value, 0.5f)
         assertEquals(before.y.value + 100f, state.centerOffset.y.value, 0.5f)
@@ -231,16 +245,18 @@ class LazyTransformableLayoutGestureTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val node = focusLayout()
+        mainClock.autoAdvance = false
 
-        node.performKeyInput {
-            keyDown(Key.DirectionRight)
-            keyUp(Key.DirectionRight)
-        }
-        waitForIdle()
+        node.performKeyInput { keyDown(Key.DirectionRight) }
+        mainClock.advanceTimeByFrame()
+        node.performKeyInput { keyUp(Key.DirectionRight) }
+        mainClock.advanceTimeBy(2_000)
         val afterRight = state.centerOffset
 
-        node.performKeyInput { pressKey(Key.DirectionDown) }
-        waitForIdle()
+        node.performKeyInput { keyDown(Key.DirectionDown) }
+        mainClock.advanceTimeByFrame()
+        node.performKeyInput { keyUp(Key.DirectionDown) }
+        mainClock.advanceTimeBy(2_000)
 
         assertEquals(afterRight.x.value, state.centerOffset.x.value, 0.5f)
         assertEquals(afterRight.y.value + 100f, state.centerOffset.y.value, 0.5f)
@@ -251,19 +267,107 @@ class LazyTransformableLayoutGestureTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
         val node = focusLayout()
+        mainClock.autoAdvance = false
 
         node.performKeyInput {
             keyDown(Key.DirectionRight)
             keyDown(Key.DirectionDown)
         }
-        waitForIdle()
-        val beforeRelease = state.centerOffset
-
+        mainClock.advanceTimeBy(200)
         node.performKeyInput { keyUp(Key.DirectionDown) }
-        waitForIdle()
+        mainClock.advanceTimeBy(100)
+        val afterRelease = state.centerOffset
+        mainClock.advanceTimeBy(500)
 
-        assertEquals(beforeRelease.x.value + 100f, state.centerOffset.x.value, 0.5f)
-        assertEquals(beforeRelease.y.value, state.centerOffset.y.value, 0.5f)
+        assertTrue(state.centerOffset.x.value > afterRelease.x.value + 100f, "center ${state.centerOffset} did not keep moving right of $afterRelease")
+        assertEquals(afterRelease.y.value, state.centerOffset.y.value, 0.5f)
+        node.performKeyInput { keyUp(Key.DirectionRight) }
+    }
+
+    @Test
+    fun `given an arrow key held, when time passes without key repeat events, should keep panning`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+        val node = focusLayout()
+        val before = state.centerOffset
+        mainClock.autoAdvance = false
+
+        node.performKeyInput { keyDown(Key.DirectionRight) }
+        mainClock.advanceTimeBy(1_000)
+
+        val whileHeld = state.centerOffset
+        assertTrue(whileHeld.x.value > before.x.value + 300f, "center $whileHeld barely moved from $before")
+
+        node.performKeyInput { keyUp(Key.DirectionRight) }
+        mainClock.advanceTimeBy(1_000)
+        val afterRelease = state.centerOffset
+        mainClock.advanceTimeBy(1_000)
+
+        assertEquals(afterRelease.x.value, state.centerOffset.x.value, 0.5f)
+    }
+
+    @Test
+    fun `given a held arrow key, when a second arrow is pressed, should pan on both axes without waiting for a repeat`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+        val node = focusLayout()
+        mainClock.autoAdvance = false
+
+        node.performKeyInput { keyDown(Key.DirectionRight) }
+        mainClock.advanceTimeBy(500)
+        val beforeSecond = state.centerOffset
+        node.performKeyInput { keyDown(Key.DirectionDown) }
+        mainClock.advanceTimeBy(200)
+
+        assertTrue(state.centerOffset.x.value > beforeSecond.x.value, "center ${state.centerOffset} did not keep moving right of $beforeSecond")
+        assertTrue(state.centerOffset.y.value > beforeSecond.y.value + 20f, "center ${state.centerOffset} did not move down from $beforeSecond")
+        node.performKeyInput {
+            keyUp(Key.DirectionRight)
+            keyUp(Key.DirectionDown)
+        }
+    }
+
+    @Test
+    fun `given a zoom key held, when time passes without key repeat events, should keep zooming and stop after key up`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+        val node = focusLayout()
+        mainClock.autoAdvance = false
+
+        node.performKeyInput { keyDown(Key.Plus) }
+        mainClock.advanceTimeBy(1_000)
+
+        val whileHeld = state.zoomScale
+        assertTrue(whileHeld > 4f, "zoom $whileHeld barely changed while held")
+
+        node.performKeyInput { keyUp(Key.Plus) }
+        mainClock.advanceTimeBy(1_000)
+        val afterRelease = state.zoomScale
+        mainClock.advanceTimeBy(1_000)
+
+        assertEquals(afterRelease, state.zoomScale, 1e-3f)
+    }
+
+    @Test
+    fun `given a held zoom key, when an arrow is pressed, should zoom and pan together`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+        val node = focusLayout()
+        val before = state.centerOffset
+        mainClock.autoAdvance = false
+
+        node.performKeyInput { keyDown(Key.Plus) }
+        mainClock.advanceTimeBy(200)
+        val zoomBeforeArrow = state.zoomScale
+        node.performKeyInput { keyDown(Key.DirectionRight) }
+        mainClock.advanceTimeBy(500)
+
+        assertTrue(state.zoomScale > zoomBeforeArrow, "zoom ${state.zoomScale} did not keep growing from $zoomBeforeArrow")
+        assertTrue(state.centerOffset.x.value != before.x.value, "center ${state.centerOffset} did not pan from $before")
+        node.performKeyInput {
+            keyUp(Key.Plus)
+            keyUp(Key.DirectionRight)
+        }
     }
 
     @Test
@@ -278,9 +382,15 @@ class LazyTransformableLayoutGestureTest {
             animationSpec = tween(300, easing = LinearEasing),
             mutatePriority = MutatePriority.PreventUserInput
         )
-        node.performKeyInput { pressKey(Key.Plus) }
-        node.performKeyInput { pressKey(Key.DirectionRight) }
-        mainClock.advanceTimeByFrame()
+        node.performKeyInput {
+            keyDown(Key.Plus)
+            keyDown(Key.DirectionRight)
+        }
+        mainClock.advanceTimeBy(200)
+        node.performKeyInput {
+            keyUp(Key.Plus)
+            keyUp(Key.DirectionRight)
+        }
         mainClock.advanceTimeBy(2_000)
 
         assertEquals(3f, state.zoomScale, 1e-3f)
@@ -299,8 +409,8 @@ class LazyTransformableLayoutGestureTest {
             mutatePriority = MutatePriority.PreventUserInput
         )
         waitForIdle()
-        node.performKeyInput { pressKey(Key.Plus) }
-        waitForIdle()
+        mainClock.autoAdvance = false
+        tapKey(node, Key.Plus)
 
         assertEquals(4f, state.zoomScale, 0.1f)
     }
