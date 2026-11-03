@@ -158,7 +158,7 @@ suspend fun PointerInputScope.detectTransformGestures(
                     val panDelta: Offset
                     val centroidSize: Float
                     if (mouseRotating) {
-                        rotationDelta = event.calculatePan().x / size.width * MOUSE_ROTATION_DEGREES_PER_WIDTH
+                        rotationDelta = -event.calculatePan().x / size.width * MOUSE_ROTATION_DEGREES_PER_WIDTH
                         zoomFactor = 1f
                         panDelta = Offset.Zero
                         centroidSize = size.width / MOUSE_ROTATION_DEGREES_PER_WIDTH.radians
