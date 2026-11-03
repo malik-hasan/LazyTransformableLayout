@@ -23,3 +23,9 @@ compose.desktop {
 ```
 
 Without the flag, or on other operating systems, pinch is ignored and everything else works as usual.
+
+## Platform differences on desktop and web
+
+Trackpad and mouse wheel input varies between operating systems and browsers on JVM and Wasm. Trackpad zoom has been tested on macOS in Firefox, Safari and the desktop JVM, but other platforms may behave differently or need extra handling. If zooming feels wrong or doesn't work on your platform, feel free to [raise an issue](https://github.com/malik-hasan/LazyTransformableLayout/issues).
+
+Trackpad pinch doesn't work on the desktop JVM on Linux. This is a known limitation: AWT doesn't receive pinch gestures from X11 or Wayland, so it can't be fixed in this library. Two-finger scroll zoom still works.

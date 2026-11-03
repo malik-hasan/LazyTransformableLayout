@@ -44,22 +44,65 @@ class TrackpadPinchZoomTest {
         assertTrue(received.isEmpty())
     }
 
-    private fun dispatchMagnify(component: Component, magnification: Double) {
-        val handler = Class.forName("$GESTURE_PACKAGE.GestureHandler")
-        val event = Class.forName("$GESTURE_PACKAGE.MagnificationEvent")
-            .getDeclaredConstructor(Double::class.javaPrimitiveType)
-            .apply { isAccessible = true }
-            .newInstance(magnification)
-        val notifier = handler.getDeclaredMethod("getNextNotifierForComponent", Component::class.java)
-            .apply { isAccessible = true }
-            .invoke(null, component)
-            ?: return
-        notifier.javaClass.getDeclaredMethod("recursivelyHandleMagnify", event.javaClass)
-            .apply { isAccessible = true }
-            .invoke(notifier, event)
+    @Test
+    fun `given a listener on a panel, when a gesture ends, should invoke the gesture end callback`() {
+        if (!isMac) return
+        val panel = JPanel()
+        var ended = 0
+        assertNotNull(addMagnificationListener(panel, onGestureEnd = { ended++ }) {})
+
+        dispatchPhase(panel, GESTURE_BEGAN)
+        assertEquals(0, ended)
+        dispatchPhase(panel, GESTURE_ENDED)
+
+        assertEquals(1, ended)
     }
 
-    private companion object {
-        const val GESTURE_PACKAGE = "com.apple.eawt.event"
+    @Test
+    fun `given a listener on a panel, when it is removed, should no longer invoke the gesture end callback`() {
+        if (!isMac) return
+        val panel = JPanel()
+        var ended = 0
+        val remove = assertNotNull(addMagnificationListener(panel, onGestureEnd = { ended++ }) {})
+
+        remove()
+        dispatchPhase(panel, GESTURE_ENDED)
+
+        assertEquals(0, ended)
     }
 }
+
+private const val GESTURE_PACKAGE = "com.apple.eawt.event"
+internal const val GESTURE_BEGAN = -1.0
+internal const val GESTURE_ENDED = 1.0
+
+internal fun dispatchMagnify(component: Component, magnification: Double) {
+    val event = Class.forName("$GESTURE_PACKAGE.MagnificationEvent")
+        .getDeclaredConstructor(Double::class.javaPrimitiveType)
+        .apply { isAccessible = true }
+        .newInstance(magnification)
+    val notifier = nextNotifier(component) ?: return
+    notifier.javaClass.getDeclaredMethod("recursivelyHandleMagnify", event.javaClass)
+        .apply { isAccessible = true }
+        .invoke(notifier, event)
+}
+
+internal fun dispatchPhase(component: Component, phase: Double) {
+    val event = Class.forName("$GESTURE_PACKAGE.GesturePhaseEvent")
+        .getDeclaredConstructor()
+        .apply { isAccessible = true }
+        .newInstance()
+    val notifier = nextNotifier(component) ?: return
+    notifier.javaClass.getDeclaredMethod(
+        "recursivelyHandlePhaseChange",
+        Double::class.javaPrimitiveType,
+        event.javaClass
+    ).apply { isAccessible = true }
+        .invoke(notifier, phase, event)
+}
+
+private fun nextNotifier(component: Component): Any? =
+    Class.forName("$GESTURE_PACKAGE.GestureHandler")
+        .getDeclaredMethod("getNextNotifierForComponent", Component::class.java)
+        .apply { isAccessible = true }
+        .invoke(null, component)

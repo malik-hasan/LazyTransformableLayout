@@ -58,10 +58,16 @@ compose.resources {
     packageOfResClass = "$packageName.resources"
 }
 
+val macTrackpadGesturesJvmArg = "--add-exports=java.desktop/com.apple.eawt.event=ALL-UNNAMED"
+
+tasks.withType<JavaExec>().configureEach {
+    jvmArgs(macTrackpadGesturesJvmArg)
+}
+
 compose.desktop {
     application {
         mainClass = "$packageName.MainKt"
-        jvmArgs += "--add-exports=java.desktop/com.apple.eawt.event=ALL-UNNAMED"
+        jvmArgs += macTrackpadGesturesJvmArg
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)

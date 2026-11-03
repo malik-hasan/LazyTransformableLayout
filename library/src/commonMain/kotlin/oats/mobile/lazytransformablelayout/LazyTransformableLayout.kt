@@ -161,7 +161,16 @@ fun LazyTransformableLayout(
                 }
             }.focusRequester(focusRequester)
             .focusable()
-            .trackpadPinchZoom { position, zoomFactor ->
+            .trackpadPinchZoom(
+                onZoomStopped = { position, logZoomVelocity ->
+                    scope.launch {
+                        state.fling(
+                            pivot = Pivot.Viewport(position),
+                            initialLogZoomVelocity = logZoomVelocity
+                        )
+                    }
+                }
+            ) { position, zoomFactor ->
                 state.snapBy(
                     pivot = Pivot.Viewport(position),
                     zoomFactor = zoomFactor,

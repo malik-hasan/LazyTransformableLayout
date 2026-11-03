@@ -239,7 +239,7 @@ suspend fun PointerInputScope.detectTransformGestures(
     }
 }
 
-private fun PointerInputScope.stopWithFlingThresholds(
+internal fun PointerInputScope.stopWithFlingThresholds(
     onTransformStopped: (centroid: Offset, rotationVelocity: Float, logZoomVelocity: Float, panVelocity: Velocity) -> Unit,
     centroid: Offset,
     rotationVelocity: Float,
