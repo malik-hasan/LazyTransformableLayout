@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -22,14 +23,37 @@ kotlin {
 
     iosArm64()
     iosSimulatorArm64()
-    jvm()
+    jvm("desktop")
 
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
         browser()
     }
 
+    @OptIn(ExperimentalKotlinGradlePluginApi::class)
+    applyDefaultHierarchyTemplate {
+        common {
+            group("mobile") {
+                group("ios")
+            }
+            group("nonDesktop") {
+                withWasmJs()
+                group("ios")
+            }
+        }
+    }
+
     sourceSets {
+        androidMain {
+            dependsOn(getByName("mobileMain"))
+            dependsOn(getByName("nonDesktopMain"))
+        }
+
+        getByName("androidHostTest") {
+            dependsOn(getByName("mobileTest"))
+            dependsOn(getByName("nonDesktopTest"))
+        }
+
         commonMain.dependencies {
             implementation(libs.compose.foundation)
             implementation(libs.kermit)
@@ -39,7 +63,7 @@ kotlin {
             implementation(kotlin("test"))
         }
 
-        jvmTest.dependencies {
+        getByName("desktopTest").dependencies {
             implementation(libs.compose.ui.test)
             implementation(
                 with(System.getProperty("os.name").lowercase()) {
@@ -58,6 +82,10 @@ kotlin {
 tasks.withType<Test> {
     systemProperty("java.awt.headless", "true")
     systemProperty("apple.awt.UIElement", "true")
+    jvmArgs(
+        "--add-exports=java.desktop/com.apple.eawt.event=ALL-UNNAMED",
+        "--add-opens=java.desktop/com.apple.eawt.event=ALL-UNNAMED"
+    )
 }
 
 mavenPublishing {

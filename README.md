@@ -9,3 +9,23 @@ The API and its documentation use these terms:
 | **Layout space** | The space the `Positionable` items' bounds are in. `layoutBounds`, `centerOffset` and the bounds passed to `snapToBounds`/`animateToBounds` are in layout space. | dp |
 | **Viewport** | The area the `LazyTransformableLayout` occupies on screen. Points and distances in the viewport, such as a `panDelta` or `Pivot.Viewport`, are measured from its top-left corner, like pointer positions. | px |
 | **Content area** | The part of the viewport inside the layout's `contentPadding`. The `centerOffset` is placed at its center, and fitting and clamping use it, while items still draw underneath the padding. | px |
+
+## Trackpad pinch on desktop (macOS)
+
+AWT doesn't pass trackpad pinch gestures to Compose Desktop, so the layout listens for them through the JDK's internal `com.apple.eawt.event` API. To enable pinch-to-zoom, export that package to your app:
+
+```kotlin
+compose.desktop {
+    application {
+        jvmArgs += "--add-exports=java.desktop/com.apple.eawt.event=ALL-UNNAMED"
+    }
+}
+```
+
+Without the flag, or on other operating systems, pinch is ignored and everything else works as usual.
+
+## Platform differences on desktop and web
+
+Trackpad and mouse wheel input varies between operating systems and browsers on JVM and Wasm. Trackpad zoom has been tested on macOS in Firefox, Safari and the desktop JVM, but other platforms may behave differently or need extra handling. If zooming feels wrong or doesn't work on your platform, feel free to [raise an issue](https://github.com/malik-hasan/LazyTransformableLayout/issues).
+
+Trackpad pinch doesn't work on the desktop JVM on Linux. This is a known limitation: AWT doesn't receive pinch gestures from X11 or Wayland, so it can't be fixed in this library. Two-finger scroll zoom still works.

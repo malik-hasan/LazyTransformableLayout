@@ -24,6 +24,7 @@ import androidx.compose.ui.test.MouseButton
 import androidx.compose.ui.test.ScrollWheel
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.TouchInjectionScope
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.moveTo
@@ -519,6 +520,48 @@ class LazyTransformableLayoutGestureTest {
     }
 
     @Test
+    fun `given shift held at press time, when dragging right, should rotate to a negative angle`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+        val node = onNodeWithTag("layout")
+
+        node.performKeyInput { keyDown(Key.ShiftLeft) }
+        node.performMouseInput {
+            moveTo(Offset(100f, 300f))
+            press(MouseButton.Primary)
+            moveTo(Offset(150f, 300f))
+            moveTo(Offset(200f, 300f))
+            moveTo(Offset(300f, 300f))
+            release(MouseButton.Primary)
+        }
+        node.performKeyInput { keyUp(Key.ShiftLeft) }
+        waitForIdle()
+
+        assertTrue(state.rotationAngle < 0f, "angle was ${state.rotationAngle}")
+    }
+
+    @Test
+    fun `given shift held at press time, when dragging left, should rotate to a positive angle`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+        val node = onNodeWithTag("layout")
+
+        node.performKeyInput { keyDown(Key.ShiftLeft) }
+        node.performMouseInput {
+            moveTo(Offset(300f, 300f))
+            press(MouseButton.Primary)
+            moveTo(Offset(250f, 300f))
+            moveTo(Offset(200f, 300f))
+            moveTo(Offset(100f, 300f))
+            release(MouseButton.Primary)
+        }
+        node.performKeyInput { keyUp(Key.ShiftLeft) }
+        waitForIdle()
+
+        assertTrue(state.rotationAngle > 0f, "angle was ${state.rotationAngle}")
+    }
+
+    @Test
     fun `given shift released before press, when dragging, should not rotate`() = runComposeUiTest {
         val state = LazyTransformableLayoutState(layoutBounds)
         setMeasuredLayout(state, 500, 700)
@@ -851,6 +894,110 @@ class LazyTransformableLayoutGestureTest {
         mainClock.advanceTimeBy(2_000)
 
         assertTrue(state.zoomScale < 3f, "scale was ${state.zoomScale}")
+    }
+
+    private fun TouchInjectionScope.tap(position: Offset = Offset(250f, 350f)) {
+        down(position)
+        advanceEventTime(50)
+        up()
+        advanceEventTime(100)
+    }
+
+    private fun TouchInjectionScope.twoFingerTap() {
+        down(0, Offset(200f, 350f))
+        advanceEventTime(10)
+        down(1, Offset(300f, 350f))
+        advanceEventTime(50)
+        up(0)
+        advanceEventTime(10)
+        up(1)
+        advanceEventTime(100)
+    }
+
+    @Test
+    fun `given three quick taps, should zoom in no more than once`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+
+        onNodeWithTag("layout").performTouchInput { repeat(3) { tap() } }
+        waitForIdle()
+
+        assertTrue(state.zoomScale > 1.1f, "scale was ${state.zoomScale}")
+        assertTrue(state.zoomScale <= 2f + 0.05f, "scale was ${state.zoomScale}")
+    }
+
+    @Test
+    fun `given two quick two-finger taps, should zoom out twice`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds, initialZoomScale = 4f)
+        setMeasuredLayout(state, 500, 700)
+
+        onNodeWithTag("layout").performTouchInput { repeat(2) { twoFingerTap() } }
+        waitForIdle()
+
+        assertEquals(1f, state.zoomScale, 0.02f)
+    }
+
+    @Test
+    fun `given three quick two-finger taps, should zoom out three times`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds, initialZoomScale = 4f)
+        setMeasuredLayout(state, 500, 700)
+
+        onNodeWithTag("layout").performTouchInput { repeat(3) { twoFingerTap() } }
+        waitForIdle()
+
+        assertEquals(0.5f, state.zoomScale, 0.01f)
+    }
+
+    @Test
+    fun `given a tap followed by a two-finger tap, should zoom out once without zooming in`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds, initialZoomScale = 2f)
+        setMeasuredLayout(state, 500, 700)
+        mainClock.autoAdvance = false
+
+        onNodeWithTag("layout").performTouchInput {
+            tap()
+            twoFingerTap()
+        }
+        var maxZoom = state.zoomScale
+        repeat(200) {
+            mainClock.advanceTimeByFrame()
+            maxZoom = maxOf(maxZoom, state.zoomScale)
+        }
+
+        assertTrue(maxZoom <= 2f + 1e-3f, "zoomed in to $maxZoom")
+        assertEquals(1f, state.zoomScale, 0.02f)
+    }
+
+    private fun ComposeUiTest.scrollEveryFrame(events: Int, scrollY: Float) {
+        val node = onNodeWithTag("layout")
+        node.performMouseInput { moveTo(Offset(250f, 350f)) }
+        repeat(events) {
+            node.performMouseInput { scroll(scrollY) }
+            mainClock.advanceTimeByFrame()
+        }
+    }
+
+    @Test
+    fun `given wheel events every frame, should zoom by the factor to the power of the total scroll`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+        mainClock.autoAdvance = false
+
+        scrollEveryFrame(20, -0.5f)
+        mainClock.advanceTimeBy(2_000)
+
+        assertEquals(1.1f.pow(10), state.zoomScale, 0.01f)
+    }
+
+    @Test
+    fun `given wheel events every frame, should zoom partway before the events stop`() = runComposeUiTest {
+        val state = LazyTransformableLayoutState(layoutBounds)
+        setMeasuredLayout(state, 500, 700)
+        mainClock.autoAdvance = false
+
+        scrollEveryFrame(20, -0.5f)
+
+        assertTrue(state.zoomScale > 1.1f.pow(5), "scale was only ${state.zoomScale} after the last event")
     }
 
     @Test

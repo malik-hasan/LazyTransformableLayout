@@ -40,9 +40,9 @@ fun Offset.transform(
     } - offset
 }
 
-fun Offset.toViewportAxes(scale: Float, angle: Float) = transform(scale, angle)
+internal fun Offset.toViewportAxes(scale: Float, angle: Float) = transform(scale, angle)
 
-fun Offset.toLayoutAxes(scale: Float, angle: Float) = transform(scale = 1 / scale, angle = -angle)
+internal fun Offset.toLayoutAxes(scale: Float, angle: Float) = transform(scale = 1 / scale, angle = -angle)
 
 context(density: Density)
 fun Offset.toDp() = with(density) {

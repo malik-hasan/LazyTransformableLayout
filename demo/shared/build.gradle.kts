@@ -28,7 +28,7 @@ kotlin {
         }
     }
 
-    jvm()
+    jvm("desktop")
 
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
@@ -47,7 +47,7 @@ kotlin {
             implementation(libs.zoomimage.core)
         }
 
-        jvmMain.dependencies {
+        getByName("desktopMain").dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutines.swing)
         }
@@ -58,9 +58,16 @@ compose.resources {
     packageOfResClass = "$packageName.resources"
 }
 
+val macTrackpadGesturesJvmArg = "--add-exports=java.desktop/com.apple.eawt.event=ALL-UNNAMED"
+
+tasks.withType<JavaExec>().configureEach {
+    jvmArgs(macTrackpadGesturesJvmArg)
+}
+
 compose.desktop {
     application {
         mainClass = "$packageName.MainKt"
+        jvmArgs += macTrackpadGesturesJvmArg
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
