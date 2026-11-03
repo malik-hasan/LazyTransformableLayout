@@ -58,6 +58,10 @@ kotlin {
 tasks.withType<Test> {
     systemProperty("java.awt.headless", "true")
     systemProperty("apple.awt.UIElement", "true")
+    jvmArgs(
+        "--add-exports=java.desktop/com.apple.eawt.event=ALL-UNNAMED",
+        "--add-opens=java.desktop/com.apple.eawt.event=ALL-UNNAMED"
+    )
 }
 
 mavenPublishing {

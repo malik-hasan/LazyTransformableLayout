@@ -61,6 +61,7 @@ compose.resources {
 compose.desktop {
     application {
         mainClass = "$packageName.MainKt"
+        jvmArgs += "--add-exports=java.desktop/com.apple.eawt.event=ALL-UNNAMED"
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)

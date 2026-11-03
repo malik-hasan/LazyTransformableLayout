@@ -45,6 +45,7 @@ import kotlinx.coroutines.launch
 import oats.mobile.lazytransformablelayout.extension.detectTapSequenceGestures
 import oats.mobile.lazytransformablelayout.extension.detectTransformGestures
 import oats.mobile.lazytransformablelayout.extension.detectWheelZoomGestures
+import oats.mobile.lazytransformablelayout.extension.trackpadPinchZoom
 import oats.mobile.lazytransformablelayout.extension.transform
 import oats.mobile.lazytransformablelayout.internal.Content
 import oats.mobile.lazytransformablelayout.internal.Item
@@ -160,7 +161,13 @@ fun LazyTransformableLayout(
                 }
             }.focusRequester(focusRequester)
             .focusable()
-            .pointerInput(state) {
+            .trackpadPinchZoom { position, zoomFactor ->
+                state.snapBy(
+                    pivot = Pivot.Viewport(position),
+                    zoomFactor = zoomFactor,
+                    mutatePriority = MutatePriority.UserInput
+                )
+            }.pointerInput(state) {
                 var pivot: Pivot = Pivot.ContentCenter
                 var pendingLogZoom = 0f
                 var wheelJob: Job? = null
