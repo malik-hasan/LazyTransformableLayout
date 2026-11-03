@@ -294,17 +294,19 @@ internal suspend fun PointerInputScope.detectTapSequenceGestures(
         firstDown.consume()
         withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
             waitForUpOrCancellation()
-        } ?: withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) {
-            var secondDownEvent: PointerEvent
-            do {
-                secondDownEvent = awaitPointerEvent()
-            } while (!secondDownEvent.changes.fastAll { it.changedToDown() })
-            secondDownEvent
-        }?.takeIf { it.buttons.isSecondaryPressed }?.changes?.first()?.takeIf {
-            (it.position - firstDown.position).getDistance() <= viewConfiguration.touchSlop
-        }?.let { secondDown ->
-            secondDown.consume()
-            onSecondaryDoubleClick(secondDown.position)
+        }?.let {
+            withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) {
+                var secondDownEvent: PointerEvent
+                do {
+                    secondDownEvent = awaitPointerEvent()
+                } while (!secondDownEvent.changes.fastAll { it.changedToDown() })
+                secondDownEvent
+            }?.takeIf { it.buttons.isSecondaryPressed }?.changes?.first()?.takeIf {
+                (it.position - firstDown.position).getDistance() <= viewConfiguration.touchSlop
+            }?.let { secondDown ->
+                secondDown.consume()
+                onSecondaryDoubleClick(secondDown.position)
+            }
         }
     } else {
         var down = firstDown
