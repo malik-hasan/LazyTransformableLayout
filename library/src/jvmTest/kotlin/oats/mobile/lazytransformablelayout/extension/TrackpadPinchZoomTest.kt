@@ -1,74 +1,101 @@
 package oats.mobile.lazytransformablelayout.extension
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.awt.LocalAwtWindow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.moveTo
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performMouseInput
+import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import java.awt.Component
-import javax.swing.JPanel
+import javax.swing.JFrame
+import javax.swing.JRootPane
+import kotlin.math.pow
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
+@OptIn(ExperimentalTestApi::class, ExperimentalComposeUiApi::class)
 class TrackpadPinchZoomTest {
 
     private val isMac = System.getProperty("os.name").contains("mac", ignoreCase = true)
 
     @Test
-    fun `given the gesture package is exported, should return a remover`() {
+    fun `given a hovered node, when a magnify is dispatched, should report the hover position and zoom factor`() {
         if (!isMac) return
-        val remove = addMagnificationListener(JPanel()) {}
-        assertNotNull(remove)
-        remove()
+        runComposeUiTest {
+            val zooms = mutableListOf<Pair<Offset, Float>>()
+            val window = headlessFrame()
+            setContent {
+                CompositionLocalProvider(LocalAwtWindow provides window, LocalDensity provides Density(1f)) {
+                    Box(
+                        Modifier
+                            .size(500.dp, 700.dp)
+                            .testTag("node")
+                            .trackpadPinchZoom({ _, _ -> }) { position, factor -> zooms += position to factor }
+                    )
+                }
+            }
+            waitForIdle()
+            onNodeWithTag("node").performMouseInput { moveTo(Offset(250f, 350f)) }
+            waitForIdle()
+
+            runOnUiThread { dispatchMagnify(window.rootPane, 0.25) }
+            waitForIdle()
+
+            assertEquals(listOf(Offset(250f, 350f) to 1.25f.pow(1.5f)), zooms)
+        }
     }
 
     @Test
-    fun `given a listener on a panel, when a magnify is dispatched, should receive the magnification`() {
+    fun `given a hovered node that left the composition, when pinch events are dispatched, should not invoke any callback`() {
         if (!isMac) return
-        val panel = JPanel()
-        val received = mutableListOf<Double>()
-        assertNotNull(addMagnificationListener(panel) { received += it })
+        runComposeUiTest {
+            var zooms = 0
+            var stops = 0
+            var shown by mutableStateOf(true)
+            val window = headlessFrame()
+            setContent {
+                CompositionLocalProvider(LocalAwtWindow provides window, LocalDensity provides Density(1f)) {
+                    if (shown) {
+                        Box(
+                            Modifier
+                                .size(500.dp, 700.dp)
+                                .testTag("node")
+                                .trackpadPinchZoom({ _, _ -> stops++ }) { _, _ -> zooms++ }
+                        )
+                    }
+                }
+            }
+            waitForIdle()
+            onNodeWithTag("node").performMouseInput { moveTo(Offset(250f, 350f)) }
+            waitForIdle()
+            runOnUiThread { dispatchMagnify(window.rootPane, 0.25) }
+            waitForIdle()
+            assertEquals(1, zooms)
 
-        dispatchMagnify(panel, 0.25)
+            shown = false
+            waitForIdle()
+            runOnUiThread {
+                dispatchMagnify(window.rootPane, 0.25)
+                dispatchPhase(window.rootPane, GESTURE_ENDED)
+            }
+            waitForIdle()
 
-        assertEquals(listOf(0.25), received)
-    }
-
-    @Test
-    fun `given a listener on a panel, when it is removed, should no longer receive magnifications`() {
-        if (!isMac) return
-        val panel = JPanel()
-        val received = mutableListOf<Double>()
-        val remove = assertNotNull(addMagnificationListener(panel) { received += it })
-
-        remove()
-        dispatchMagnify(panel, 0.25)
-
-        assertTrue(received.isEmpty())
-    }
-
-    @Test
-    fun `given a listener on a panel, when a gesture ends, should invoke the gesture end callback`() {
-        if (!isMac) return
-        val panel = JPanel()
-        var ended = 0
-        assertNotNull(addMagnificationListener(panel, onGestureEnd = { ended++ }) {})
-
-        dispatchPhase(panel, GESTURE_BEGAN)
-        assertEquals(0, ended)
-        dispatchPhase(panel, GESTURE_ENDED)
-
-        assertEquals(1, ended)
-    }
-
-    @Test
-    fun `given a listener on a panel, when it is removed, should no longer invoke the gesture end callback`() {
-        if (!isMac) return
-        val panel = JPanel()
-        var ended = 0
-        val remove = assertNotNull(addMagnificationListener(panel, onGestureEnd = { ended++ }) {})
-
-        remove()
-        dispatchPhase(panel, GESTURE_ENDED)
-
-        assertEquals(0, ended)
+            assertEquals(1, zooms)
+            assertEquals(0, stops)
+        }
     }
 }
 
@@ -106,3 +133,18 @@ private fun nextNotifier(component: Component): Any? =
         .getDeclaredMethod("getNextNotifierForComponent", Component::class.java)
         .apply { isAccessible = true }
         .invoke(null, component)
+
+private fun headlessFrame(): RootPaneFrame {
+    val unsafeClass = Class.forName("sun.misc.Unsafe")
+    val unsafe = unsafeClass.getDeclaredField("theUnsafe").apply { isAccessible = true }.get(null)
+    return unsafeClass.getMethod("allocateInstance", Class::class.java)
+        .invoke(unsafe, RootPaneFrame::class.java) as RootPaneFrame
+}
+
+private class RootPaneFrame : JFrame() {
+    private var pane: JRootPane? = null
+
+    override fun getRootPane(): JRootPane = pane ?: JRootPane().also { pane = it }
+
+    override fun toString() = "RootPaneFrame"
+}

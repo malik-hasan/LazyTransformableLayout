@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -29,7 +30,25 @@ kotlin {
         browser()
     }
 
+    @OptIn(ExperimentalKotlinGradlePluginApi::class)
+    applyDefaultHierarchyTemplate {
+        common {
+            group("mobile") {
+                group("ios")
+            }
+            group("nonJvm") {
+                withWasmJs()
+                group("ios")
+            }
+        }
+    }
+
     sourceSets {
+        androidMain {
+            dependsOn(getByName("mobileMain"))
+            dependsOn(getByName("nonJvmMain"))
+        }
+
         commonMain.dependencies {
             implementation(libs.compose.foundation)
             implementation(libs.kermit)
