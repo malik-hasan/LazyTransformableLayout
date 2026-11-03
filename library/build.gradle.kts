@@ -23,7 +23,7 @@ kotlin {
 
     iosArm64()
     iosSimulatorArm64()
-    jvm()
+    jvm("desktop")
 
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
@@ -63,7 +63,7 @@ kotlin {
             implementation(kotlin("test"))
         }
 
-        jvmTest.dependencies {
+        getByName("desktopTest").dependencies {
             implementation(libs.compose.ui.test)
             implementation(
                 with(System.getProperty("os.name").lowercase()) {

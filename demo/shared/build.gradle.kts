@@ -28,7 +28,7 @@ kotlin {
         }
     }
 
-    jvm()
+    jvm("desktop")
 
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
@@ -47,7 +47,7 @@ kotlin {
             implementation(libs.zoomimage.core)
         }
 
-        jvmMain.dependencies {
+        getByName("desktopMain").dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutines.swing)
         }
