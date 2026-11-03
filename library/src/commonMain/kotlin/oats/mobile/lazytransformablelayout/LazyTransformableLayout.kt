@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
@@ -48,10 +49,17 @@ import oats.mobile.lazytransformablelayout.extension.transform
 import oats.mobile.lazytransformablelayout.internal.Content
 import oats.mobile.lazytransformablelayout.internal.Item
 import oats.mobile.lazytransformablelayout.internal.ItemProvider
+import kotlin.math.abs
+import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 
 private const val TAP_ZOOM_FACTOR = 2f
+
+private const val WHEEL_ZOOM_TIME_CONSTANT_NANOS = 40_000_000f
+
+private const val MIN_WHEEL_LOG_ZOOM_STEP = 0.001f
 
 private val arrowKeys = setOf(Key.DirectionLeft, Key.DirectionRight, Key.DirectionUp, Key.DirectionDown)
 
@@ -153,13 +161,29 @@ fun LazyTransformableLayout(
             }.focusRequester(focusRequester)
             .focusable()
             .pointerInput(state) {
+                var pivot: Pivot = Pivot.ContentCenter
+                var pendingLogZoom = 0f
+                var wheelJob: Job? = null
                 detectWheelZoomGestures { position, zoomFactor ->
-                    scope.launch {
-                        state.animateBy(
-                            pivot = Pivot.Viewport(position),
-                            zoomFactor = zoomFactor,
-                            mutatePriority = MutatePriority.UserInput
-                        )
+                    pivot = Pivot.Viewport(position)
+                    pendingLogZoom += ln(zoomFactor)
+                    if (wheelJob?.isActive != true) wheelJob = scope.launch {
+                        var previousFrameNanos = withFrameNanos { it }
+                        while (pendingLogZoom != 0f) {
+                            val frameNanos = withFrameNanos { it }
+                            val logZoomStep = if (abs(pendingLogZoom) < MIN_WHEEL_LOG_ZOOM_STEP) {
+                                pendingLogZoom
+                            } else pendingLogZoom * (
+                                1 - exp((previousFrameNanos - frameNanos) / WHEEL_ZOOM_TIME_CONSTANT_NANOS)
+                            )
+                            previousFrameNanos = frameNanos
+                            pendingLogZoom -= logZoomStep
+                            state.snapBy(
+                                pivot = pivot,
+                                zoomFactor = exp(logZoomStep),
+                                mutatePriority = MutatePriority.UserInput
+                            )
+                        }
                     }
                 }
             }.pointerInput(state, overscrollEffect) {
@@ -191,22 +215,23 @@ fun LazyTransformableLayout(
                     onPress = {
                         state.cancelAnimation(MutatePriority.UserInput)
                         focusRequester.requestFocus()
-                    },
-                    onDoubleTap = { position ->
-                        scope.launch {
-                            state.animateBy(
-                                pivot = Pivot.Viewport(position),
-                                zoomFactor = TAP_ZOOM_FACTOR
-                            )
-                        }
                     }
                 )
             }.pointerInput(state) {
+                var tapZoomScale = 1f
+                fun zoomByTap(pivot: Pivot, zoomFactor: Float, repeated: Boolean) {
+                    tapZoomScale = (if (repeated) tapZoomScale else state.zoomScale) * zoomFactor
+                    scope.launch {
+                        state.animateTo(zoomScale = tapZoomScale, pivot = pivot)
+                    }
+                }
+
                 detectTapSequenceGestures(
-                    onTwoFingerTap = {
-                        scope.launch {
-                            state.animateBy(zoomFactor = 1 / TAP_ZOOM_FACTOR)
-                        }
+                    onDoubleTap = { position ->
+                        zoomByTap(Pivot.Viewport(position), TAP_ZOOM_FACTOR, false)
+                    },
+                    onTwoFingerTap = { repeated ->
+                        zoomByTap(Pivot.ContentCenter, 1 / TAP_ZOOM_FACTOR, repeated)
                     },
                     onSecondaryDoubleClick = { position ->
                         scope.launch {
