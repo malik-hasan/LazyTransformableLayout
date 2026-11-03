@@ -177,7 +177,7 @@ fun LazyTransformableLayout(
                     mutatePriority = MutatePriority.UserInput
                 )
             }.pointerInput(state) {
-                var pivot: Pivot = Pivot.ContentCenter
+                var pivot: Pivot
                 var pendingLogZoom = 0f
                 var wheelJob: Job? = null
                 detectWheelZoomGestures { position, zoomFactor ->
