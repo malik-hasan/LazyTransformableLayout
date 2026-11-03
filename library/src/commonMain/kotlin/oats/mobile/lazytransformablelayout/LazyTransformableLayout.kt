@@ -177,11 +177,10 @@ fun LazyTransformableLayout(
                     mutatePriority = MutatePriority.UserInput
                 )
             }.pointerInput(state) {
-                var pivot: Pivot
                 var pendingLogZoom = 0f
                 var wheelJob: Job? = null
                 detectWheelZoomGestures { position, zoomFactor ->
-                    pivot = Pivot.Viewport(position)
+                    val pivot = Pivot.Viewport(position)
                     pendingLogZoom += ln(zoomFactor)
                     if (wheelJob?.isActive != true) wheelJob = scope.launch {
                         var previousFrameNanos = withFrameNanos { it }
