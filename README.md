@@ -29,3 +29,5 @@ Without the flag, or on other operating systems, pinch is ignored and everything
 Trackpad and mouse wheel input varies between operating systems and browsers on JVM and Wasm. Trackpad zoom has been tested on macOS in Firefox, Safari and the desktop JVM, but other platforms may behave differently or need extra handling. If zooming feels wrong or doesn't work on your platform, feel free to [raise an issue](https://github.com/malik-hasan/LazyTransformableLayout/issues).
 
 Trackpad pinch doesn't work on the desktop JVM on Linux. This is a known limitation: AWT doesn't receive pinch gestures from X11 or Wayland, so it can't be fixed in this library. Two-finger scroll zoom still works.
+
+Two-finger double tap to zoom out doesn't work on a macOS trackpad on the desktop JVM or web while Smart Zoom is enabled. This is a known limitation: macOS turns the gesture into a Smart Zoom event, which AWT doesn't pass to Compose Desktop and browsers don't reliably expose to pages. To use the gesture, turn off Smart Zoom in System Settings > Trackpad > Scroll & Zoom.
