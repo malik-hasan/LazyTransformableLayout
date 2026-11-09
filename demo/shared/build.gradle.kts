@@ -51,6 +51,11 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutines.swing)
         }
+
+        wasmJsMain.dependencies {
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.navigation3.browser)
+        }
     }
 }
 

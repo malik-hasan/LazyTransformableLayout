@@ -20,6 +20,7 @@ import androidx.navigation3.runtime.NavKey
 import com.github.panpf.zoomimage.util.IntRectCompat
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import oats.mobile.lazytransformablelayout.LazyTransformableLayout
 import oats.mobile.lazytransformablelayout.demo.resources.Res
@@ -28,6 +29,7 @@ import oats.mobile.lazytransformablelayout.rememberLazyTransformableLayoutState
 import org.jetbrains.compose.resources.painterResource
 
 @Serializable
+@SerialName("tiled-wallpaper")
 data object TiledWallpaper : NavKey
 
 private const val TILE_GRID = 4 // 4x4 = 16 tiles

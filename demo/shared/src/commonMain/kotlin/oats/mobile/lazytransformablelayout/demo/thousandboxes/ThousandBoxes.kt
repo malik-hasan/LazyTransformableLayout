@@ -17,12 +17,14 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import oats.mobile.lazytransformablelayout.LazyTransformableLayout
 import oats.mobile.lazytransformablelayout.rememberLazyTransformableLayoutState
 import kotlin.random.Random
 
 @Serializable
+@SerialName("thousand-boxes")
 data object ThousandBoxes : NavKey
 
 private const val LAYOUT_SIZE = 10000 // dp

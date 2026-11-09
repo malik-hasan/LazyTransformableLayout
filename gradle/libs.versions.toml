@@ -10,8 +10,10 @@ maven-publish = "0.37.0"
 activity-compose = "1.13.0"
 compose-material3 = "1.9.0"
 kermit = "2.2.0"
+kotlinx-serialization = "1.12.0"
 kotlinx-coroutines = "1.11.0"
 navigation3 = "1.2.0"
+navigation3-browser = "1.1.0"
 zoomimage = "1.7.0"
 
 [plugins]
@@ -43,6 +45,10 @@ compose-material3 = { module = "org.jetbrains.compose.material3:material3", vers
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 
 kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
+
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+
+navigation3-browser = { module = "com.github.terrakok:navigation3-browser", version.ref = "navigation3-browser" }
 
 navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-ui", version.ref = "navigation3" }
 

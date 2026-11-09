@@ -12,11 +12,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import androidx.savedstate.serialization.SavedStateConfiguration
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
@@ -26,22 +28,29 @@ import oats.mobile.lazytransformablelayout.demo.thousandboxes.ThousandBoxes
 import oats.mobile.lazytransformablelayout.demo.tiledwallpaper.TiledWallpaper
 
 @Serializable
+@SerialName("home")
 data object Home : NavKey
 
-private val navConfiguration = SavedStateConfiguration {
-    serializersModule = SerializersModule {
-        polymorphic(NavKey::class) {
-            subclass(Home::class)
-            subclass(ThousandBoxes::class)
-            subclass(Quadrants::class)
-            subclass(TiledWallpaper::class)
-        }
+internal val navKeySerializersModule = SerializersModule {
+    polymorphic(NavKey::class) {
+        subclass(Home::class)
+        subclass(ThousandBoxes::class)
+        subclass(Quadrants::class)
+        subclass(TiledWallpaper::class)
     }
 }
 
+private val navConfiguration = SavedStateConfiguration {
+    serializersModule = navKeySerializersModule
+}
+
 @Composable
-fun App() = MaterialTheme {
+fun App(
+    backStackEffect: @Composable (NavBackStack<NavKey>) -> Unit = {}
+) = MaterialTheme {
     val backStack = rememberNavBackStack(navConfiguration, Home)
+    backStackEffect(backStack)
+
     NavDisplay(
         backStack = backStack,
         onBack = { backStack.removeLastOrNull() },

@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation3.runtime.NavKey
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import oats.mobile.lazytransformablelayout.LazyTransformableLayout
 import oats.mobile.lazytransformablelayout.Positionable
@@ -21,6 +22,7 @@ import oats.mobile.lazytransformablelayout.rememberLazyTransformableLayoutState
 import kotlin.random.Random
 
 @Serializable
+@SerialName("quadrants")
 data object Quadrants : NavKey
 
 @Composable
@@ -64,7 +66,7 @@ fun Quadrants() {
                     }
                 },
                 key = { i, _ -> i }
-            ) { i, item ->
+            ) { i, _ ->
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
