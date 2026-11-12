@@ -39,12 +39,11 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(project(":library:lazy-transformable-layout"))
+            implementation(project(":library:lazy-transformable-layout:tiled-image"))
             implementation(libs.compose.components.resources)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
             implementation(libs.navigation3.ui)
-            implementation(libs.zoomimage.compose)
-            implementation(libs.zoomimage.core)
         }
 
         getByName("desktopMain").dependencies {
