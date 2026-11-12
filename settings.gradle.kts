@@ -20,4 +20,5 @@ rootProject.name = "LazyTransformableLayout"
 
 include(":demo:androidApp")
 include(":demo:shared")
-include(":library")
+include(":library:lazy-transformable-layout")
+include(":library:lazy-transformable-layout:tiled-image")

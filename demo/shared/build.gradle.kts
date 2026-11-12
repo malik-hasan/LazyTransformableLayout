@@ -38,7 +38,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(project(":library"))
+            implementation(project(":library:lazy-transformable-layout"))
             implementation(libs.compose.components.resources)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)

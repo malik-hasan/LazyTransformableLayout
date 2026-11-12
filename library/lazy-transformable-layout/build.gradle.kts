@@ -89,9 +89,5 @@ tasks.withType<Test> {
 }
 
 mavenPublishing {
-    coordinates(
-        groupId = packageName,
-        artifactId = libraryName,
-        version = "1.0.0"
-    )
+    coordinates(artifactId = libraryName)
 }
