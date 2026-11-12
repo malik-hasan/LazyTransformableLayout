@@ -9,12 +9,9 @@ plugins {
     alias(libs.plugins.maven.publish)
 }
 
-val libraryName = "lazytransformablelayout"
-val packageName = "oats.mobile.$libraryName"
-
 kotlin {
     android {
-        namespace = packageName
+        namespace = "oats.mobile.lazytransformablelayout"
         compileSdk = libs.versions.android.targetSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
         compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
