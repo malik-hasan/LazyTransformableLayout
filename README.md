@@ -12,7 +12,7 @@ The API and its documentation use these terms:
 
 ## Large images
 
-The `lazytransformablelayout-tiledimage` artifact adds `tiledImage`, which shows a raster too large to hold in memory. It loads only the tiles near the viewport, at a resolution matching the zoom scale, and overlaps them so no seams appear.
+The `lazy-transformable-layout-tiled-image` artifact adds `tiledImage`, which shows a raster too large to hold in memory. It loads only the tiles near the viewport, at a resolution matching the zoom scale, and overlaps them so no seams appear.
 
 ```kotlin
 val imageSource = remember(bytes) { ImageSource.fromByteArray(bytes) }
