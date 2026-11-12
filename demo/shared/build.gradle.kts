@@ -10,7 +10,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-val packageName = "oats.mobile.lazytransformablelayout.demo"
+val packageName = "mobile.oats.lazytransformablelayout.demo"
 
 kotlin {
     android {

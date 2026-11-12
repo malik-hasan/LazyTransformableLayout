@@ -10,7 +10,7 @@ plugins {
 
 kotlin {
     android {
-        namespace = "oats.mobile.lazytransformablelayout.tiledimage"
+        namespace = "mobile.oats.lazytransformablelayout.tiledimage"
         compileSdk = libs.versions.android.targetSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
         compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
