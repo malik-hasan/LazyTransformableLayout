@@ -43,5 +43,5 @@ kotlin {
 }
 
 mavenPublishing {
-    coordinates(artifactId = "$libraryName-tiledimage")
+    coordinates(artifactId = "lazy-transformable-layout-tiled-image")
 }

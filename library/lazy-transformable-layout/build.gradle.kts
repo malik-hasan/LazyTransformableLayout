@@ -89,5 +89,5 @@ tasks.withType<Test> {
 }
 
 mavenPublishing {
-    coordinates(artifactId = libraryName)
+    coordinates(artifactId = "lazy-transformable-layout")
 }
