@@ -8,7 +8,7 @@ plugins {
 kotlin.compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
 
 android {
-    val packageName = "oats.mobile.lazytransformablelayout.demo"
+    val packageName = "mobile.oats.lazytransformablelayout.demo"
     namespace = packageName
     compileSdk = libs.versions.android.targetSdk.get().toInt()
 

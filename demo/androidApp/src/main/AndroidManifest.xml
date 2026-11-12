@@ -11,7 +11,7 @@
         <profileable android:shell="true" />
 
         <activity
-            android:name="oats.mobile.lazytransformablelayout.demo.MainActivity"
+            android:name="mobile.oats.lazytransformablelayout.demo.MainActivity"
             android:exported="true"
             android:theme="@style/Theme.LazyTransformableLayout">
             <intent-filter>
