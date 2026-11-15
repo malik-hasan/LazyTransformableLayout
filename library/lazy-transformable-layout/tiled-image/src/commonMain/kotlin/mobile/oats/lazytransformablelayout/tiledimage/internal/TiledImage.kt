@@ -61,19 +61,20 @@ internal class TiledImage(
 
     private val wantedTiles by derivedStateOf(structuralEqualityPolicy()) {
         val level = level
-        val visibleBounds = layoutState.visibleBounds
-        if (level >= grid.baseLevel || visibleBounds == null) return@derivedStateOf emptySet()
+        val visibleArea = layoutState.visibleLayoutArea
+        if (level >= grid.baseLevel || visibleArea == null) return@derivedStateOf emptySet()
 
         val span = grid.spanOf(level).toFloat()
+        val corners = visibleArea.corners
         val region = Rect(
-            left = (visibleBounds.left - bounds.left) / dpPerSourcePxX,
-            top = (visibleBounds.top - bounds.top) / dpPerSourcePxY,
-            right = (visibleBounds.right - bounds.left) / dpPerSourcePxX,
-            bottom = (visibleBounds.bottom - bounds.top) / dpPerSourcePxY
+            left = (corners.minOf { it.x } - bounds.left) / dpPerSourcePxX,
+            top = (corners.minOf { it.y } - bounds.top) / dpPerSourcePxY,
+            right = (corners.maxOf { it.x } - bounds.left) / dpPerSourcePxX,
+            bottom = (corners.maxOf { it.y } - bounds.top) / dpPerSourcePxY
         ).inflate(span)
 
         grid.tilesIn(level, region).filterTo(HashSet()) {
-            layoutState.isVisible(layoutBoundsOf(it.core, span))
+            visibleArea.intersects(layoutBoundsOf(it.core, span))
         }
     }
 
@@ -135,7 +136,9 @@ internal class TiledImage(
                 loaded.remove(tile)?.let { cache[cacheKey(tile)] = it }
             }
 
-            val center = layoutState.visibleBounds?.run { (left + right) / 2 to (top + bottom) / 2 }
+            val center = layoutState.visibleLayoutArea?.corners?.run {
+                (this[0].x + this[2].x) / 2 to (this[0].y + this[2].y) / 2
+            }
             wanted.filter { it !in loaded && it !in jobs && it !in failed }
                 .sortedBy { tile ->
                     center?.let { (x, y) ->
