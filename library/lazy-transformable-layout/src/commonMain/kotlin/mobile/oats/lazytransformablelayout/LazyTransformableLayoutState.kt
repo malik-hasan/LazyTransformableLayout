@@ -45,7 +45,6 @@ import mobile.oats.lazytransformablelayout.extension.toPx
 import mobile.oats.lazytransformablelayout.extension.toViewportAxes
 import mobile.oats.lazytransformablelayout.internal.AnimationCoordinator
 import mobile.oats.lazytransformablelayout.internal.Geometry
-import mobile.oats.lazytransformablelayout.internal.Parallelogram
 import kotlin.math.exp
 import kotlin.math.ln
 
@@ -279,7 +278,7 @@ class LazyTransformableLayoutState(
      * Unlike the area in which items are composed, it has no buffer around the viewport
      */
     val visibleLayoutArea by derivedStateOf {
-        geometry?.run { VisibleLayoutArea(viewportBounds(0f, rotationAngle, zoomScale, centerOffsetPx), this) }
+        geometry?.run { viewportBounds(0f, rotationAngle, zoomScale, centerOffsetPx) }
     }
 
     internal val translation by derivedStateOf {

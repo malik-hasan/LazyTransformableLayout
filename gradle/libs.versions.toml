@@ -8,10 +8,12 @@ kotlin = "2.4.21"
 maven-publish = "0.37.0"
 
 activity-compose = "1.13.0"
+coil = "3.6.0"
 compose-material3 = "1.9.0"
 kermit = "2.2.0"
 kotlinx-serialization = "1.12.0"
 kotlinx-coroutines = "1.11.0"
+ktor = "3.6.0"
 navigation3 = "1.2.0"
 navigation3-browser = "1.1.0"
 zoomimage = "1.7.0"
@@ -31,6 +33,9 @@ maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "maven-publ
 [libraries]
 activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
 
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-network-ktor3 = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
+
 compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "compose" }
 compose-desktop-macos-arm64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-macos-arm64", version.ref = "compose" }
 compose-desktop-macos-x64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-macos-x64", version.ref = "compose" }
@@ -44,6 +49,11 @@ compose-material3 = { module = "org.jetbrains.compose.material3:material3", vers
 
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 
+ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+ktor-client-java = { module = "io.ktor:ktor-client-java", version.ref = "ktor" }
+ktor-client-js = { module = "io.ktor:ktor-client-js", version.ref = "ktor" }
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
+
 kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
 
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
@@ -54,3 +64,4 @@ navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-ui",
 
 zoomimage-compose = { module = "io.github.panpf.zoomimage:zoomimage-compose", version.ref = "zoomimage" }
 zoomimage-core = { module = "io.github.panpf.zoomimage:zoomimage-core", version.ref = "zoomimage" }
+zoomimage-core-coil3 = { module = "io.github.panpf.zoomimage:zoomimage-core-coil3", version.ref = "zoomimage" }

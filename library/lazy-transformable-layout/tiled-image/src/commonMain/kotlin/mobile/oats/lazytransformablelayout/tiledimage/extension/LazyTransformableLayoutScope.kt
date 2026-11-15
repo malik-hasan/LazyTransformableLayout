@@ -6,6 +6,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import mobile.oats.lazytransformablelayout.LazyTransformableLayoutScope
@@ -37,9 +38,10 @@ fun LazyTransformableLayoutScope.tiledImage(
 ) {
     item(bounds = bounds, zIndex = zIndex) {
         val layoutState = LocalLazyTransformableLayoutState.current
+        val density = LocalDensity.current
         val ownState = remember(state) { state ?: TiledImageState(DEFAULT_CACHE_BYTES) }
-        val image = remember(source, layoutState, bounds, tileSize, ownState) {
-            TiledImage(source, layoutState, bounds, tileSize, ownState)
+        val image = remember(source, layoutState, bounds, density, tileSize, ownState) {
+            TiledImage(source, layoutState, bounds, density, tileSize, ownState)
         }
         LaunchedEffect(image) { image.run() }
 

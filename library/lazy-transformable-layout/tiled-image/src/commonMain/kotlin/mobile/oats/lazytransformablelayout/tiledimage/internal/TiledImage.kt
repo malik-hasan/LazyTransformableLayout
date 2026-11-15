@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.IntRect
@@ -37,6 +38,7 @@ internal class TiledImage(
     private val source: TileSource,
     private val layoutState: LazyTransformableLayoutState,
     private val bounds: DpRect,
+    private val density: Density,
     tileSize: Int,
     state: TiledImageState
 ) {
@@ -65,7 +67,7 @@ internal class TiledImage(
         if (level >= grid.baseLevel || visibleArea == null) return@derivedStateOf emptySet()
 
         val span = grid.spanOf(level).toFloat()
-        val corners = visibleArea.corners
+        val corners = with(density) { visibleArea.corners }
         val region = Rect(
             left = (corners.minOf { it.x } - bounds.left) / dpPerSourcePxX,
             top = (corners.minOf { it.y } - bounds.top) / dpPerSourcePxY,
@@ -74,7 +76,7 @@ internal class TiledImage(
         ).inflate(span)
 
         grid.tilesIn(level, region).filterTo(HashSet()) {
-            visibleArea.intersects(layoutBoundsOf(it.core, span))
+            with(density) { visibleArea.intersects(layoutBoundsOf(it.core, span)) }
         }
     }
 
@@ -136,7 +138,7 @@ internal class TiledImage(
                 loaded.remove(tile)?.let { cache[cacheKey(tile)] = it }
             }
 
-            val center = layoutState.visibleLayoutArea?.corners?.run {
+            val center = layoutState.visibleLayoutArea?.let { with(density) { it.corners } }?.run {
                 (this[0].x + this[2].x) / 2 to (this[0].y + this[2].y) / 2
             }
             wanted.filter { it !in loaded && it !in jobs && it !in failed }

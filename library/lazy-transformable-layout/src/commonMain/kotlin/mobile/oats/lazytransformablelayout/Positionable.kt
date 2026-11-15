@@ -13,6 +13,9 @@ import androidx.compose.ui.unit.DpRect
  * This value should match what is passed to the Composable using modifiers such as `.width()` or `.widthIn(max=)`.
  * ***The lazy optimization can only be as effective as the right/bottom bounds provided are accurate.***
  *
+ * Bounds larger than `Constraints` can represent are measured at the largest size that fits, so content of such an
+ * item should draw relative to its bounds instead of laying out children to fill them.
+ *
  * @property zIndex The Z index of this item
  *
  * Both properties are read during layout, so they may be backed by snapshot state

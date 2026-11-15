@@ -9,13 +9,16 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
-import com.github.panpf.zoomimage.subsampling.ImageSource
-import com.github.panpf.zoomimage.subsampling.fromByteArray
+import coil3.SingletonImageLoader
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
+import com.github.panpf.zoomimage.coil.CoilHttpImageSource
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import mobile.oats.lazytransformablelayout.LazyTransformableLayout
@@ -32,15 +35,21 @@ import org.jetbrains.compose.resources.painterResource
 @SerialName("tiled-wallpaper")
 data object TiledWallpaper : NavKey
 
-private data object WallpaperImageSource : ImageSource.Factory {
-    override val key = "files/hireswallpaper.jpeg"
-
-    override suspend fun create() = ImageSource.fromByteArray(Res.readBytes(key))
-}
+private const val WALLPAPER_URL = "https://upload.wikimedia.org/wikipedia/commons/2/27/" +
+    "Parque_nacional_y_reserva_Denali%2C_Alaska%2C_Estados_Unidos%2C_2017-08-29%2C_DD_63-73_PAN.jpg"
 
 @Composable
 fun TiledWallpaper() {
-    when (val state = rememberImageTileSource(WallpaperImageSource)) {
+    val context = LocalPlatformContext.current
+    val imageSourceFactory = remember(context) {
+        CoilHttpImageSource.Factory(
+            context = context,
+            imageLoader = SingletonImageLoader.get(context),
+            request = ImageRequest.Builder(context).data(WALLPAPER_URL).build()
+        )
+    }
+
+    when (val state = rememberImageTileSource(imageSourceFactory)) {
         ImageTileSourceState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }

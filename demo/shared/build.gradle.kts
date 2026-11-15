@@ -42,17 +42,30 @@ kotlin {
             implementation(project(":library:lazy-transformable-layout:tiled-image"))
             implementation(libs.compose.components.resources)
             implementation(libs.compose.foundation)
+            implementation(libs.coil.compose)
+            implementation(libs.coil.network.ktor3)
             implementation(libs.compose.material3)
             implementation(libs.navigation3.ui)
+            implementation(libs.zoomimage.core.coil3)
+        }
+
+        androidMain.dependencies {
+            implementation(libs.ktor.client.okhttp)
+        }
+
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
         }
 
         getByName("desktopMain").dependencies {
             implementation(compose.desktop.currentOs)
+            implementation(libs.ktor.client.java)
             implementation(libs.kotlinx.coroutines.swing)
         }
 
         wasmJsMain.dependencies {
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.ktor.client.js)
             implementation(libs.navigation3.browser)
         }
     }
