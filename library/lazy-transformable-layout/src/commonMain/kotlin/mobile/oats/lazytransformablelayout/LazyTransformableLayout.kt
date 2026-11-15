@@ -35,7 +35,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
@@ -129,18 +128,25 @@ fun LazyTransformableLayout(
                 }
 
                 val buckets = List(path.size) { mutableListOf<Pair<Int, Constraints>>() }
-                content.forEachItem(density) { index, _, left, top, right, bottom ->
-                    if (right <= pathLeft || left >= pathRight || bottom <= pathTop || top >= pathBottom) {
-                        return@forEachItem
+                with(density) {
+                    content.forEachItem { index, _, left, top, right, bottom ->
+                        if (right <= pathLeft || left >= pathRight || bottom <= pathTop || top >= pathBottom) {
+                            return@forEachItem
+                        }
+                        val itemDimension = maxOf(right - left, bottom - top)
+                        val step = path.indexOfFirst { (minItemDimension, bounds) ->
+                            itemDimension >= minItemDimension && bounds.intersects(
+                                left,
+                                top,
+                                right,
+                                bottom
+                            )
+                        }
+                        if (step > 0) buckets[step] += index to Constraints(
+                            maxWidth = (right - left).roundToInt(),
+                            maxHeight = (bottom - top).roundToInt()
+                        )
                     }
-                    val itemDimension = maxOf(right - left, bottom - top)
-                    val step = path.indexOfFirst { (minItemDimension, bounds) ->
-                        itemDimension >= minItemDimension && bounds.intersects(left, top, right, bottom)
-                    }
-                    if (step > 0) buckets[step] += index to Constraints(
-                        maxWidth = (right - left).roundToInt(),
-                        maxHeight = (bottom - top).roundToInt()
-                    )
                 }
 
                 buckets.fastForEach { bucket ->
@@ -326,7 +332,7 @@ fun LazyTransformableLayout(
         val (minItemDimension, viewportBounds) = state.compositionBounds!!
 
         val itemsToCompose = mutableListOf<Item>()
-        content.forEachItem(this) { index, positionable, left, top, right, bottom ->
+        content.forEachItem { index, positionable, left, top, right, bottom ->
             val width = right - left
             val height = bottom - top
 
@@ -380,26 +386,6 @@ fun LazyTransformableLayout(
                     }
                 }
             }
-        }
-    }
-}
-
-private inline fun Content.forEachItem(
-    density: Density,
-    crossinline block: (index: Int, positionable: Positionable, left: Float, top: Float, right: Float, bottom: Float) -> Unit
-) = with(density) {
-    intervals.takeIf { it.size > 0 }?.forEach { interval ->
-        for (localIndex in 0 until interval.size) {
-            val positionable = interval.value.items[localIndex]
-            val bounds = positionable.bounds
-            block(
-                interval.startIndex + localIndex,
-                positionable,
-                bounds.left.toPx(),
-                bounds.top.toPx(),
-                bounds.right.toPx(),
-                bounds.bottom.toPx()
-            )
         }
     }
 }
