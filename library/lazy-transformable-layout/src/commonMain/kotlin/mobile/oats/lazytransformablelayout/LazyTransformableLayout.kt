@@ -324,11 +324,9 @@ fun LazyTransformableLayout(
                     ) {
                         transformOrigin = TransformOrigin(0f, 0f)
 
-                        val scale = state.zoomScale
+                        val (angle, scale) = state.transform
                         scaleX = scale
                         scaleY = scale
-
-                        val angle = state.rotationAngle
                         rotationZ = angle
 
                         val translation = itemPosition.transform(scale, angle, state.translation)

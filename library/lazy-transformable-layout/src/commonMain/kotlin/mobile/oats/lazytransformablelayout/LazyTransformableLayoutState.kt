@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.layout.LazyLayoutMeasureScope
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.referentialEqualityPolicy
 import androidx.compose.runtime.saveable.listSaver
@@ -50,8 +49,8 @@ import kotlin.math.exp
 import kotlin.math.ln
 
 /**
- * The state of a [LazyTransformableLayout]: the [rotationAngle], [zoomScale] and [centerOffset] that
- * determine how the layout appears in the viewport
+ * The state of a [LazyTransformableLayout]: its [transform], the [rotationAngle], [zoomScale] and [centerOffset]
+ * that determine how the layout appears in the viewport
  *
  * Terms used in this documentation:
  * - **Layout space**: the space the Positionable items' bounds are in, in dp. [layoutBounds], [centerOffset]
@@ -172,36 +171,47 @@ class LazyTransformableLayoutState(
             measuredGeometry = geometry
             this.geometry = geometry
 
-            clampAndSet(
-                scale = pendingFitBounds?.let { (bounds, margin) ->
-                    pendingFitBounds = null
-                    geometry.fitScale(
-                        bounds = bounds,
-                        rotationAngle = null,
-                        margin = margin
+            pendingFitBounds?.let { (bounds, margin) ->
+                pendingFitBounds = null
+                clampAndSet(
+                    transform.copy(
+                        zoomScale = geometry.fitScale(
+                            bounds = bounds,
+                            rotationAngle = null,
+                            margin = margin
+                        )
                     )
-                } ?: zoomScale
-            )
+                )
+            } ?: clampAndSet()
         }
     }
 
     /**
+     * The current [rotationAngle], [zoomScale] and [centerOffset] together, updated as one value
+     */
+    var transform by mutableStateOf(
+        LayoutTransform(
+            rotationAngle = clampAngle(initialRotationAngle),
+            zoomScale = initialZoomScale.coerceIn(initialZoomBounds),
+            centerOffset = initialCenterOffset
+        )
+    )
+        private set
+
+    /**
      * The point in layout space currently at the center of the content area
      */
-    var centerOffset by mutableStateOf(initialCenterOffset)
-        private set
+    val centerOffset by derivedStateOf { transform.centerOffset }
 
     /**
      * The rotation angle of the layout in degrees, clockwise
      */
-    var rotationAngle by mutableFloatStateOf(clampAngle(initialRotationAngle))
-        private set
+    val rotationAngle by derivedStateOf { transform.rotationAngle }
 
     /**
      * The zoom scale of the layout, where 1 shows the layout at its size in dp
      */
-    var zoomScale by mutableFloatStateOf(initialZoomScale.coerceIn(initialZoomBounds))
-        private set
+    val zoomScale by derivedStateOf { transform.zoomScale }
 
     private fun clampAngle(angle: Float) = angle.coerceIn(rotationBounds)
 
@@ -218,33 +228,25 @@ class LazyTransformableLayoutState(
 
     private fun Geometry.fitScale(bounds: DpRect, rotationAngle: Float?, margin: Dp) = boundsFitScale(
         bounds = bounds,
-        rotationAngle = clampAngle(rotationAngle ?: this@LazyTransformableLayoutState.rotationAngle),
+        rotationAngle = clampAngle(rotationAngle ?: transform.rotationAngle),
         margin = margin
     )
 
-    private fun clampAndSet(
-        angle: Float = rotationAngle,
-        scale: Float = zoomScale,
-        center: DpOffset = centerOffset
-    ) {
-        val clampedAngle = clampAngle(angle)
-        val clampedScale = clampScale(clampedAngle, scale)
-        rotationAngle = clampedAngle
-        zoomScale = clampedScale
-        centerOffset = geometry?.run {
-            clampCenter(clampedAngle, clampedScale, center.toPx()).toDp()
-        } ?: center
+    private fun clampAndSet(target: LayoutTransform = transform) {
+        val clampedAngle = clampAngle(target.rotationAngle)
+        val clampedScale = clampScale(clampedAngle, target.zoomScale)
+        transform = LayoutTransform(
+            rotationAngle = clampedAngle,
+            zoomScale = clampedScale,
+            centerOffset = geometry?.run {
+                clampCenter(clampedAngle, clampedScale, target.centerOffset.toPx()).toDp()
+            } ?: target.centerOffset
+        )
     }
 
-    private var Geometry.centerOffsetPx: Offset
-        get() = centerOffset.toPx()
-        set(value) {
-            centerOffset = value.toDp()
-        }
+    private fun Offset.toViewportAxes() = transform.run { toViewportAxes(zoomScale, rotationAngle) }
 
-    private fun Offset.toViewportAxes() = toViewportAxes(zoomScale, rotationAngle)
-
-    private fun Offset.toLayoutAxes() = toLayoutAxes(zoomScale, rotationAngle)
+    private fun Offset.toLayoutAxes() = transform.run { toLayoutAxes(zoomScale, rotationAngle) }
 
     /**
      * Converts a point in layout space to where it currently is in the viewport
@@ -252,12 +254,8 @@ class LazyTransformableLayoutState(
      * @param position position in layout space
      * @return position in the viewport, or [Offset.Unspecified] before the layout is first measured
      */
-    fun layoutToViewport(position: DpOffset) = geometry?.layoutToViewport(
-        layoutPosition = position,
-        angle = rotationAngle,
-        scale = zoomScale,
-        center = centerOffset
-    ) ?: Offset.Unspecified
+    fun layoutToViewport(position: DpOffset) =
+        geometry?.layoutToViewport(position, transform) ?: Offset.Unspecified
 
     /**
      * Converts a point in the viewport, such as a pointer position, to the current point in layout space
@@ -265,18 +263,12 @@ class LazyTransformableLayoutState(
      * @param position position in the viewport
      * @return position in layout space, or [DpOffset.Unspecified] before the layout is first measured
      */
-    fun viewportToLayout(position: Offset) = geometry?.run {
-        viewportToLayout(
-            viewportPosition = position,
-            angle = rotationAngle,
-            scale = zoomScale,
-            center = centerOffset
-        )
-    } ?: DpOffset.Unspecified
+    fun viewportToLayout(position: Offset) =
+        geometry?.viewportToLayout(position, transform) ?: DpOffset.Unspecified
 
     internal val translation by derivedStateOf {
         geometry?.run {
-            centerOffsetPx.toViewportAxes() - contentCenter
+            transform.centerOffset.toPx().toViewportAxes() - contentCenter
         } ?: Offset.Zero
     }
 
@@ -284,11 +276,12 @@ class LazyTransformableLayoutState(
 
     internal val compositionBounds by derivedStateOf(referentialEqualityPolicy()) {
         geometry?.run {
-            val minItemDimension = 0.5f / zoomScale
+            val transform = transform
+            val minItemDimension = 0.5f / transform.zoomScale
             previousCompositionBounds?.takeIf { (previousMinItemDimension, previousBounds) ->
                 minItemDimension * 1.19f >= previousMinItemDimension
-                    && viewportBounds(128f, rotationAngle, zoomScale, centerOffsetPx) in previousBounds
-            } ?: (minItemDimension to viewportBounds(256f, rotationAngle, zoomScale, centerOffsetPx))
+                    && viewportBounds(128f, transform) in previousBounds
+            } ?: (minItemDimension to viewportBounds(256f, transform))
                 .also { previousCompositionBounds = it }
         }
     }
@@ -325,7 +318,7 @@ class LazyTransformableLayoutState(
         mutatePriority: MutatePriority = MutatePriority.Default
     ) {
         geometry?.takeIf { animationCoordinator.tryCancel(mutatePriority) }?.run {
-            val viewportPivot = pivot.viewportPosition(rotationAngle, zoomScale, centerOffset)
+            val viewportPivot = pivot.viewportPosition(transform)
             val transform = { panDelta: Offset ->
                 transform(
                     pivot = viewportPivot,
@@ -366,9 +359,13 @@ class LazyTransformableLayoutState(
         if (!animationCoordinator.tryCancel(mutatePriority)) return
         pendingFitBounds = null
         clampAndSet(
-            angle = rotationAngle ?: this.rotationAngle,
-            scale = zoomScale ?: this.zoomScale,
-            center = centerOffset ?: this.centerOffset
+            transform.run {
+                LayoutTransform(
+                    rotationAngle = rotationAngle ?: this.rotationAngle,
+                    zoomScale = zoomScale ?: this.zoomScale,
+                    centerOffset = centerOffset ?: this.centerOffset
+                )
+            }
         )
     }
 
@@ -410,25 +407,23 @@ class LazyTransformableLayoutState(
         zoomFactor: Float = 1f,
         panDelta: Offset = Offset.Zero
     ): Offset {
-        val previousAngle = rotationAngle
-        val newAngle = clampAngle(previousAngle + rotationDelta)
-        rotationAngle = newAngle
-
-        val previousScale = zoomScale
-        val newScale = clampScale(newAngle, previousScale * zoomFactor)
-        zoomScale = newScale
-
+        val previous = transform
+        val newAngle = clampAngle(previous.rotationAngle + rotationDelta)
+        val newScale = clampScale(newAngle, previous.zoomScale * zoomFactor)
         val panningBounds = panningBoundsAt(layoutBounds, newAngle, newScale)
-        centerOffsetPx = panningBounds.clamp(
-            centerPreservingPivot(
-                viewportPivot = pivot,
-                angle = newAngle,
-                scale = newScale,
-                fromViewportPivot = pivot,
-                fromAngle = previousAngle,
-                fromScale = previousScale,
-                fromCenter = centerOffsetPx
-            )
+
+        transform = LayoutTransform(
+            rotationAngle = newAngle,
+            zoomScale = newScale,
+            centerOffset = panningBounds.clamp(
+                centerPreservingPivot(
+                    viewportPivot = pivot,
+                    angle = newAngle,
+                    scale = newScale,
+                    fromViewportPivot = pivot,
+                    from = previous
+                )
+            ).toDp()
         )
 
         return panBy(-panDelta, panningBounds)
@@ -436,11 +431,11 @@ class LazyTransformableLayoutState(
 
     private fun Geometry.panBy(
         delta: Offset,
-        panningBounds: Parallelogram = panningBoundsAt(layoutBounds, rotationAngle, zoomScale)
+        panningBounds: Parallelogram = transform.run { panningBoundsAt(layoutBounds, rotationAngle, zoomScale) }
     ): Offset {
-        val previousCenter = centerOffsetPx
+        val previousCenter = transform.centerOffset.toPx()
         val newCenter = panningBounds.clamp(previousCenter + delta.toLayoutAxes())
-        centerOffsetPx = newCenter
+        transform = transform.copy(centerOffset = newCenter.toDp())
         return (newCenter - previousCenter).toViewportAxes()
     }
 
@@ -707,11 +702,8 @@ class LazyTransformableLayoutState(
         mutatePriority: MutatePriority
     ) = animationCoordinator.claim(mutatePriority) {
         geometry?.run {
-            val startAngle = rotationAngle
-            val startScale = zoomScale
-            val startCenter = centerOffset
-
-            val viewportPivot = pivot.viewportPosition(startAngle, startScale, startCenter)
+            val start = transform
+            val viewportPivot = pivot.viewportPosition(start)
 
             animatable.run {
                 val initialVelocity = if (isRunning) {
@@ -730,14 +722,9 @@ class LazyTransformableLayoutState(
 
                 snapTo(
                     TransformAnimationValues(
-                        rotationAngle = rotationAngle,
-                        logZoomScale = ln(zoomScale),
-                        layoutPivot = viewportToLayout(
-                            viewportPosition = viewportPivot,
-                            angle = rotationAngle,
-                            scale = zoomScale,
-                            center = centerOffset
-                        )
+                        rotationAngle = start.rotationAngle,
+                        logZoomScale = ln(start.zoomScale),
+                        layoutPivot = viewportToLayout(viewportPivot, start)
                     )
                 )
 
@@ -752,50 +739,42 @@ class LazyTransformableLayoutState(
                             angle = clampedAngle,
                             scale = clampedScale,
                             fromViewportPivot = viewportPivot,
-                            fromAngle = startAngle,
-                            fromScale = startScale,
-                            fromCenter = startCenter.toPx()
+                            from = start
                         )
                 ).toDp()
+                val target = LayoutTransform(clampedAngle, clampedScale, clampedCenter)
 
                 animateTo(
                     targetValue = TransformAnimationValues(
                         rotationAngle = clampedAngle,
                         logZoomScale = ln(clampedScale),
-                        layoutPivot = viewportToLayout(
-                            viewportPosition = viewportPivot,
-                            angle = clampedAngle,
-                            scale = clampedScale,
-                            center = clampedCenter
-                        )
+                        layoutPivot = viewportToLayout(viewportPivot, target)
                     ),
                     animationSpec = animationSpec,
                     initialVelocity = initialVelocity
                 ) {
                     val angle = clampAngle(value.rotationAngle)
                     val scale = clampScale(angle, exp(value.logZoomScale))
-                    rotationAngle = angle
-                    zoomScale = scale
-                    geometry?.run {
-                        centerOffsetPx = clampCenter(
-                            angle = angle,
-                            scale = scale,
-                            center = centerFromLayoutPivot(
-                                viewportPivot = viewportPivot,
+                    transform = LayoutTransform(
+                        rotationAngle = angle,
+                        zoomScale = scale,
+                        centerOffset = geometry?.run {
+                            clampCenter(
                                 angle = angle,
                                 scale = scale,
-                                layoutPivot = value.layoutPivot.toPx()
-                            )
-                        )
-                    }
+                                center = centerFromLayoutPivot(
+                                    viewportPivot = viewportPivot,
+                                    angle = angle,
+                                    scale = scale,
+                                    layoutPivot = value.layoutPivot.toPx()
+                                )
+                            ).toDp()
+                        } ?: transform.centerOffset
+                    )
                 }
 
                 // settle any rounding errors
-                clampAndSet(
-                    angle = clampedAngle,
-                    scale = clampedScale,
-                    center = clampedCenter
-                )
+                clampAndSet(target)
             }
         }
     }
@@ -839,12 +818,12 @@ class LazyTransformableLayoutState(
                         initialVelocity = initialRotationVelocity
                     ) { rotationDelta ->
                         geometry?.run {
-                            val targetAngle = rotationAngle + rotationDelta
+                            val targetAngle = transform.rotationAngle + rotationDelta
                             transform(
-                                pivot = pivot.viewportPosition(rotationAngle, zoomScale, centerOffset),
+                                pivot = pivot.viewportPosition(transform),
                                 rotationDelta = rotationDelta
                             )
-                            rotationAngle == targetAngle
+                            transform.rotationAngle == targetAngle
                         } ?: false
                     }
                 } finally {
@@ -861,12 +840,12 @@ class LazyTransformableLayoutState(
                     ) { logDelta ->
                         geometry?.run {
                             val zoomFactor = exp(logDelta)
-                            val targetScale = zoomScale * zoomFactor
+                            val targetScale = transform.zoomScale * zoomFactor
                             transform(
-                                pivot = pivot.viewportPosition(rotationAngle, zoomScale, centerOffset),
+                                pivot = pivot.viewportPosition(transform),
                                 zoomFactor = zoomFactor
                             )
-                            zoomScale == targetScale || rotationRunning
+                            transform.zoomScale == targetScale || rotationRunning
                         } ?: false
                     }
                 } finally {

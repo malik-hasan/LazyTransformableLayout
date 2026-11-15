@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.toSize
+import mobile.oats.lazytransformablelayout.LayoutTransform
 import mobile.oats.lazytransformablelayout.extension.radians
 import mobile.oats.lazytransformablelayout.extension.toDp
 import mobile.oats.lazytransformablelayout.extension.toLayoutAxes
@@ -41,11 +42,11 @@ internal data class Geometry(
         )
     }
 
-    fun viewportBounds(buffer: Float, rotationAngle: Float, zoomScale: Float, center: Offset) = Parallelogram(
+    fun viewportBounds(buffer: Float, transform: LayoutTransform) = Parallelogram(
         viewportSize.toSize().toRect()
             .inflate(buffer)
             .vertices.map {
-                viewportToLayoutPx(it, rotationAngle, zoomScale, center)
+                viewportToLayoutPx(it, transform)
             }
     )
 
@@ -94,14 +95,16 @@ internal data class Geometry(
         )
     }
 
-    fun viewportToLayoutPx(viewportPosition: Offset, angle: Float, scale: Float, center: Offset) =
-        center + (viewportPosition - contentCenter).toLayoutAxes(scale, angle)
+    fun viewportToLayoutPx(viewportPosition: Offset, transform: LayoutTransform) = transform.run {
+        centerOffset.toPx() + (viewportPosition - contentCenter).toLayoutAxes(zoomScale, rotationAngle)
+    }
 
-    fun viewportToLayout(viewportPosition: Offset, angle: Float, scale: Float, center: DpOffset) =
-        viewportToLayoutPx(viewportPosition, angle, scale, center.toPx()).toDp()
+    fun viewportToLayout(viewportPosition: Offset, transform: LayoutTransform) =
+        viewportToLayoutPx(viewportPosition, transform).toDp()
 
-    fun layoutToViewport(layoutPosition: DpOffset, angle: Float, scale: Float, center: DpOffset) =
-        (layoutPosition - center).toPx().toViewportAxes(scale, angle) + contentCenter
+    fun layoutToViewport(layoutPosition: DpOffset, transform: LayoutTransform) = transform.run {
+        (layoutPosition - centerOffset).toPx().toViewportAxes(zoomScale, rotationAngle) + contentCenter
+    }
 
     fun centerFromLayoutPivot(viewportPivot: Offset, angle: Float, scale: Float, layoutPivot: Offset) =
         layoutPivot - (viewportPivot - contentCenter).toLayoutAxes(scale, angle)
@@ -111,18 +114,11 @@ internal data class Geometry(
         angle: Float,
         scale: Float,
         fromViewportPivot: Offset,
-        fromAngle: Float,
-        fromScale: Float,
-        fromCenter: Offset
+        from: LayoutTransform
     ) = centerFromLayoutPivot(
         viewportPivot = viewportPivot,
         angle = angle,
         scale = scale,
-        layoutPivot = viewportToLayoutPx(
-            viewportPosition = fromViewportPivot,
-            angle = fromAngle,
-            scale = fromScale,
-            center = fromCenter
-        )
+        layoutPivot = viewportToLayoutPx(fromViewportPivot, from)
     )
 }
