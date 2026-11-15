@@ -15,6 +15,7 @@ import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.OverscrollEffect
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.layout.LazyLayoutMeasureScope
+import androidx.compose.foundation.lazy.layout.LazyLayoutPrefetchState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -282,17 +284,28 @@ class LazyTransformableLayoutState(
 
     private var previousCompositionBounds: Pair<Float, Parallelogram>? = null
 
+    private fun Geometry.compositionBoundsAt(
+        previous: Pair<Float, Parallelogram>?,
+        camera: Camera
+    ): Pair<Float, Parallelogram> {
+        val minItemDimension = 0.5f / camera.zoomScale
+        return previous?.takeIf { (previousMinItemDimension, previousBounds) ->
+            minItemDimension * 1.19f >= previousMinItemDimension
+                && viewportBounds(128f, camera) in previousBounds
+        } ?: (minItemDimension to viewportBounds(256f, camera))
+    }
+
     internal val compositionBounds by derivedStateOf(referentialEqualityPolicy()) {
         geometry?.run {
-            val camera = camera
-            val minItemDimension = 0.5f / camera.zoomScale
-            previousCompositionBounds?.takeIf { (previousMinItemDimension, previousBounds) ->
-                minItemDimension * 1.19f >= previousMinItemDimension
-                    && viewportBounds(128f, camera) in previousBounds
-            } ?: (minItemDimension to viewportBounds(256f, camera))
+            compositionBoundsAt(previousCompositionBounds, camera)
                 .also { previousCompositionBounds = it }
         }
     }
+
+    internal val prefetchState = LazyLayoutPrefetchState()
+
+    internal var flingPath by mutableStateOf<List<Pair<Float, Parallelogram>>?>(null)
+        private set
 
     /**
      * Rotates and zooms the layout about [pivot], then pans it, like a transform gesture.
@@ -408,42 +421,55 @@ class LazyTransformableLayoutState(
         }
     }
 
+    private fun Geometry.transformed(
+        from: Camera,
+        pivot: Offset,
+        rotationDelta: Float = 0f,
+        zoomFactor: Float = 1f
+    ): Camera {
+        val angle = clampAngle(from.rotationAngle + rotationDelta)
+        val scale = clampScale(angle, from.zoomScale * zoomFactor)
+        return Camera(
+            rotationAngle = angle,
+            zoomScale = scale,
+            centerOffset = clampCenter(
+                angle = angle,
+                scale = scale,
+                center = centerPreservingPivot(
+                    viewportPivot = pivot,
+                    angle = angle,
+                    scale = scale,
+                    fromViewportPivot = pivot,
+                    fromCamera = from
+                )
+            ).toDp()
+        )
+    }
+
+    private fun Geometry.panned(from: Camera, delta: Offset) = from.run {
+        copy(
+            centerOffset = clampCenter(
+                angle = rotationAngle,
+                scale = zoomScale,
+                center = centerOffsetPx + delta.toLayoutAxes(zoomScale, rotationAngle)
+            ).toDp()
+        )
+    }
+
     private fun Geometry.transform(
         pivot: Offset,
         rotationDelta: Float = 0f,
         zoomFactor: Float = 1f,
         panDelta: Offset = Offset.Zero
     ): Offset {
-        val previous = camera
-        val newAngle = clampAngle(previous.rotationAngle + rotationDelta)
-        val newScale = clampScale(newAngle, previous.zoomScale * zoomFactor)
-        val panningBounds = panningBoundsAt(layoutBounds, newAngle, newScale)
-
-        camera = Camera(
-            rotationAngle = newAngle,
-            zoomScale = newScale,
-            centerOffset = panningBounds.clamp(
-                centerPreservingPivot(
-                    viewportPivot = pivot,
-                    angle = newAngle,
-                    scale = newScale,
-                    fromViewportPivot = pivot,
-                    fromCamera = previous
-                )
-            ).toDp()
-        )
-
-        return panBy(-panDelta, panningBounds)
+        camera = transformed(camera, pivot, rotationDelta, zoomFactor)
+        return panBy(-panDelta)
     }
 
-    private fun Geometry.panBy(
-        delta: Offset,
-        panningBounds: Parallelogram = panningBoundsAt(layoutBounds, rotationAngle, zoomScale)
-    ): Offset {
+    private fun Geometry.panBy(delta: Offset): Offset {
         val previousCenter = centerOffsetPx
-        val newCenter = panningBounds.clamp(previousCenter + delta.toLayoutAxes())
-        centerOffsetPx = newCenter
-        return (newCenter - previousCenter).toViewportAxes()
+        centerOffset = panned(camera, delta).centerOffset
+        return (centerOffsetPx - previousCenter).toViewportAxes()
     }
 
     /**
@@ -817,63 +843,134 @@ class LazyTransformableLayoutState(
             // release overscroll
             overscrollEffect?.applyToFling(Velocity.Zero) { Velocity.Zero }
         } else animationCoordinator.claim(MutatePriority.Default) {
-            var rotationRunning = true
-            launch {
-                try {
-                    animateFling(
-                        animationSpec = rotationFlingDecay,
-                        initialVelocity = initialRotationVelocity
-                    ) { rotationDelta ->
-                        geometry?.run {
-                            val targetAngle = rotationAngle + rotationDelta
-                            transform(
-                                pivot = pivot.viewportPosition(camera),
-                                rotationDelta = rotationDelta
-                            )
-                            rotationAngle == targetAngle
-                        } ?: false
+            flingPath = geometry?.flingPath(initialRotationVelocity, initialLogZoomVelocity, initialPanVelocity, pivot)
+            try {
+                coroutineScope {
+                    var rotationRunning = true
+                    launch {
+                        try {
+                            animateFling(
+                                animationSpec = rotationFlingDecay,
+                                initialVelocity = initialRotationVelocity
+                            ) { rotationDelta ->
+                                geometry?.run {
+                                    val targetAngle = rotationAngle + rotationDelta
+                                    transform(
+                                        pivot = pivot.viewportPosition(camera),
+                                        rotationDelta = rotationDelta
+                                    )
+                                    rotationAngle == targetAngle
+                                } ?: false
+                            }
+                        } finally {
+                            rotationRunning = false
+                        }
                     }
-                } finally {
-                    rotationRunning = false
-                }
-            }
 
-            var zoomRunning = true
-            launch {
-                try {
-                    animateFling(
-                        animationSpec = zoomFlingDecay,
-                        initialVelocity = initialLogZoomVelocity
-                    ) { logDelta ->
-                        geometry?.run {
-                            val zoomFactor = exp(logDelta)
-                            val targetScale = zoomScale * zoomFactor
-                            transform(
-                                pivot = pivot.viewportPosition(camera),
-                                zoomFactor = zoomFactor
-                            )
-                            zoomScale == targetScale || rotationRunning
-                        } ?: false
+                    var zoomRunning = true
+                    launch {
+                        try {
+                            animateFling(
+                                animationSpec = zoomFlingDecay,
+                                initialVelocity = initialLogZoomVelocity
+                            ) { logDelta ->
+                                geometry?.run {
+                                    val zoomFactor = exp(logDelta)
+                                    val targetScale = zoomScale * zoomFactor
+                                    transform(
+                                        pivot = pivot.viewportPosition(camera),
+                                        zoomFactor = zoomFactor
+                                    )
+                                    zoomScale == targetScale || rotationRunning
+                                } ?: false
+                            }
+                        } finally {
+                            zoomRunning = false
+                        }
                     }
-                } finally {
-                    zoomRunning = false
+
+                    val boundsChanging = { rotationRunning || zoomRunning }
+
+                    launch {
+                        overscrollEffect?.applyToFling(initialPanVelocity.copy(y = 0f)) { velocity ->
+                            flingX(velocity.x, boundsChanging)
+                        } ?: flingX(initialPanVelocity.x, boundsChanging)
+                    }
+
+                    launch {
+                        overscrollEffect?.applyToFling(initialPanVelocity.copy(x = 0f)) { velocity ->
+                            flingY(velocity.y, boundsChanging)
+                        } ?: flingY(initialPanVelocity.y, boundsChanging)
+                    }
                 }
-            }
-
-            val boundsChanging = { rotationRunning || zoomRunning }
-
-            launch {
-                overscrollEffect?.applyToFling(initialPanVelocity.copy(y = 0f)) { velocity ->
-                    flingX(velocity.x, boundsChanging)
-                } ?: flingX(initialPanVelocity.x, boundsChanging)
-            }
-
-            launch {
-                overscrollEffect?.applyToFling(initialPanVelocity.copy(x = 0f)) { velocity ->
-                    flingY(velocity.y, boundsChanging)
-                } ?: flingY(initialPanVelocity.y, boundsChanging)
+            } finally {
+                flingPath = null
             }
         }
+    }
+
+    private fun Geometry.flingPath(
+        rotationVelocity: Float,
+        logZoomVelocity: Float,
+        panVelocity: Velocity,
+        pivot: Pivot
+    ): List<Pair<Float, Parallelogram>> {
+        fun FloatDecayAnimationSpec.durationNanos(velocity: Float) =
+            if (velocity == 0f) 0L else getDurationNanos(0f, velocity)
+
+        fun FloatDecayAnimationSpec.valueAt(playTimeNanos: Long, velocity: Float) =
+            if (velocity == 0f) 0f else getValueFromNanos(playTimeNanos, 0f, velocity)
+
+        val durationNanos = maxOf(
+            rotationFlingDecay.durationNanos(rotationVelocity),
+            zoomFlingDecay.durationNanos(logZoomVelocity),
+            panFlingDecay.durationNanos(panVelocity.x),
+            panFlingDecay.durationNanos(panVelocity.y)
+        )
+
+        var simulated = camera
+        var bounds = compositionBoundsAt(previousCompositionBounds, simulated)
+        val path = mutableListOf(bounds)
+
+        var previousRotation = 0f
+        var previousLogZoom = 0f
+        var previousPan = Offset.Zero
+        var playTimeNanos = 0L
+        while (playTimeNanos < durationNanos) {
+            playTimeNanos = minOf(playTimeNanos + FLING_PATH_STEP_NANOS, durationNanos)
+
+            val rotation = rotationFlingDecay.valueAt(playTimeNanos, rotationVelocity)
+            val logZoom = zoomFlingDecay.valueAt(playTimeNanos, logZoomVelocity)
+            val pan = Offset(
+                panFlingDecay.valueAt(playTimeNanos, panVelocity.x),
+                panFlingDecay.valueAt(playTimeNanos, panVelocity.y)
+            )
+
+            simulated = transformed(
+                from = simulated,
+                pivot = pivot.viewportPosition(simulated),
+                rotationDelta = rotation - previousRotation
+            )
+            simulated = transformed(
+                from = simulated,
+                pivot = pivot.viewportPosition(simulated),
+                zoomFactor = exp(logZoom - previousLogZoom)
+            )
+            simulated = panned(simulated, Offset(pan.x - previousPan.x, 0f))
+            simulated = panned(simulated, Offset(0f, pan.y - previousPan.y))
+
+            previousRotation = rotation
+            previousLogZoom = logZoom
+            previousPan = pan
+
+            val nextBounds = compositionBoundsAt(bounds, simulated)
+            if (nextBounds !== bounds) {
+                bounds = nextBounds
+                path += nextBounds
+            }
+        }
+
+        return path
     }
 
     private suspend fun flingX(xVelocity: Float, boundsChanging: () -> Boolean) = Velocity(
@@ -915,6 +1012,8 @@ class LazyTransformableLayoutState(
 
     companion object {
         private const val MIN_PAN_FLING_PROGRESS = 0.1f
+
+        private const val FLING_PATH_STEP_NANOS = 16_000_000L
 
         /**
          * A saver that saves the bounds, rotation angle, zoom scale and center offset of a [LazyTransformableLayoutState].
