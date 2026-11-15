@@ -74,8 +74,7 @@ private val zoomOutKeys = setOf(Key.Minus, Key.NumPadSubtract, Key.PageDown)
 /**
  * A lazy layout of [Positionable] items that can be panned, zoomed and rotated.
  * Only items intersecting the viewport are composed, with some buffer. While a fling runs, the items it will
- * reach are precomposed ahead of time on Android and iOS. On desktop and web, Compose doesn't run prefetch yet,
- * so they are composed as they reach the viewport.
+ * reach are precomposed ahead of time.
  *
  * @param state The state holding this layout's rotation angle, zoom scale and center offset
  * @param modifier The modifier to apply to this layout
