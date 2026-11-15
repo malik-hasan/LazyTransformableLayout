@@ -96,7 +96,7 @@ internal data class Geometry(
     }
 
     fun viewportToLayoutPx(viewportPosition: Offset, transform: LayoutTransform) = transform.run {
-        centerOffset.toPx() + (viewportPosition - contentCenter).toLayoutAxes(zoomScale, rotationAngle)
+        centerOffsetPx + (viewportPosition - contentCenter).toLayoutAxes(zoomScale, rotationAngle)
     }
 
     fun viewportToLayout(viewportPosition: Offset, transform: LayoutTransform) =

@@ -1,6 +1,8 @@
 package mobile.oats.lazytransformablelayout
 
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpOffset
+import mobile.oats.lazytransformablelayout.extension.toPx
 
 /**
  * How a [LazyTransformableLayout] appears in the viewport: the point in layout space at the center of the content
@@ -14,4 +16,8 @@ data class LayoutTransform(
     val rotationAngle: Float = 0f,
     val zoomScale: Float = 1f,
     val centerOffset: DpOffset = DpOffset.Zero
-)
+) {
+    context(density: Density)
+    internal val centerOffsetPx
+        get() = centerOffset.toPx()
+}

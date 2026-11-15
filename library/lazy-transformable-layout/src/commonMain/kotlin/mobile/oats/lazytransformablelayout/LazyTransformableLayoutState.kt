@@ -239,7 +239,7 @@ class LazyTransformableLayoutState(
             rotationAngle = clampedAngle,
             zoomScale = clampedScale,
             centerOffset = geometry?.run {
-                clampCenter(clampedAngle, clampedScale, target.centerOffset.toPx()).toDp()
+                clampCenter(clampedAngle, clampedScale, target.centerOffsetPx).toDp()
             } ?: target.centerOffset
         )
     }
@@ -268,7 +268,7 @@ class LazyTransformableLayoutState(
 
     internal val translation by derivedStateOf {
         geometry?.run {
-            transform.centerOffset.toPx().toViewportAxes() - contentCenter
+            transform.centerOffsetPx.toViewportAxes() - contentCenter
         } ?: Offset.Zero
     }
 
@@ -433,7 +433,7 @@ class LazyTransformableLayoutState(
         delta: Offset,
         panningBounds: Parallelogram = transform.run { panningBoundsAt(layoutBounds, rotationAngle, zoomScale) }
     ): Offset {
-        val previousCenter = transform.centerOffset.toPx()
+        val previousCenter = transform.centerOffsetPx
         val newCenter = panningBounds.clamp(previousCenter + delta.toLayoutAxes())
         transform = transform.copy(centerOffset = newCenter.toDp())
         return (newCenter - previousCenter).toViewportAxes()
