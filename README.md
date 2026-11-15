@@ -12,21 +12,18 @@ The API and its documentation use these terms:
 
 ## Large images
 
-The `lazy-transformable-layout-tiled-image` artifact adds `tiledImage`, which shows a raster too large to hold in memory. It loads only the tiles near the viewport, at a resolution matching the zoom scale, and overlaps them so no seams appear.
+The `lazy-transformable-layout-tiled-image` artifact adds `tiledImage`, which shows a raster too large to hold in memory. It is drawn as a single item that loads only the tiles near the viewport, at a resolution matching the zoom scale, and draws them edge to edge so translucent content blends correctly.
 
 ```kotlin
-val imageSource = remember(bytes) { ImageSource.fromByteArray(bytes) }
-val state = rememberImageTileSource(imageSource)
+val state = rememberImageTileSource(imageSourceFactory)
 if (state is ImageTileSourceState.Ready) {
-    val image = rememberTiledImageState(state.source, layoutState)
-
     LazyTransformableLayout(layoutState) {
-        tiledImage(image)
+        tiledImage(state.source)
     }
 }
 ```
 
-`rememberImageTileSource` decodes encoded images through [ZoomImage](https://github.com/panpf/zoomimage), and accepts an `ImageSource.Factory` to load the image asynchronously. Use `DrawTileSource` for large canvases and already-loaded bitmaps. Implement `TileSource` for anything else, such as a tile server. The overlap assumes opaque content.
+`rememberImageTileSource` decodes encoded images through [ZoomImage](https://github.com/panpf/zoomimage), and accepts an `ImageSource.Factory` to load the image asynchronously. Pass a `TiledImageState` from `rememberTiledImageState` to keep tiles in memory while the image is out of composition. Use `DrawTileSource` for drawings too expensive to repeat every frame and for already-loaded bitmaps. Implement `TileSource` for anything else, such as a tile server.
 
 ## Trackpad pinch on desktop (macOS)
 

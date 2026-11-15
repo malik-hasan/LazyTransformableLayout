@@ -26,7 +26,6 @@ import mobile.oats.lazytransformablelayout.tiledimage.ImageTileSourceState
 import mobile.oats.lazytransformablelayout.tiledimage.TileSource
 import mobile.oats.lazytransformablelayout.tiledimage.extension.tiledImage
 import mobile.oats.lazytransformablelayout.tiledimage.rememberImageTileSource
-import mobile.oats.lazytransformablelayout.tiledimage.rememberTiledImageState
 import org.jetbrains.compose.resources.painterResource
 
 @Serializable
@@ -59,14 +58,13 @@ private fun TiledWallpaper(source: TileSource) {
     val layoutState = rememberLazyTransformableLayoutState(
         DpRect(0.dp, 0.dp, source.size.width.dp, source.size.height.dp)
     )
-    val image = rememberTiledImageState(source, layoutState)
 
     Scaffold { scaffoldPadding ->
         LazyTransformableLayout(
             state = layoutState,
             modifier = Modifier.padding(scaffoldPadding)
         ) {
-            tiledImage(image)
+            tiledImage(source)
         }
 
         IconButton({ layoutState.snapTo(rotationAngle = 0f) }) {

@@ -11,7 +11,7 @@ sealed interface ImageTileSourceState {
     data object Loading : ImageTileSourceState
 
     /**
-     * The image is ready to show with [rememberTiledImageState].
+     * The image is ready to show with `tiledImage`.
      *
      * @property source The source to load the image's tiles from. It is closed when it leaves composition
      */

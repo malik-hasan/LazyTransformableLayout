@@ -7,16 +7,17 @@ internal class LruCache<K : Any, V : Any>(
     private val entries = LinkedHashMap<K, V>()
     private var size = 0L
 
-    operator fun get(key: K): V? = entries.remove(key)?.also { entries[key] = it }
+    fun peek(key: K): V? = entries[key]
+
+    fun remove(key: K): V? = entries.remove(key)?.also { size -= sizeOf(it) }
 
     operator fun set(key: K, value: V) {
-        entries.remove(key)?.let { size -= sizeOf(it) }
+        remove(key)
         entries[key] = value
         size += sizeOf(value)
 
         while (size > maxSize) {
-            val eldest = entries.keys.first()
-            size -= sizeOf(entries.remove(eldest)!!)
+            remove(entries.keys.first())
         }
     }
 }

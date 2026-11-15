@@ -17,10 +17,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Creates a [TileSource] that renders each region by running [draw], for large canvases
- * and for bitmaps that are already fully loaded.
+ * Creates a [TileSource] that renders each region by running [draw], for drawings too expensive to repeat every frame
+ * and for bitmaps that are already fully loaded. Cheaper drawings stay sharper when drawn directly in a layout item.
  *
- * To show new content, create a new source and pass it to [rememberTiledImageState].
+ * To show new content, create a new source and pass it to `tiledImage`.
  *
  * @param size The size of the full drawing in source pixels, which is also the [DrawScope] size seen by [draw]
  * @param dispatcher The dispatcher [draw] runs on

@@ -274,6 +274,33 @@ class LazyTransformableLayoutState(
         )
     } ?: DpOffset.Unspecified
 
+    private val visibleArea by derivedStateOf {
+        geometry?.run { this to viewportBounds(0f, rotationAngle, zoomScale, centerOffsetPx) }
+    }
+
+    /**
+     * The smallest rectangle in layout space containing everything currently in the viewport, or null before the
+     * layout is first measured. Unlike the area in which items are composed, it has no buffer around the viewport
+     */
+    val visibleBounds: DpRect?
+        get() = visibleArea?.let { (geometry, area) ->
+            with(geometry) {
+                area.axisAlignedBoundingBox.run { DpRect(left.toDp(), top.toDp(), right.toDp(), bottom.toDp()) }
+            }
+        }
+
+    /**
+     * Checks whether any part of [bounds] is currently in the viewport, accounting for rotation
+     *
+     * @param bounds a rectangle in layout space
+     * @return whether [bounds] intersects the viewport, or false before the layout is first measured
+     */
+    fun isVisible(bounds: DpRect) = visibleArea?.let { (geometry, area) ->
+        with(geometry) {
+            area.intersects(bounds.left.toPx(), bounds.top.toPx(), bounds.right.toPx(), bounds.bottom.toPx())
+        }
+    } ?: false
+
     internal val translation by derivedStateOf {
         geometry?.run {
             centerOffsetPx.toViewportAxes() - contentCenter

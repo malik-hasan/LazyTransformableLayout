@@ -49,6 +49,7 @@ import mobile.oats.lazytransformablelayout.extension.trackpadPinchZoom
 import mobile.oats.lazytransformablelayout.extension.transform
 import mobile.oats.lazytransformablelayout.internal.Content
 import mobile.oats.lazytransformablelayout.internal.Item
+import mobile.oats.lazytransformablelayout.internal.downscaleOf
 import mobile.oats.lazytransformablelayout.internal.ItemProvider
 import kotlin.math.abs
 import kotlin.math.exp
@@ -105,9 +106,9 @@ fun LazyTransformableLayout(
     LaunchedEffect(state) { state.runPendingAnimations() }
 
     LazyLayout(
-        itemProvider = remember {
+        itemProvider = remember(state) {
             derivedStateOf(referentialEqualityPolicy()) {
-                ItemProvider(content)
+                ItemProvider(content, state)
             }::value
         },
         modifier = modifier
@@ -288,15 +289,19 @@ fun LazyTransformableLayout(
 
                 if (maxOf(width, height) >= minItemDimension
                     && viewportBounds.intersects(left, top, right, bottom)
-                ) itemsToCompose += Item(
-                    index = interval.startIndex + localIndex,
-                    constraints = Constraints(
-                        maxWidth = width.roundToInt(),
-                        maxHeight = height.roundToInt()
-                    ),
-                    position = Offset(left, top),
-                    zIndex = positionable.zIndex
-                )
+                ) {
+                    val downscale = downscaleOf(bounds)
+                    itemsToCompose += Item(
+                        index = interval.startIndex + localIndex,
+                        constraints = Constraints(
+                            maxWidth = (width / downscale).roundToInt(),
+                            maxHeight = (height / downscale).roundToInt()
+                        ),
+                        position = Offset(left, top),
+                        downscale = downscale,
+                        zIndex = positionable.zIndex
+                    )
+                }
             }
         }
 
@@ -315,8 +320,8 @@ fun LazyTransformableLayout(
                         viewportBounds.intersects(
                             left = x,
                             top = y,
-                            right = x + placeable.width,
-                            bottom = y + placeable.height
+                            right = x + placeable.width * item.downscale,
+                            bottom = y + placeable.height * item.downscale
                         )
                     }) placeable.placeWithLayer(
                         position = IntOffset.Zero,
@@ -325,8 +330,8 @@ fun LazyTransformableLayout(
                         transformOrigin = TransformOrigin(0f, 0f)
 
                         val scale = state.zoomScale
-                        scaleX = scale
-                        scaleY = scale
+                        scaleX = scale * item.downscale
+                        scaleY = scale * item.downscale
 
                         val angle = state.rotationAngle
                         rotationZ = angle
