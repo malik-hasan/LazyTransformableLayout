@@ -40,11 +40,13 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import mobile.oats.lazytransformablelayout.extension.center
+import mobile.oats.lazytransformablelayout.extension.durationNanos
 import mobile.oats.lazytransformablelayout.extension.radians
 import mobile.oats.lazytransformablelayout.extension.toDp
 import mobile.oats.lazytransformablelayout.extension.toLayoutAxes
 import mobile.oats.lazytransformablelayout.extension.toPx
 import mobile.oats.lazytransformablelayout.extension.toViewportAxes
+import mobile.oats.lazytransformablelayout.extension.valueAt
 import mobile.oats.lazytransformablelayout.internal.AnimationCoordinator
 import mobile.oats.lazytransformablelayout.internal.Camera
 import mobile.oats.lazytransformablelayout.internal.Geometry
@@ -915,12 +917,6 @@ class LazyTransformableLayoutState(
         panVelocity: Velocity,
         pivot: Pivot
     ): List<Pair<Float, Parallelogram>> {
-        fun FloatDecayAnimationSpec.durationNanos(velocity: Float) =
-            if (velocity == 0f) 0L else getDurationNanos(0f, velocity)
-
-        fun FloatDecayAnimationSpec.valueAt(playTimeNanos: Long, velocity: Float) =
-            if (velocity == 0f) 0f else getValueFromNanos(playTimeNanos, 0f, velocity)
-
         val durationNanos = maxOf(
             rotationFlingDecay.durationNanos(rotationVelocity),
             zoomFlingDecay.durationNanos(logZoomVelocity),
