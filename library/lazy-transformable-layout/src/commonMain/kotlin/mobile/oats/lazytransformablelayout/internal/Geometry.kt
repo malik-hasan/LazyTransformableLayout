@@ -114,11 +114,11 @@ internal data class Geometry(
         angle: Float,
         scale: Float,
         fromViewportPivot: Offset,
-        from: LayoutTransform
+        fromTransform: LayoutTransform
     ) = centerFromLayoutPivot(
         viewportPivot = viewportPivot,
         angle = angle,
         scale = scale,
-        layoutPivot = viewportToLayoutPx(fromViewportPivot, from)
+        layoutPivot = viewportToLayoutPx(fromViewportPivot, fromTransform)
     )
 }

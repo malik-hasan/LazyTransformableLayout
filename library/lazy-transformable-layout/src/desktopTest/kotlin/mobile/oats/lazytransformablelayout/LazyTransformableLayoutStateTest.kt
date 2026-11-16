@@ -2,8 +2,6 @@ package mobile.oats.lazytransformablelayout
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.saveable.SaverScope
-import androidx.compose.runtime.snapshots.Snapshot
-import androidx.compose.runtime.snapshots.SnapshotStateObserver
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.isSpecified
@@ -18,9 +16,7 @@ import kotlin.math.abs
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNotEquals
 import kotlin.test.assertNotSame
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -629,65 +625,5 @@ class LazyTransformableLayoutStateTest {
 
         assertEquals(90f, state.rotationAngle)
         assertEquals(1.7f, state.zoomScale, 1e-4f)
-    }
-
-    private fun LazyTransformableLayoutState.assertTransformMatches() {
-        assertEquals(LayoutTransform(rotationAngle, zoomScale, centerOffset), transform)
-    }
-
-    private fun <T> observeChanges(read: () -> T, change: () -> Unit): Boolean {
-        var changed = false
-        val observer = SnapshotStateObserver { it() }
-        observer.start()
-        try {
-            observer.observeReads(Unit, { changed = true }) { read() }
-            change()
-            Snapshot.sendApplyNotifications()
-        } finally {
-            observer.stop()
-        }
-        return changed
-    }
-
-    @Test
-    fun `given a state, should report the same values in its transform as in its properties`() {
-        val state = state(rotationBounds = -10f..10f, zoomBounds = 0.5f..4f)
-        state.assertTransformMatches()
-
-        state.snapTo(rotationAngle = 5f, zoomScale = 2f, centerOffset = DpOffset(5_000.dp, 3_000.dp))
-        assertEquals(LayoutTransform(5f, 2f, DpOffset(5_000.dp, 3_000.dp)), state.transform)
-        state.assertTransformMatches()
-
-        state.snapTo(rotationAngle = 500f, zoomScale = 100f, centerOffset = DpOffset(-1_000.dp, -1_000.dp))
-        assertEquals(10f, state.transform.rotationAngle)
-        assertEquals(4f, state.transform.zoomScale)
-        state.assertTransformMatches()
-    }
-
-    @Test
-    fun `given a reader of the rotation angle, when only the center or zoom changes, should not notify it`() {
-        val state = state()
-        state.snapTo(rotationAngle = 20f, zoomScale = 2f, centerOffset = DpOffset(4_000.dp, 2_500.dp))
-
-        assertFalse(observeChanges({ state.rotationAngle }) { state.snapTo(centerOffset = DpOffset(4_500.dp, 2_000.dp)) })
-        assertFalse(observeChanges({ state.rotationAngle }) { state.snapBy(panDelta = Offset(30f, -40f)) })
-        assertFalse(observeChanges({ state.rotationAngle }) { state.snapTo(zoomScale = 3f) })
-    }
-
-    @Test
-    fun `given a reader of the rotation angle, when the angle changes, should notify it`() {
-        val state = state()
-
-        assertTrue(observeChanges({ state.rotationAngle }) { state.snapTo(rotationAngle = 30f) })
-    }
-
-    @Test
-    fun `given a reader of the transform, when panning, should notify it with a new center offset`() {
-        val state = state()
-        val before = state.transform
-
-        assertTrue(observeChanges({ state.transform }) { state.snapBy(panDelta = Offset(30f, -40f)) })
-        assertNotEquals(before.centerOffset, state.transform.centerOffset)
-        assertEquals(before.copy(centerOffset = state.transform.centerOffset), state.transform)
     }
 }
