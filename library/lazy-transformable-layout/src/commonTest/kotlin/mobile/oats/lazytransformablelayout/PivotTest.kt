@@ -24,22 +24,22 @@ class PivotTest {
     fun `given a viewport pivot when resolving it should be its position regardless of the transform`() {
         with(geometry) {
             val pivot = Pivot.Viewport(Offset(123f, 456f))
-            assertEquals(Offset(123f, 456f), pivot.viewportPosition(LayoutTransform(0f, 1f, center)))
-            assertEquals(Offset(123f, 456f), pivot.viewportPosition(LayoutTransform(77f, 3f, center)))
+            assertEquals(Offset(123f, 456f), pivot.viewportPosition(Camera(0f, 1f, center)))
+            assertEquals(Offset(123f, 456f), pivot.viewportPosition(Camera(77f, 3f, center)))
         }
     }
 
     @Test
     fun `given an unspecified viewport pivot when resolving it should be the center of the content area`() {
         with(geometry) {
-            assertEquals(Offset(500f, 1_000f), Pivot.Viewport(Offset.Unspecified).viewportPosition(LayoutTransform(45f, 2f, center)))
+            assertEquals(Offset(500f, 1_000f), Pivot.Viewport(Offset.Unspecified).viewportPosition(Camera(45f, 2f, center)))
         }
     }
 
     @Test
     fun `given a content center pivot when resolving it should be the center of the content area`() {
         with(geometry) {
-            assertEquals(Offset(500f, 1_000f), Pivot.ContentCenter.viewportPosition(LayoutTransform(45f, 2f, center)))
+            assertEquals(Offset(500f, 1_000f), Pivot.ContentCenter.viewportPosition(Camera(45f, 2f, center)))
         }
     }
 
@@ -47,7 +47,7 @@ class PivotTest {
     fun `given a layout pivot when resolving it should be where its position currently is in the viewport`() {
         with(geometry) {
             val pivot = Pivot.Layout(DpOffset(310.dp, 420.dp))
-            val position = pivot.viewportPosition(LayoutTransform(0f, 2f, center))
+            val position = pivot.viewportPosition(Camera(0f, 2f, center))
             assertEquals(520f, position.x, 1e-3f)
             assertEquals(1_040f, position.y, 1e-3f)
         }
@@ -56,7 +56,7 @@ class PivotTest {
     @Test
     fun `given a layout pivot at the center offset when resolving it should be the content center`() {
         with(geometry) {
-            val position = Pivot.Layout(center).viewportPosition(LayoutTransform(60f, 3f, center))
+            val position = Pivot.Layout(center).viewportPosition(Camera(60f, 3f, center))
             assertEquals(500f, position.x, 1e-3f)
             assertEquals(1_000f, position.y, 1e-3f)
         }

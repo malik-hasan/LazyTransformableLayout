@@ -9,7 +9,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.toSize
-import mobile.oats.lazytransformablelayout.LayoutTransform
+import mobile.oats.lazytransformablelayout.Camera
 import mobile.oats.lazytransformablelayout.extension.radians
 import mobile.oats.lazytransformablelayout.extension.toDp
 import mobile.oats.lazytransformablelayout.extension.toLayoutAxes
@@ -42,11 +42,11 @@ internal data class Geometry(
         )
     }
 
-    fun viewportBounds(buffer: Float, transform: LayoutTransform) = Parallelogram(
+    fun viewportBounds(buffer: Float, camera: Camera) = Parallelogram(
         viewportSize.toSize().toRect()
             .inflate(buffer)
             .vertices.map {
-                viewportToLayoutPx(it, transform)
+                viewportToLayoutPx(it, camera)
             }
     )
 
@@ -95,14 +95,14 @@ internal data class Geometry(
         )
     }
 
-    fun viewportToLayoutPx(viewportPosition: Offset, transform: LayoutTransform) = transform.run {
+    fun viewportToLayoutPx(viewportPosition: Offset, camera: Camera) = camera.run {
         centerOffsetPx + (viewportPosition - contentCenter).toLayoutAxes(zoomScale, rotationAngle)
     }
 
-    fun viewportToLayout(viewportPosition: Offset, transform: LayoutTransform) =
-        viewportToLayoutPx(viewportPosition, transform).toDp()
+    fun viewportToLayout(viewportPosition: Offset, camera: Camera) =
+        viewportToLayoutPx(viewportPosition, camera).toDp()
 
-    fun layoutToViewport(layoutPosition: DpOffset, transform: LayoutTransform) = transform.run {
+    fun layoutToViewport(layoutPosition: DpOffset, camera: Camera) = camera.run {
         (layoutPosition - centerOffset).toPx().toViewportAxes(zoomScale, rotationAngle) + contentCenter
     }
 
@@ -114,11 +114,11 @@ internal data class Geometry(
         angle: Float,
         scale: Float,
         fromViewportPivot: Offset,
-        fromTransform: LayoutTransform
+        fromCamera: Camera
     ) = centerFromLayoutPivot(
         viewportPivot = viewportPivot,
         angle = angle,
         scale = scale,
-        layoutPivot = viewportToLayoutPx(fromViewportPivot, fromTransform)
+        layoutPivot = viewportToLayoutPx(fromViewportPivot, fromCamera)
     )
 }

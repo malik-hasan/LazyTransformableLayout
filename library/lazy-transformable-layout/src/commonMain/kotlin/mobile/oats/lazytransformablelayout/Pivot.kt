@@ -12,7 +12,7 @@ import mobile.oats.lazytransformablelayout.internal.Geometry
 sealed class Pivot {
 
     context(geometry: Geometry)
-    internal abstract fun viewportPosition(transform: LayoutTransform): Offset
+    internal abstract fun viewportPosition(camera: Camera): Offset
 
     /**
      * A point in the viewport
@@ -22,7 +22,7 @@ sealed class Pivot {
      */
     data class Viewport(val position: Offset) : Pivot() {
         context(geometry: Geometry)
-        override fun viewportPosition(transform: LayoutTransform) =
+        override fun viewportPosition(camera: Camera) =
             position.takeIf { it.isSpecified } ?: geometry.contentCenter
     }
 
@@ -33,8 +33,8 @@ sealed class Pivot {
      */
     data class Layout(val position: DpOffset) : Pivot() {
         context(geometry: Geometry)
-        override fun viewportPosition(transform: LayoutTransform) =
-            geometry.layoutToViewport(position, transform)
+        override fun viewportPosition(camera: Camera) =
+            geometry.layoutToViewport(position, camera)
     }
 
     /**
@@ -42,7 +42,7 @@ sealed class Pivot {
      */
     data object ContentCenter : Pivot() {
         context(geometry: Geometry)
-        override fun viewportPosition(transform: LayoutTransform) =
+        override fun viewportPosition(camera: Camera) =
             geometry.contentCenter
     }
 }

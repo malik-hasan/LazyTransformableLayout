@@ -4,7 +4,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpOffset
 import mobile.oats.lazytransformablelayout.extension.toPx
 
-internal data class LayoutTransform(
+internal data class Camera(
     val rotationAngle: Float = 0f,
     val zoomScale: Float = 1f,
     val centerOffset: DpOffset = DpOffset.Zero

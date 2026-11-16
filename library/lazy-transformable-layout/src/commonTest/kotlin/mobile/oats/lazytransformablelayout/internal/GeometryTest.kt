@@ -6,7 +6,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import mobile.oats.lazytransformablelayout.LayoutTransform
+import mobile.oats.lazytransformablelayout.Camera
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -32,15 +32,15 @@ class GeometryTest {
     @Test
     fun `given the layout center when mapping to the viewport should map to the content center`() {
         val center = DpOffset(300.dp, 400.dp)
-        assertOffsetEquals(geometry.contentCenter, geometry.layoutToViewport(center, LayoutTransform(25f, 2f, center)))
+        assertOffsetEquals(geometry.contentCenter, geometry.layoutToViewport(center, Camera(25f, 2f, center)))
     }
 
     @Test
     fun `given a scale and a rotation when converting layout to viewport should scale and rotate about the content center`() {
         val center = DpOffset(0.dp, 0.dp)
         val position = DpOffset(10.dp, 20.dp)
-        assertOffsetEquals(Offset(520f, 1_040f), geometry.layoutToViewport(position, LayoutTransform(0f, 2f, center)))
-        assertOffsetEquals(Offset(480f, 1_010f), geometry.layoutToViewport(position, LayoutTransform(90f, 1f, center)))
+        assertOffsetEquals(Offset(520f, 1_040f), geometry.layoutToViewport(position, Camera(0f, 2f, center)))
+        assertOffsetEquals(Offset(480f, 1_010f), geometry.layoutToViewport(position, Camera(90f, 1f, center)))
     }
 
     @Test
@@ -49,8 +49,8 @@ class GeometryTest {
         for (angle in listOf(0f, 30f, 90f, -135f)) {
             for (scale in listOf(0.5f, 1f, 4f)) {
                 val position = DpOffset(75.dp, 310.dp)
-                val viewportPosition = geometry.layoutToViewport(position, LayoutTransform(angle, scale, center))
-                val roundTrip = geometry.viewportToLayout(viewportPosition, LayoutTransform(angle, scale, center))
+                val viewportPosition = geometry.layoutToViewport(position, Camera(angle, scale, center))
+                val roundTrip = geometry.viewportToLayout(viewportPosition, Camera(angle, scale, center))
                 assertOffsetEquals(Offset(position.x.value, position.y.value), Offset(roundTrip.x.value, roundTrip.y.value))
             }
         }
@@ -65,7 +65,7 @@ class GeometryTest {
                 val center = geometry.centerFromLayoutPivot(viewportPivot, angle, scale, layoutPivot)
                 val back = geometry.layoutToViewport(
                     DpOffset(layoutPivot.x.dp, layoutPivot.y.dp),
-                    LayoutTransform(angle, scale, DpOffset(center.x.dp, center.y.dp))
+                    Camera(angle, scale, DpOffset(center.x.dp, center.y.dp))
                 )
                 assertOffsetEquals(viewportPivot, back)
             }
@@ -124,7 +124,7 @@ class GeometryTest {
 
     @Test
     fun `given no rotation when computing viewport bounds should be the inflated viewport around the center`() {
-        val box = geometry.viewportBounds(10f, LayoutTransform(0f, 1f, DpOffset(1_000.dp, 1_800.dp))).axisAlignedBoundingBox
+        val box = geometry.viewportBounds(10f, Camera(0f, 1f, DpOffset(1_000.dp, 1_800.dp))).axisAlignedBoundingBox
         assertEquals(Rect(490f, 790f, 1_510f, 2_810f), box)
     }
 }
