@@ -18,6 +18,8 @@ class GeometryTest {
         contentBounds = Rect(0f, 100f, 1_000f, 1_900f)
     )
 
+    private val denseGeometry = geometry.copy(density = 2f)
+
     private fun assertOffsetEquals(expected: Offset, actual: Offset, tolerance: Float = 1e-2f) {
         assertEquals(expected.x, actual.x, tolerance, "x of $actual")
         assertEquals(expected.y, actual.y, tolerance, "y of $actual")
@@ -125,5 +127,17 @@ class GeometryTest {
     fun `given no rotation when computing viewport bounds should be the inflated viewport around the center`() {
         val box = geometry.viewportBounds(10f, Camera(0f, 1f, DpOffset(1_000.dp, 1_800.dp))).axisAlignedBoundingBox
         assertEquals(Rect(490f, 790f, 1_510f, 2_810f), box)
+    }
+
+    @Test
+    fun `given a density when computing viewport bounds should convert the center offset to px`() {
+        val box = denseGeometry.viewportBounds(10f, Camera(0f, 1f, DpOffset(500.dp, 900.dp))).axisAlignedBoundingBox
+        assertEquals(Rect(490f, 790f, 1_510f, 2_810f), box)
+    }
+
+    @Test
+    fun `given a density when converting viewport to layout should convert the center offset to px`() {
+        val position = denseGeometry.viewportToLayout(Offset(520f, 1_040f), Camera(0f, 1f, DpOffset(500.dp, 900.dp)))
+        assertOffsetEquals(Offset(510f, 920f), Offset(position.x.value, position.y.value))
     }
 }

@@ -173,19 +173,18 @@ class LazyTransformableLayoutState(
             measuredGeometry = geometry
             this.geometry = geometry
 
+            val camera = camera
             clampAndSetCamera(
-                camera.let {
-                    pendingFitBounds?.let { (bounds, margin) ->
-                        pendingFitBounds = null
-                        it.copy(
-                            zoomScale = geometry.fitScale(
-                                bounds = bounds,
-                                rotationAngle = null,
-                                margin = margin
-                            )
+                pendingFitBounds?.let { (bounds, margin) ->
+                    pendingFitBounds = null
+                    camera.copy(
+                        zoomScale = geometry.fitScale(
+                            bounds = bounds,
+                            rotationAngle = null,
+                            margin = margin
                         )
-                    } ?: it
-                }
+                    )
+                } ?: camera
             )
         }
     }
@@ -365,15 +364,16 @@ class LazyTransformableLayoutState(
         centerOffset: DpOffset? = null,
         mutatePriority: MutatePriority = MutatePriority.Default
     ) {
-        if (!animationCoordinator.tryCancel(mutatePriority)) return
-        pendingFitBounds = null
-        clampAndSetCamera(
-            Camera(
-                rotationAngle = rotationAngle ?: this.rotationAngle,
-                zoomScale = zoomScale ?: this.zoomScale,
-                centerOffset = centerOffset ?: this.centerOffset
+        if (animationCoordinator.tryCancel(mutatePriority)) {
+            pendingFitBounds = null
+            clampAndSetCamera(
+                Camera(
+                    rotationAngle = rotationAngle ?: this.rotationAngle,
+                    zoomScale = zoomScale ?: this.zoomScale,
+                    centerOffset = centerOffset ?: this.centerOffset
+                )
             )
-        )
+        }
     }
 
     /**
