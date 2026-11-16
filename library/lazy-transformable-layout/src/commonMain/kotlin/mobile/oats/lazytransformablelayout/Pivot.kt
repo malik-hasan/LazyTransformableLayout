@@ -3,6 +3,7 @@ package mobile.oats.lazytransformablelayout
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.unit.DpOffset
+import mobile.oats.lazytransformablelayout.internal.Camera
 import mobile.oats.lazytransformablelayout.internal.Geometry
 
 /**

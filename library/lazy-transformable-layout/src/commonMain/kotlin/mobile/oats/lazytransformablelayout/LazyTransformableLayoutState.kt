@@ -44,6 +44,7 @@ import mobile.oats.lazytransformablelayout.extension.toLayoutAxes
 import mobile.oats.lazytransformablelayout.extension.toPx
 import mobile.oats.lazytransformablelayout.extension.toViewportAxes
 import mobile.oats.lazytransformablelayout.internal.AnimationCoordinator
+import mobile.oats.lazytransformablelayout.internal.Camera
 import mobile.oats.lazytransformablelayout.internal.Geometry
 import mobile.oats.lazytransformablelayout.internal.Parallelogram
 import kotlin.math.exp
@@ -132,7 +133,7 @@ class LazyTransformableLayoutState(
             this.zoomBounds = it
         }
 
-        clampAndSet()
+        clampAndSetCamera()
     }
 
     private var measuredGeometry: Geometry? = null
@@ -172,7 +173,7 @@ class LazyTransformableLayoutState(
             measuredGeometry = geometry
             this.geometry = geometry
 
-            clampAndSet(
+            clampAndSetCamera(
                 camera.let {
                     pendingFitBounds?.let { (bounds, margin) ->
                         pendingFitBounds = null
@@ -234,7 +235,7 @@ class LazyTransformableLayoutState(
         margin = margin
     )
 
-    private fun clampAndSet(target: Camera = camera) {
+    private fun clampAndSetCamera(target: Camera = camera) {
         val clampedAngle = clampAngle(target.rotationAngle)
         val clampedScale = clampScale(clampedAngle, target.zoomScale)
         camera = Camera(
@@ -245,6 +246,12 @@ class LazyTransformableLayoutState(
             } ?: target.centerOffset
         )
     }
+
+    private var Geometry.centerOffsetPx: Offset
+        get() = centerOffset.toPx()
+        set(value) {
+            centerOffset = value.toDp()
+        }
 
     private fun Offset.toViewportAxes() = toViewportAxes(zoomScale, rotationAngle)
 
@@ -270,7 +277,7 @@ class LazyTransformableLayoutState(
 
     internal val translation by derivedStateOf {
         geometry?.run {
-            centerOffset.toPx().toViewportAxes() - contentCenter
+            centerOffsetPx.toViewportAxes() - contentCenter
         } ?: Offset.Zero
     }
 
@@ -360,7 +367,7 @@ class LazyTransformableLayoutState(
     ) {
         if (!animationCoordinator.tryCancel(mutatePriority)) return
         pendingFitBounds = null
-        clampAndSet(
+        clampAndSetCamera(
             Camera(
                 rotationAngle = rotationAngle ?: this.rotationAngle,
                 zoomScale = zoomScale ?: this.zoomScale,
@@ -433,9 +440,9 @@ class LazyTransformableLayoutState(
         delta: Offset,
         panningBounds: Parallelogram = panningBoundsAt(layoutBounds, rotationAngle, zoomScale)
     ): Offset {
-        val previousCenter = centerOffset.toPx()
+        val previousCenter = centerOffsetPx
         val newCenter = panningBounds.clamp(previousCenter + delta.toLayoutAxes())
-        centerOffset = newCenter.toDp()
+        centerOffsetPx = newCenter
         return (newCenter - previousCenter).toViewportAxes()
     }
 
@@ -742,8 +749,8 @@ class LazyTransformableLayoutState(
                             fromCamera = start
                         )
                 ).toDp()
-                val target = Camera(clampedAngle, clampedScale, clampedCenter)
 
+                val target = Camera(clampedAngle, clampedScale, clampedCenter)
                 animateTo(
                     targetValue = TransformAnimationValues(
                         rotationAngle = clampedAngle,
@@ -774,7 +781,7 @@ class LazyTransformableLayoutState(
                 }
 
                 // settle any rounding errors
-                clampAndSet(target)
+                clampAndSetCamera(target)
             }
         }
     }

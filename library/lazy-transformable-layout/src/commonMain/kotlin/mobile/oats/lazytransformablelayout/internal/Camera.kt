@@ -1,4 +1,4 @@
-package mobile.oats.lazytransformablelayout
+package mobile.oats.lazytransformablelayout.internal
 
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpOffset

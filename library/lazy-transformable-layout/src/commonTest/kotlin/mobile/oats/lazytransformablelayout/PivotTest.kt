@@ -5,6 +5,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import mobile.oats.lazytransformablelayout.internal.Camera
 import mobile.oats.lazytransformablelayout.internal.Geometry
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -32,14 +33,22 @@ class PivotTest {
     @Test
     fun `given an unspecified viewport pivot when resolving it should be the center of the content area`() {
         with(geometry) {
-            assertEquals(Offset(500f, 1_000f), Pivot.Viewport(Offset.Unspecified).viewportPosition(Camera(45f, 2f, center)))
+            assertEquals(Offset(500f, 1_000f), Pivot.Viewport(Offset.Unspecified).viewportPosition(
+                Camera(45f, 2f, center)
+            ))
         }
     }
 
     @Test
     fun `given a content center pivot when resolving it should be the center of the content area`() {
         with(geometry) {
-            assertEquals(Offset(500f, 1_000f), Pivot.ContentCenter.viewportPosition(Camera(45f, 2f, center)))
+            assertEquals(Offset(500f, 1_000f), Pivot.ContentCenter.viewportPosition(
+                Camera(
+                    45f,
+                    2f,
+                    center
+                )
+            ))
         }
     }
 
