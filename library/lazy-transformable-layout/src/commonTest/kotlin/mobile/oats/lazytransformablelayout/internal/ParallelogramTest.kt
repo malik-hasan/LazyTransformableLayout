@@ -2,6 +2,7 @@ package mobile.oats.lazytransformablelayout.internal
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import mobile.oats.lazytransformablelayout.Parallelogram
 import mobile.oats.lazytransformablelayout.extension.cross
 import kotlin.random.Random
 import kotlin.test.Test

@@ -277,6 +277,14 @@ class LazyTransformableLayoutState(
     fun viewportToLayout(position: Offset) =
         geometry?.viewportToLayout(position, camera) ?: DpOffset.Unspecified
 
+    /**
+     * The part of layout space currently in the viewport, or null before the layout is first measured.
+     * Unlike the area in which items are composed, it has no buffer around the viewport
+     */
+    val visibleLayoutArea by derivedStateOf {
+        geometry?.viewportBounds(0f, camera)
+    }
+
     internal val translation by derivedStateOf {
         geometry?.run {
             centerOffsetPx.toViewportAxes() - contentCenter

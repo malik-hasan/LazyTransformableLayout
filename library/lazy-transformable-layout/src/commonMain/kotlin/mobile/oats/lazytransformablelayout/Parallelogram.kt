@@ -1,19 +1,50 @@
-package mobile.oats.lazytransformablelayout.internal
+package mobile.oats.lazytransformablelayout
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastForEach
 import mobile.oats.lazytransformablelayout.extension.cross
 import mobile.oats.lazytransformablelayout.extension.distanceSquared
 import mobile.oats.lazytransformablelayout.extension.nearestPointOnSegment
+import mobile.oats.lazytransformablelayout.extension.toDp
 import kotlin.math.abs
 
-internal class Parallelogram(
-    vertices: List<Offset>
-): List<Offset> by vertices {
+/**
+ * A parallelogram in layout space, such as the viewport, which is a rectangle rotated relative to layout space
+ * when the layout is rotated
+ */
+class Parallelogram internal constructor(
+    internal val vertices: List<Offset>
+) {
 
-    constructor(p0: Offset, p1: Offset, p2: Offset, p3: Offset) : this(listOf(p0, p1, p2, p3))
+    internal constructor(p0: Offset, p1: Offset, p2: Offset, p3: Offset) : this(listOf(p0, p1, p2, p3))
+
+    internal operator fun get(index: Int) = vertices[index]
+
+    /**
+     * The corners in layout space, in order around the parallelogram. For the viewport they start at its top left
+     * and continue clockwise on screen (top left, top right, bottom right, bottom left)
+     *
+     * @param density The density of the layout
+     */
+    context(density: Density)
+    val corners: List<DpOffset>
+        get() = vertices.map { it.toDp() }
+
+    /**
+     * Checks whether any part of [rect] is inside this parallelogram
+     *
+     * @param density The density of the layout
+     * @param rect A rectangle in layout space
+     */
+    context(density: Density)
+    fun intersects(rect: DpRect) = with(density) {
+        intersects(rect.left.toPx(), rect.top.toPx(), rect.right.toPx(), rect.bottom.toPx())
+    }
 
     private val origin = this[0]
     private val u = this[1] - origin
@@ -21,13 +52,13 @@ internal class Parallelogram(
     private val determinant = u cross v
     private val center = (origin + this[2]) / 2f
 
-    val axisAlignedBoundingBox = run {
+    internal val axisAlignedBoundingBox = run {
         var minX = Float.POSITIVE_INFINITY
         var minY = Float.POSITIVE_INFINITY
         var maxX = Float.NEGATIVE_INFINITY
         var maxY = Float.NEGATIVE_INFINITY
 
-        fastForEach { (x, y) ->
+        vertices.fastForEach { (x, y) ->
             if (x < minX) minX = x
             if (y < minY) minY = y
             if (x > maxX) maxX = x
@@ -42,11 +73,11 @@ internal class Parallelogram(
         )
     }
 
-    fun intersects(rect: Rect) = rect.run {
+    internal fun intersects(rect: Rect) = rect.run {
         intersects(left, top, right, bottom)
     }
 
-    fun intersects(left: Float, top: Float, right: Float, bottom: Float): Boolean {
+    internal fun intersects(left: Float, top: Float, right: Float, bottom: Float): Boolean {
         if (right <= axisAlignedBoundingBox.left
             || left >= axisAlignedBoundingBox.right
             || bottom <= axisAlignedBoundingBox.top
@@ -62,15 +93,15 @@ internal class Parallelogram(
             && abs(v cross d) <= halfDeterminant + rectHalfWidth * abs(v.y) + rectHalfHeight * abs(v.x)
     }
 
-    operator fun contains(other: Parallelogram): Boolean = determinant != 0f
-        && other.fastAll {
+    internal operator fun contains(other: Parallelogram): Boolean = determinant != 0f
+        && other.vertices.fastAll {
             val w = it - origin
             val s = (w cross v) / determinant
             val t = (u cross w) / determinant
             s in 0f..1f && t in 0f..1f
         }
 
-    fun clamp(offset: Offset) = if (abs(determinant) < 1e-4f) {
+    internal fun clamp(offset: Offset) = if (abs(determinant) < 1e-4f) {
         var maxDistanceSquared = -1f
         var start = origin
         var end = origin

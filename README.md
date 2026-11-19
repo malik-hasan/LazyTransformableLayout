@@ -10,6 +10,21 @@ The API and its documentation use these terms:
 | **Viewport** | The area the `LazyTransformableLayout` occupies on screen. Points and distances in the viewport, such as a `panDelta` or `Pivot.Viewport`, are measured from its top-left corner, like pointer positions. | px |
 | **Content area** | The part of the viewport inside the layout's `contentPadding`. The `centerOffset` is placed at its center, and fitting and clamping use it, while items still draw underneath the padding. | px |
 
+## Large images
+
+The `lazy-transformable-layout-tiled-image` artifact adds `tiledImage`, which shows a raster too large to hold in memory. It is drawn as a single item that loads only the tiles near the viewport, at a resolution matching the zoom scale, and draws them edge to edge so translucent content blends correctly.
+
+```kotlin
+val state = rememberImageTileSource(imageSourceFactory)
+if (state is ImageTileSourceState.Ready) {
+    LazyTransformableLayout(layoutState) {
+        tiledImage(state.source)
+    }
+}
+```
+
+`rememberImageTileSource` decodes encoded images through [ZoomImage](https://github.com/panpf/zoomimage), and accepts an `ImageSource.Factory` to load the image asynchronously. Pass a `TiledImageState` from `rememberTiledImageState` to keep tiles in memory while the image is out of composition. Use `DrawTileSource` for drawings too expensive to repeat every frame and for already-loaded bitmaps. Implement `TileSource` for anything else, such as a tile server.
+
 ## Trackpad pinch on desktop (macOS)
 
 AWT doesn't pass trackpad pinch gestures to Compose Desktop, so the layout listens for them through the JDK's internal `com.apple.eawt.event` API. To enable pinch-to-zoom, export that package to your app:

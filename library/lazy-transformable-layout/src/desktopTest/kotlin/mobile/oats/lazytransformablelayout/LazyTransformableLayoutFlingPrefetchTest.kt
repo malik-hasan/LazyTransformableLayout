@@ -31,7 +31,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
 import mobile.oats.lazytransformablelayout.extension.toLayoutAxes
 import mobile.oats.lazytransformablelayout.internal.CompositionBounds
-import mobile.oats.lazytransformablelayout.internal.Parallelogram
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

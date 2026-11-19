@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -52,6 +53,7 @@ import mobile.oats.lazytransformablelayout.extension.transform
 import mobile.oats.lazytransformablelayout.internal.Content
 import mobile.oats.lazytransformablelayout.internal.Item
 import mobile.oats.lazytransformablelayout.internal.ItemProvider
+import mobile.oats.lazytransformablelayout.internal.itemConstraints
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.ln
@@ -144,10 +146,7 @@ fun LazyTransformableLayout(
                                     bottom
                                 )
                             }
-                            if (step > 0) buckets[step] += index to Constraints(
-                                maxWidth = (right - left).roundToInt(),
-                                maxHeight = (bottom - top).roundToInt()
-                            )
+                            if (step > 0) buckets[step] += index to itemConstraints(right - left, bottom - top)
                         }
                     }
                 }
@@ -164,9 +163,9 @@ fun LazyTransformableLayout(
     }
 
     LazyLayout(
-        itemProvider = remember {
+        itemProvider = remember(state) {
             derivedStateOf(referentialEqualityPolicy()) {
-                ItemProvider(content)
+                ItemProvider(content, state)
             }::value
         },
         prefetchState = state.prefetchState,
@@ -343,11 +342,9 @@ fun LazyTransformableLayout(
                 && compositionBounds.area.intersects(left, top, right, bottom)
             ) itemsToCompose += Item(
                 index = index,
-                constraints = Constraints(
-                    maxWidth = width.roundToInt(),
-                    maxHeight = height.roundToInt()
-                ),
+                constraints = itemConstraints(width, height),
                 position = Offset(left, top),
+                size = Size(width, height),
                 zIndex = positionable.zIndex
             )
         }
@@ -367,8 +364,8 @@ fun LazyTransformableLayout(
                         compositionBounds.area.intersects(
                             left = x,
                             top = y,
-                            right = x + placeable.width,
-                            bottom = y + placeable.height
+                            right = x + item.size.width,
+                            bottom = y + item.size.height
                         )
                     }) placeable.placeWithLayer(
                         position = IntOffset.Zero,
