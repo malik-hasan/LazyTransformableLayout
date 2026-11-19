@@ -18,6 +18,8 @@ class GeometryTest {
         contentBounds = Rect(0f, 100f, 1_000f, 1_900f)
     )
 
+    private val denseGeometry = geometry.copy(density = 2f)
+
     private fun assertOffsetEquals(expected: Offset, actual: Offset, tolerance: Float = 1e-2f) {
         assertEquals(expected.x, actual.x, tolerance, "x of $actual")
         assertEquals(expected.y, actual.y, tolerance, "y of $actual")
@@ -31,15 +33,15 @@ class GeometryTest {
     @Test
     fun `given the layout center when mapping to the viewport should map to the content center`() {
         val center = DpOffset(300.dp, 400.dp)
-        assertOffsetEquals(geometry.contentCenter, geometry.layoutToViewport(center, 25f, 2f, center))
+        assertOffsetEquals(geometry.contentCenter, geometry.layoutToViewport(center, Camera(25f, 2f, center)))
     }
 
     @Test
     fun `given a scale and a rotation when converting layout to viewport should scale and rotate about the content center`() {
         val center = DpOffset(0.dp, 0.dp)
         val position = DpOffset(10.dp, 20.dp)
-        assertOffsetEquals(Offset(520f, 1_040f), geometry.layoutToViewport(position, 0f, 2f, center))
-        assertOffsetEquals(Offset(480f, 1_010f), geometry.layoutToViewport(position, 90f, 1f, center))
+        assertOffsetEquals(Offset(520f, 1_040f), geometry.layoutToViewport(position, Camera(0f, 2f, center)))
+        assertOffsetEquals(Offset(480f, 1_010f), geometry.layoutToViewport(position, Camera(90f, 1f, center)))
     }
 
     @Test
@@ -48,8 +50,8 @@ class GeometryTest {
         for (angle in listOf(0f, 30f, 90f, -135f)) {
             for (scale in listOf(0.5f, 1f, 4f)) {
                 val position = DpOffset(75.dp, 310.dp)
-                val viewportPosition = geometry.layoutToViewport(position, angle, scale, center)
-                val roundTrip = geometry.viewportToLayout(viewportPosition, angle, scale, center)
+                val viewportPosition = geometry.layoutToViewport(position, Camera(angle, scale, center))
+                val roundTrip = geometry.viewportToLayout(viewportPosition, Camera(angle, scale, center))
                 assertOffsetEquals(Offset(position.x.value, position.y.value), Offset(roundTrip.x.value, roundTrip.y.value))
             }
         }
@@ -64,9 +66,7 @@ class GeometryTest {
                 val center = geometry.centerFromLayoutPivot(viewportPivot, angle, scale, layoutPivot)
                 val back = geometry.layoutToViewport(
                     DpOffset(layoutPivot.x.dp, layoutPivot.y.dp),
-                    angle,
-                    scale,
-                    DpOffset(center.x.dp, center.y.dp)
+                    Camera(angle, scale, DpOffset(center.x.dp, center.y.dp))
                 )
                 assertOffsetEquals(viewportPivot, back)
             }
@@ -125,7 +125,19 @@ class GeometryTest {
 
     @Test
     fun `given no rotation when computing viewport bounds should be the inflated viewport around the center`() {
-        val box = geometry.viewportBounds(10f, 0f, 1f, Offset(1_000f, 1_800f)).axisAlignedBoundingBox
+        val box = geometry.viewportBounds(10f, Camera(0f, 1f, DpOffset(1_000.dp, 1_800.dp))).axisAlignedBoundingBox
         assertEquals(Rect(490f, 790f, 1_510f, 2_810f), box)
+    }
+
+    @Test
+    fun `given a density when computing viewport bounds should convert the center offset to px`() {
+        val box = denseGeometry.viewportBounds(10f, Camera(0f, 1f, DpOffset(500.dp, 900.dp))).axisAlignedBoundingBox
+        assertEquals(Rect(490f, 790f, 1_510f, 2_810f), box)
+    }
+
+    @Test
+    fun `given a density when converting viewport to layout should convert the center offset to px`() {
+        val position = denseGeometry.viewportToLayout(Offset(520f, 1_040f), Camera(0f, 1f, DpOffset(500.dp, 900.dp)))
+        assertOffsetEquals(Offset(510f, 920f), Offset(position.x.value, position.y.value))
     }
 }
