@@ -30,12 +30,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
 import mobile.oats.lazytransformablelayout.extension.toLayoutAxes
+import mobile.oats.lazytransformablelayout.internal.CompositionBounds
 import mobile.oats.lazytransformablelayout.internal.Parallelogram
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class LazyTransformableLayoutFlingPathTest {
@@ -58,13 +60,14 @@ class LazyTransformableLayoutFlingPathTest {
     }
 
     private fun LazyTransformableLayoutState.runFling(
+        rotationVelocity: Float = 0f,
         logZoomVelocity: Float = 0f,
         panVelocity: Velocity = Velocity.Zero,
         onFrame: (index: Int) -> Unit = {}
-    ): List<Pair<Float, Parallelogram>>? = runBlocking {
+    ): List<CompositionBounds>? = runBlocking {
         val clock = BroadcastFrameClock()
         val job = launch(clock, start = CoroutineStart.UNDISPATCHED) {
-            fling(0f, logZoomVelocity, panVelocity, Pivot.Viewport(viewportCenter))
+            fling(rotationVelocity, logZoomVelocity, panVelocity, Pivot.Viewport(viewportCenter))
         }
         val path = flingPath
         var frameTimeNanos = 0L
@@ -88,8 +91,8 @@ class LazyTransformableLayoutFlingPathTest {
         Offset(0f, viewportHeight.toFloat())
     ).map { viewportToLayout(it).run { Offset(x.value, y.value) } }
 
-    private fun List<Pair<Float, Parallelogram>>.covers(point: Offset) =
-        any { (_, bounds) -> Parallelogram(point, point, point, point) in bounds }
+    private fun List<CompositionBounds>.covers(point: Offset) =
+        any { Parallelogram(point, point, point, point) in it.area }
 
     @Test
     fun `given a pan fling, should cover the start and end viewports with the path`() {
@@ -111,7 +114,7 @@ class LazyTransformableLayoutFlingPathTest {
         val path = assertNotNull(state.runFling(panVelocity = Velocity(20_000f, 0f)))
 
         assertEquals(layoutWidth - viewportWidth, state.translation.x, 0.5f)
-        val maxRight = path.maxOf { (_, bounds) -> bounds.axisAlignedBoundingBox.right }
+        val maxRight = path.maxOf { it.area.axisAlignedBoundingBox.right }
         assertTrue(maxRight >= layoutWidth, "path reached $maxRight")
         assertTrue(maxRight <= layoutWidth + 256f + 0.5f, "path extended to $maxRight")
     }
@@ -122,13 +125,50 @@ class LazyTransformableLayoutFlingPathTest {
 
         val path = assertNotNull(state.runFling(logZoomVelocity = -2f))
 
-        val (firstMinItemDimension, firstBounds) = path.first()
-        val (lastMinItemDimension, lastBounds) = path.last()
+        val (firstMinItemDimension, firstBounds) = path.first().let { it.minItemDimension to it.area }
+        val (lastMinItemDimension, lastBounds) = path.last().let { it.minItemDimension to it.area }
         assertTrue(lastMinItemDimension > firstMinItemDimension, "min item dimension went from $firstMinItemDimension to $lastMinItemDimension")
         assertTrue(firstBounds in lastBounds, "last bounds $lastBounds do not contain first bounds $firstBounds")
         val firstArea = firstBounds.axisAlignedBoundingBox.size.run { width * height }
         val lastArea = lastBounds.axisAlignedBoundingBox.size.run { width * height }
         assertTrue(lastArea > firstArea, "bounds area went from $firstArea to $lastArea")
+    }
+
+    @Test
+    fun `given a pan velocity below the decay threshold, should only contain the current composition bounds in the path`() {
+        val state = state()
+        val compositionBounds = state.compositionBounds
+
+        val path = assertNotNull(state.runFling(panVelocity = Velocity(0.01f, 0f)))
+
+        assertEquals(1, path.size)
+        assertSame(compositionBounds, path.single())
+    }
+
+    @Test
+    fun `given a fast diagonal pan fling, should cover the viewport of every frame with the path`() {
+        val state = state()
+        val frameCorners = mutableListOf<Offset>()
+
+        val path = assertNotNull(
+            state.runFling(panVelocity = Velocity(28_000f, 28_000f)) { frameCorners += state.viewportCornersInLayout() }
+        )
+
+        assertTrue(path.size > 1, "path had ${path.size} entries")
+        frameCorners.forEach { assertTrue(path.covers(it), "path does not cover $it") }
+    }
+
+    @Test
+    fun `given a fast rotation fling, should cover the viewport of every frame with the path`() {
+        val state = state()
+        val frameCorners = mutableListOf<Offset>()
+
+        val path = assertNotNull(
+            state.runFling(rotationVelocity = 1080f) { frameCorners += state.viewportCornersInLayout() }
+        )
+
+        assertTrue(path.size > 1, "path had ${path.size} entries")
+        frameCorners.forEach { assertTrue(path.covers(it), "path does not cover $it") }
     }
 
     @Test
@@ -154,7 +194,7 @@ class LazyTransformableLayoutFlingPathTest {
     @Test
     fun `given a fling, when it is cancelled, should clear the fling path`() {
         val state = state()
-        var pathBeforeCancel: List<Pair<Float, Parallelogram>>? = null
+        var pathBeforeCancel: List<CompositionBounds>? = null
 
         state.runFling(panVelocity = Velocity(2_000f, 0f)) { frame ->
             if (frame == 3) {
@@ -206,12 +246,13 @@ class LazyTransformableLayoutFlingPrefetchTest {
     private fun itemLeft(index: Int) = index * itemSpacing
 
     private fun LazyTransformableLayoutState.inCompositionBounds(index: Int) =
-        compositionBounds!!.second.intersects(itemLeft(index), itemTop, itemLeft(index) + itemSize, itemTop + itemSize)
+        compositionBounds!!.area.intersects(itemLeft(index), itemTop, itemLeft(index) + itemSize, itemTop + itemSize)
 
     private fun ComposeUiTest.setRowLayout(
         state: LazyTransformableLayoutState,
         scheduler: TestPrefetchScheduler,
         composed: MutableSet<Int>,
+        compositionOrder: MutableList<Int> = mutableListOf(),
         onScope: (CoroutineScope) -> Unit
     ) {
         setContent {
@@ -230,6 +271,7 @@ class LazyTransformableLayoutFlingPrefetchTest {
                             ) {
                                 DisposableEffect(Unit) {
                                     composed += index
+                                    compositionOrder += index
                                     onDispose { composed -= index }
                                 }
                             }
@@ -288,5 +330,50 @@ class LazyTransformableLayoutFlingPrefetchTest {
         assertNull(state.flingPath)
         val inBounds = (0 until itemCount).filter { state.inCompositionBounds(it) }.toSet()
         assertEquals(inBounds, composed.toSet())
+    }
+
+    @Test
+    fun `given precomposed items along a fling path, when the fling finishes, should dispose the ones off screen`() = runComposeUiTest {
+        val state = rowState()
+        val scheduler = TestPrefetchScheduler()
+        val composed = mutableSetOf<Int>()
+        lateinit var scope: CoroutineScope
+        setRowLayout(state, scheduler, composed) { scope = it }
+
+        mainClock.autoAdvance = false
+        val fling = scope.launch { state.fling(initialPanVelocity = Velocity(20_000f, 0f)) }
+        mainClock.advanceTimeByFrame()
+        runOnUiThread { scheduler.runAll() }
+        assertTrue(15 in composed, "item 15 was not precomposed, composed: ${composed.sorted()}")
+
+        var frames = 0
+        while (fling.isActive && frames++ < 2_000) mainClock.advanceTimeByFrame()
+        mainClock.advanceTimeByFrame()
+        waitForIdle()
+
+        assertFalse(fling.isActive, "fling did not finish")
+        assertNull(state.flingPath)
+        val inBounds = (0 until itemCount).filter { state.inCompositionBounds(it) }.toSet()
+        assertEquals(inBounds, composed.toSet())
+    }
+
+    @Test
+    fun `given a pan fling, should precompose items in order of distance along its path`() = runComposeUiTest {
+        val state = rowState()
+        val scheduler = TestPrefetchScheduler()
+        val composed = mutableSetOf<Int>()
+        val compositionOrder = mutableListOf<Int>()
+        lateinit var scope: CoroutineScope
+        setRowLayout(state, scheduler, composed, compositionOrder) { scope = it }
+
+        mainClock.autoAdvance = false
+        scope.launch { state.fling(initialPanVelocity = Velocity(20_000f, 0f)) }
+        mainClock.advanceTimeByFrame()
+        val composedBeforePrefetch = compositionOrder.size
+        runOnUiThread { scheduler.runAll() }
+
+        val precomposed = compositionOrder.drop(composedBeforePrefetch)
+        assertTrue(precomposed.size > 1, "precomposed: $precomposed")
+        assertEquals(precomposed.sorted(), precomposed)
     }
 }

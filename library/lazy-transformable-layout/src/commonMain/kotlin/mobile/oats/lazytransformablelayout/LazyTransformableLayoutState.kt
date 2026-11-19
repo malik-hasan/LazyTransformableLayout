@@ -21,7 +21,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.referentialEqualityPolicy
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -49,8 +48,8 @@ import mobile.oats.lazytransformablelayout.extension.toViewportAxes
 import mobile.oats.lazytransformablelayout.extension.valueAt
 import mobile.oats.lazytransformablelayout.internal.AnimationCoordinator
 import mobile.oats.lazytransformablelayout.internal.Camera
+import mobile.oats.lazytransformablelayout.internal.CompositionBounds
 import mobile.oats.lazytransformablelayout.internal.Geometry
-import mobile.oats.lazytransformablelayout.internal.Parallelogram
 import kotlin.math.exp
 import kotlin.math.ln
 
@@ -284,20 +283,20 @@ class LazyTransformableLayoutState(
         } ?: Offset.Zero
     }
 
-    private var previousCompositionBounds: Pair<Float, Parallelogram>? = null
+    private var previousCompositionBounds: CompositionBounds? = null
 
     private fun Geometry.compositionBoundsAt(
-        previous: Pair<Float, Parallelogram>?,
+        previous: CompositionBounds?,
         camera: Camera
-    ): Pair<Float, Parallelogram> {
+    ): CompositionBounds {
         val minItemDimension = 0.5f / camera.zoomScale
-        return previous?.takeIf { (previousMinItemDimension, previousBounds) ->
-            minItemDimension * 1.19f >= previousMinItemDimension
-                && viewportBounds(128f, camera) in previousBounds
-        } ?: (minItemDimension to viewportBounds(256f, camera))
+        return previous?.takeIf {
+            minItemDimension * 1.19f >= it.minItemDimension
+                && viewportBounds(128f, camera) in it.area
+        } ?: CompositionBounds(minItemDimension, viewportBounds(256f, camera))
     }
 
-    internal val compositionBounds by derivedStateOf(referentialEqualityPolicy()) {
+    internal val compositionBounds by derivedStateOf {
         geometry?.run {
             compositionBoundsAt(previousCompositionBounds, camera)
                 .also { previousCompositionBounds = it }
@@ -306,7 +305,7 @@ class LazyTransformableLayoutState(
 
     internal val prefetchState = LazyLayoutPrefetchState()
 
-    internal var flingPath by mutableStateOf<List<Pair<Float, Parallelogram>>?>(null)
+    internal var flingPath by mutableStateOf<List<CompositionBounds>?>(null)
         private set
 
     /**
@@ -423,7 +422,7 @@ class LazyTransformableLayoutState(
         }
     }
 
-    private fun Geometry.transformed(
+    private fun Geometry.rotatedAndZoomed(
         from: Camera,
         pivot: Offset,
         rotationDelta: Float = 0f,
@@ -464,7 +463,12 @@ class LazyTransformableLayoutState(
         zoomFactor: Float = 1f,
         panDelta: Offset = Offset.Zero
     ): Offset {
-        camera = transformed(camera, pivot, rotationDelta, zoomFactor)
+        camera = rotatedAndZoomed(
+            from = camera,
+            pivot = pivot,
+            rotationDelta = rotationDelta,
+            zoomFactor = zoomFactor
+        )
         return panBy(-panDelta)
     }
 
@@ -833,9 +837,7 @@ class LazyTransformableLayoutState(
         initialPanVelocity: Velocity = Velocity.Zero,
         pivot: Pivot = Pivot.ContentCenter,
         overscrollEffect: OverscrollEffect? = null
-    ) {
-        if (geometry == null) return
-
+    ) = geometry?.run {
         if (initialRotationVelocity == 0f
             && initialLogZoomVelocity == 0f
             && initialPanVelocity.x == 0f
@@ -846,6 +848,7 @@ class LazyTransformableLayoutState(
             overscrollEffect?.applyToFling(Velocity.Zero) { Velocity.Zero }
         } else animationCoordinator.claim(MutatePriority.Default) {
             flingPath = geometry?.flingPath(initialRotationVelocity, initialLogZoomVelocity, initialPanVelocity, pivot)
+
             try {
                 coroutineScope {
                     var rotationRunning = true
@@ -916,7 +919,7 @@ class LazyTransformableLayoutState(
         logZoomVelocity: Float,
         panVelocity: Velocity,
         pivot: Pivot
-    ): List<Pair<Float, Parallelogram>> {
+    ): List<CompositionBounds> {
         val durationNanos = maxOf(
             rotationFlingDecay.durationNanos(rotationVelocity),
             zoomFlingDecay.durationNanos(logZoomVelocity),
@@ -937,17 +940,19 @@ class LazyTransformableLayoutState(
 
             val rotation = rotationFlingDecay.valueAt(playTimeNanos, rotationVelocity)
             val logZoom = zoomFlingDecay.valueAt(playTimeNanos, logZoomVelocity)
-            val pan = Offset(
-                panFlingDecay.valueAt(playTimeNanos, panVelocity.x),
-                panFlingDecay.valueAt(playTimeNanos, panVelocity.y)
-            )
+            val pan = panFlingDecay.run {
+                Offset(
+                    x = valueAt(playTimeNanos, panVelocity.x),
+                    y = valueAt(playTimeNanos, panVelocity.y)
+                )
+            }
 
-            simulated = transformed(
+            simulated = rotatedAndZoomed(
                 from = simulated,
                 pivot = pivot.viewportPosition(simulated),
                 rotationDelta = rotation - previousRotation
             )
-            simulated = transformed(
+            simulated = rotatedAndZoomed(
                 from = simulated,
                 pivot = pivot.viewportPosition(simulated),
                 zoomFactor = exp(logZoom - previousLogZoom)
@@ -1009,7 +1014,7 @@ class LazyTransformableLayoutState(
     companion object {
         private const val MIN_PAN_FLING_PROGRESS = 0.1f
 
-        private const val FLING_PATH_STEP_NANOS = 16_000_000L
+        private const val FLING_PATH_STEP_NANOS = 8_000_000L
 
         /**
          * A saver that saves the bounds, rotation angle, zoom scale and center offset of a [LazyTransformableLayoutState].
