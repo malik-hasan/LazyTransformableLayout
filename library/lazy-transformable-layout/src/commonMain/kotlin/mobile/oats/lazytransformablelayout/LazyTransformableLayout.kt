@@ -111,8 +111,8 @@ fun LazyTransformableLayout(
         val handles = mutableListOf<LazyLayoutPrefetchState.PrefetchHandle>()
         try {
             snapshotFlow {
-                state.flingPath?.let { it to content
-            } }.collect { pathAndContent ->
+                state.flingPath?.let { it to content }
+            }.collect { pathAndContent ->
                 handles.run {
                     fastForEach { it.cancel() }
                     clear()
