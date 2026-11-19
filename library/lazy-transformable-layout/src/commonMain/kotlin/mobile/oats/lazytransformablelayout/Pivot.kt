@@ -3,6 +3,7 @@ package mobile.oats.lazytransformablelayout
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.unit.DpOffset
+import mobile.oats.lazytransformablelayout.internal.Camera
 import mobile.oats.lazytransformablelayout.internal.Geometry
 
 /**
@@ -12,7 +13,7 @@ import mobile.oats.lazytransformablelayout.internal.Geometry
 sealed class Pivot {
 
     context(geometry: Geometry)
-    internal abstract fun viewportPosition(angle: Float, scale: Float, center: DpOffset): Offset
+    internal abstract fun viewportPosition(camera: Camera): Offset
 
     /**
      * A point in the viewport
@@ -22,7 +23,7 @@ sealed class Pivot {
      */
     data class Viewport(val position: Offset) : Pivot() {
         context(geometry: Geometry)
-        override fun viewportPosition(angle: Float, scale: Float, center: DpOffset) =
+        override fun viewportPosition(camera: Camera) =
             position.takeIf { it.isSpecified } ?: geometry.contentCenter
     }
 
@@ -33,8 +34,8 @@ sealed class Pivot {
      */
     data class Layout(val position: DpOffset) : Pivot() {
         context(geometry: Geometry)
-        override fun viewportPosition(angle: Float, scale: Float, center: DpOffset) =
-            geometry.layoutToViewport(position, angle, scale, center)
+        override fun viewportPosition(camera: Camera) =
+            geometry.layoutToViewport(position, camera)
     }
 
     /**
@@ -42,7 +43,7 @@ sealed class Pivot {
      */
     data object ContentCenter : Pivot() {
         context(geometry: Geometry)
-        override fun viewportPosition(angle: Float, scale: Float, center: DpOffset) =
+        override fun viewportPosition(camera: Camera) =
             geometry.contentCenter
     }
 }

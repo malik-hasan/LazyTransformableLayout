@@ -42,11 +42,11 @@ internal data class Geometry(
         )
     }
 
-    fun viewportBounds(buffer: Float, rotationAngle: Float, zoomScale: Float, center: Offset) = Parallelogram(
+    fun viewportBounds(buffer: Float, camera: Camera) = Parallelogram(
         viewportSize.toSize().toRect()
             .inflate(buffer)
             .vertices.map {
-                viewportToLayoutPx(it, rotationAngle, zoomScale, center)
+                viewportToLayoutPx(it, camera)
             }
     )
 
@@ -95,14 +95,16 @@ internal data class Geometry(
         )
     }
 
-    fun viewportToLayoutPx(viewportPosition: Offset, angle: Float, scale: Float, center: Offset) =
-        center + (viewportPosition - contentCenter).toLayoutAxes(scale, angle)
+    fun viewportToLayoutPx(viewportPosition: Offset, camera: Camera) = camera.run {
+        centerOffsetPx + (viewportPosition - contentCenter).toLayoutAxes(zoomScale, rotationAngle)
+    }
 
-    fun viewportToLayout(viewportPosition: Offset, angle: Float, scale: Float, center: DpOffset) =
-        viewportToLayoutPx(viewportPosition, angle, scale, center.toPx()).toDp()
+    fun viewportToLayout(viewportPosition: Offset, camera: Camera) =
+        viewportToLayoutPx(viewportPosition, camera).toDp()
 
-    fun layoutToViewport(layoutPosition: DpOffset, angle: Float, scale: Float, center: DpOffset) =
-        (layoutPosition - center).toPx().toViewportAxes(scale, angle) + contentCenter
+    fun layoutToViewport(layoutPosition: DpOffset, camera: Camera) = camera.run {
+        (layoutPosition - centerOffset).toPx().toViewportAxes(zoomScale, rotationAngle) + contentCenter
+    }
 
     fun centerFromLayoutPivot(viewportPivot: Offset, angle: Float, scale: Float, layoutPivot: Offset) =
         layoutPivot - (viewportPivot - contentCenter).toLayoutAxes(scale, angle)
@@ -112,18 +114,11 @@ internal data class Geometry(
         angle: Float,
         scale: Float,
         fromViewportPivot: Offset,
-        fromAngle: Float,
-        fromScale: Float,
-        fromCenter: Offset
+        fromCamera: Camera
     ) = centerFromLayoutPivot(
         viewportPivot = viewportPivot,
         angle = angle,
         scale = scale,
-        layoutPivot = viewportToLayoutPx(
-            viewportPosition = fromViewportPivot,
-            angle = fromAngle,
-            scale = fromScale,
-            center = fromCenter
-        )
+        layoutPivot = viewportToLayoutPx(fromViewportPivot, fromCamera)
     )
 }

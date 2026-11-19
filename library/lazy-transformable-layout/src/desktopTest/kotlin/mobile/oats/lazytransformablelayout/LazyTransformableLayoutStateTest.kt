@@ -56,7 +56,7 @@ class LazyTransformableLayoutStateTest {
         assertEquals(expected.y, actual.y, tolerance, "y of $actual, expected $expected")
     }
 
-    private fun LazyTransformableLayoutState.compositionRegion() = compositionBounds!!.second
+    private fun LazyTransformableLayoutState.compositionRegion() = compositionBounds!!.area
 
     private fun LazyTransformableLayoutState.viewportBounds(buffer: Float) = Parallelogram(
         Rect(0f, 0f, viewportWidth.toFloat(), viewportHeight.toFloat()).inflate(buffer).vertices.map {

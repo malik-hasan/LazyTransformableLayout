@@ -4,6 +4,7 @@ import androidx.compose.foundation.lazy.layout.IntervalList
 import androidx.compose.foundation.lazy.layout.LazyLayoutIntervalContent
 import androidx.compose.foundation.lazy.layout.MutableIntervalList
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.Density
 import mobile.oats.lazytransformablelayout.LazyTransformableLayoutScope
 import mobile.oats.lazytransformablelayout.Positionable
 
@@ -53,4 +54,32 @@ internal class Content(
     }
 
     init { buildContent() }
+
+    context(density: Density)
+    inline fun forEachItem(
+        crossinline block: (
+            index: Int,
+            positionable: Positionable,
+            left: Float,
+            top: Float,
+            right: Float,
+            bottom: Float
+        ) -> Unit
+    ) = intervals.takeIf { it.size > 0 }?.forEach { interval ->
+        for (localIndex in 0 until interval.size) {
+            val positionable = interval.value.items[localIndex]
+            with(density) {
+                positionable.bounds.run {
+                    block(
+                        interval.startIndex + localIndex,
+                        positionable,
+                        left.toPx(),
+                        top.toPx(),
+                        right.toPx(),
+                        bottom.toPx()
+                    )
+                }
+            }
+        }
+    }
 }

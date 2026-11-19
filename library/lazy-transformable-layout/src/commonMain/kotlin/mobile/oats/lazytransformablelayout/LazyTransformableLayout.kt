@@ -6,6 +6,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.layout.LazyLayout
+import androidx.compose.foundation.lazy.layout.LazyLayoutPrefetchState
 import androidx.compose.foundation.overscroll
 import androidx.compose.foundation.rememberOverscrollEffect
 import androidx.compose.runtime.Composable
@@ -18,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -51,6 +53,7 @@ import mobile.oats.lazytransformablelayout.extension.transform
 import mobile.oats.lazytransformablelayout.internal.Content
 import mobile.oats.lazytransformablelayout.internal.Item
 import mobile.oats.lazytransformablelayout.internal.ItemProvider
+import mobile.oats.lazytransformablelayout.internal.itemConstraints
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.ln
@@ -72,6 +75,7 @@ private val zoomOutKeys = setOf(Key.Minus, Key.NumPadSubtract, Key.PageDown)
 /**
  * A lazy layout of [Positionable] items that can be panned, zoomed and rotated.
  * Only items intersecting the viewport are composed, with some buffer.
+ * The items in the path of a fling are prefetched and composed as well.
  *
  * @param state The state holding this layout's rotation angle, zoom scale and center offset
  * @param modifier The modifier to apply to this layout
@@ -105,12 +109,66 @@ fun LazyTransformableLayout(
 
     LaunchedEffect(state) { state.runPendingAnimations() }
 
+    LaunchedEffect(state, density) {
+        val handles = mutableListOf<LazyLayoutPrefetchState.PrefetchHandle>()
+        try {
+            snapshotFlow {
+                state.flingPath?.let { it to content }
+            }.collect { pathAndContent ->
+                handles.run {
+                    fastForEach { it.cancel() }
+                    clear()
+                }
+                val (path, content) = pathAndContent ?: return@collect
+                if (path.size < 2) return@collect
+
+                var pathLeft = Float.POSITIVE_INFINITY
+                var pathTop = Float.POSITIVE_INFINITY
+                var pathRight = Float.NEGATIVE_INFINITY
+                var pathBottom = Float.NEGATIVE_INFINITY
+                for (step in 1 until path.size) path[step].area.axisAlignedBoundingBox.run {
+                    pathLeft = minOf(pathLeft, left)
+                    pathTop = minOf(pathTop, top)
+                    pathRight = maxOf(pathRight, right)
+                    pathBottom = maxOf(pathBottom, bottom)
+                }
+
+                val buckets = List(path.size) { mutableListOf<Pair<Int, Constraints>>() }
+                with(density) {
+                    content.forEachItem { index, _, left, top, right, bottom ->
+                        if (right >= pathLeft && left <= pathRight && bottom >= pathTop && top <= pathBottom) {
+                            val itemDimension = maxOf(right - left, bottom - top)
+                            val step = path.indexOfFirst {
+                                itemDimension >= it.minItemDimension && it.area.intersects(
+                                    left,
+                                    top,
+                                    right,
+                                    bottom
+                                )
+                            }
+                            if (step > 0) buckets[step] += index to itemConstraints(right - left, bottom - top)
+                        }
+                    }
+                }
+
+                buckets.fastForEach { bucket ->
+                    bucket.fastForEach { (index, constraints) ->
+                        handles += state.prefetchState.schedulePrecompositionAndPremeasure(index, constraints)
+                    }
+                }
+            }
+        } finally {
+            handles.fastForEach { it.cancel() }
+        }
+    }
+
     LazyLayout(
         itemProvider = remember(state) {
             derivedStateOf(referentialEqualityPolicy()) {
                 ItemProvider(content, state)
             }::value
         },
+        prefetchState = state.prefetchState,
         modifier = modifier
             .clipToBounds()
             .overscroll(overscrollEffect)
@@ -273,35 +331,22 @@ fun LazyTransformableLayout(
             }
     ) { constraints ->
         state.measure(constraints, contentPadding)
-        val (minItemDimension, viewportBounds) = state.compositionBounds!!
+        val compositionBounds = state.compositionBounds!!
 
         val itemsToCompose = mutableListOf<Item>()
-        content.intervals.takeIf { it.size > 0 }?.forEach { interval ->
-            for (localIndex in 0 until interval.size) {
-                val positionable = interval.value.items[localIndex]
-                val bounds = positionable.bounds
-                val left = bounds.left.toPx()
-                val top = bounds.top.toPx()
-                val right = bounds.right.toPx()
-                val bottom = bounds.bottom.toPx()
-                val width = right - left
-                val height = bottom - top
+        content.forEachItem { index, positionable, left, top, right, bottom ->
+            val width = right - left
+            val height = bottom - top
 
-                if (maxOf(width, height) >= minItemDimension
-                    && viewportBounds.intersects(left, top, right, bottom)
-                ) itemsToCompose += Item(
-                    index = interval.startIndex + localIndex,
-                    constraints = Constraints.fitPrioritizingWidth(
-                        minWidth = 0,
-                        maxWidth = width.roundToInt(),
-                        minHeight = 0,
-                        maxHeight = height.roundToInt()
-                    ),
-                    position = Offset(left, top),
-                    size = Size(width, height),
-                    zIndex = positionable.zIndex
-                )
-            }
+            if (maxOf(width, height) >= compositionBounds.minItemDimension
+                && compositionBounds.area.intersects(left, top, right, bottom)
+            ) itemsToCompose += Item(
+                index = index,
+                constraints = itemConstraints(width, height),
+                position = Offset(left, top),
+                size = Size(width, height),
+                zIndex = positionable.zIndex
+            )
         }
 
         val placeables = itemsToCompose.fastMap { item ->
@@ -316,7 +361,7 @@ fun LazyTransformableLayout(
 
                 placeables[i].fastForEach { placeable ->
                     if (itemPosition.run {
-                        viewportBounds.intersects(
+                        compositionBounds.area.intersects(
                             left = x,
                             top = y,
                             right = x + item.size.width,
